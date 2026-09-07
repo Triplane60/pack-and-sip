@@ -24,7 +24,7 @@
   </header>
 
   <main class="max-w-6xl mx-auto p-6">
-    <section class="bg-gradient-to-r from-indigo-50 to-slate-50 rounded-lg p-8 flex flex-col md:flex-row items-center gap-8">
+    <section id="configurator" class="bg-gradient-to-r from-indigo-50 to-slate-50 rounded-lg p-8 flex flex-col md:flex-row items-center gap-8">
       <div class="flex-1">
         <h1 class="text-3xl font-extrabold text-slate-900">Wholesale Boxes of Cups & Lids</h1>
         <p class="mt-4 text-slate-700">High-volume eco-friendly disposable drinkware. Bulk pricing for businesses and events.</p>
@@ -162,6 +162,60 @@
     </div>
   </div>
 
+  <footer class="bg-gray-900 text-gray-300 pt-12 pb-8 mt-16">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div>
+          <h2 class="text-xl font-bold text-white">Pack &amp; Sip</h2>
+          <p class="mt-3 text-sm leading-6 text-gray-400">High-volume, eco-friendly disposable drinkware solutions</p>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <span class="rounded-full border border-gray-700 px-3 py-1 text-xs">1,000 Units/Box</span>
+            <span class="rounded-full border border-gray-700 px-3 py-1 text-xs">Bulk Pricing</span>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="font-semibold text-white">Navigation</h3>
+          <nav class="mt-3 flex flex-col gap-2 text-sm">
+            <a href="#catalog" class="text-gray-400 transition hover:text-white">Catalog</a>
+            <a href="#configurator" class="text-gray-400 transition hover:text-white">Configurator</a>
+            <a href="#about" class="text-gray-400 transition hover:text-white">About</a>
+          </nav>
+        </div>
+
+        <div>
+          <h3 class="font-semibold text-white">Support</h3>
+          <nav class="mt-3 flex flex-col gap-2 text-sm">
+            <a href="#shipping-information" class="text-gray-400 transition hover:text-white">Shipping Information</a>
+            <a href="#return-policy" class="text-gray-400 transition hover:text-white">Return Policy</a>
+            <a href="#terms-of-service" class="text-gray-400 transition hover:text-white">Terms of Service</a>
+            <a href="#privacy-policy" class="text-gray-400 transition hover:text-white">Privacy Policy</a>
+          </nav>
+        </div>
+
+        <div>
+          <h3 class="font-semibold text-white">Contact &amp; Payments</h3>
+          <div class="mt-3 space-y-2 text-sm text-gray-400">
+            <a href="tel:+639123456789" class="block transition hover:text-white">+63 912 345 6789</a>
+            <a href="mailto:hello@packandsip.example" class="block transition hover:text-white">hello@packandsip.example</a>
+          </div>
+          <div class="mt-5 flex flex-wrap gap-2" aria-label="Accepted payment methods">
+            <span class="rounded-md bg-blue-900 px-3 py-1.5 text-xs font-semibold text-blue-100">GCash</span>
+            <span class="rounded-md bg-green-900 px-3 py-1.5 text-xs font-semibold text-green-100">Maya</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-10 flex flex-col gap-2 border-t border-gray-800 pt-5 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
+        <p>&copy; <span id="copyrightYear"></span> Pack &amp; Sip. All rights reserved.</p>
+        <p>Custom E-Commerce Engine</p>
+      </div>
+    </div>
+  </footer>
+
   <script src="main.js" defer></script>
+  <script>
+    document.getElementById('copyrightYear').textContent = new Date().getFullYear();
+  </script>
 </body>
 </html>
