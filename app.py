@@ -1,8 +1,8 @@
 import sqlite3
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='.')
 CORS(app)
 
 DB_FILE = 'app.db'
@@ -72,9 +72,14 @@ def init_db():
         cursor.execute("ALTER TABLE orders ADD COLUMN email TEXT")
     if 'payment_method' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'GCash'")
+    if 'status' not in order_columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN status TEXT NOT NULL DEFAULT 'Pending'")
     conn.commit()
 
     conn.close()
+
+
+init_db()
 
 
 @app.route('/api/products', methods=['GET'])
@@ -94,6 +99,59 @@ def get_products():
         result.append(item)
 
     return jsonify({"products": result})
+
+
+@app.route('/manage-orders-ps.html', methods=['GET'])
+def admin_dashboard():
+    """Render the order management dashboard."""
+    return render_template('manage-orders-ps.html')
+
+
+@app.route('/api/admin/orders', methods=['GET'])
+def get_admin_orders():
+    """Fetch all orders for the admin dashboard, newest first."""
+    conn = get_db()
+    orders = conn.execute('''
+        SELECT
+            id,
+            customer_name AS full_name,
+            email,
+            customer_phone AS phone_number,
+            customer_address AS shipping_address,
+            payment_method,
+            total_amount,
+            status
+        FROM orders
+        ORDER BY created_at DESC, id DESC
+    ''').fetchall()
+    conn.close()
+    return jsonify({"orders": [dict(order) for order in orders]})
+
+
+@app.route('/api/admin/orders/<int:order_id>/status', methods=['PATCH'])
+def update_order_status(order_id):
+    """Update an order's fulfillment status."""
+    allowed_statuses = {'Pending', 'Paid', 'Shipped', 'Completed'}
+    data = request.get_json(force=True, silent=True) or {}
+    status = data.get('status')
+
+    if status not in allowed_statuses:
+        return jsonify({
+            "error": "Status must be Pending, Paid, Shipped, or Completed."
+        }), 400
+
+    conn = get_db()
+    cursor = conn.execute(
+        'UPDATE orders SET status = ? WHERE id = ?',
+        (status, order_id)
+    )
+    if cursor.rowcount == 0:
+        conn.close()
+        return jsonify({"error": "Order not found."}), 404
+    conn.commit()
+    order = conn.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
+    conn.close()
+    return jsonify({"order": dict(order)})
 
 
 @app.route('/api/cart/calculate', methods=['POST'])

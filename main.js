@@ -1,6 +1,10 @@
 const API_BASE = 'http://127.0.0.1:5000/api';
 let PRODUCTS = [];
 
+function formatPrice(value){
+  return `₱${Number(value || 0).toFixed(2)}`;
+}
+
 async function fetchProducts(){
   const res = await fetch(`${API_BASE}/products`);
   const data = await res.json();
@@ -42,7 +46,7 @@ function renderProductOptions(){
   lids.forEach(l => {
     const opt = document.createElement('option');
     opt.value = l.id;
-    opt.text = l.style + ' — $' + l.price_per_box + '/box';
+    opt.text = l.style + ' — ' + formatPrice(l.price_per_box) + '/box';
     lidSelect.appendChild(opt);
   });
   if(selectedLidId){
@@ -83,7 +87,7 @@ function renderCatalog(){
           <p class="text-sm text-slate-600">${product.description}</p>
           <div class="mt-4 flex items-end justify-between gap-3">
             <div>
-              <span class="text-2xl font-bold text-indigo-700">$${product.price_per_box.toFixed(2)}</span>
+              <span class="text-2xl font-bold text-indigo-700">${formatPrice(product.price_per_box)}</span>
               <span class="text-xs text-slate-500"> / box</span>
             </div>
             <span class="text-xs text-slate-500">${stock} box(es)</span>
@@ -168,9 +172,9 @@ async function calculate(){
 }
 
 function updateSummary(data){
-  document.getElementById('subtotal').innerText = `$${(data.subtotal||0).toFixed(2)}`;
-  document.getElementById('shipping').innerText = `$${(data.shipping||0).toFixed(2)}`;
-  document.getElementById('total').innerText = `$${(data.total||0).toFixed(2)}`;
+  document.getElementById('subtotal').innerText = formatPrice(data.subtotal);
+  document.getElementById('shipping').innerText = formatPrice(data.shipping);
+  document.getElementById('total').innerText = formatPrice(data.total);
   const cartContent = document.getElementById('cartContent');
   if((data.items || []).length === 0){
     cartContent.innerHTML = `<p class="text-sm text-slate-600">No items in cart.</p>`;
@@ -182,12 +186,12 @@ function updateSummary(data){
   data.items.forEach(it => {
     const row = document.createElement('div');
     row.className = 'flex items-center justify-between py-2 border-b';
-    row.innerHTML = `<div><div class="font-medium">${it.name}</div><div class="text-sm text-slate-600">${it.boxes} box(es) • ${it.quantity_per_box} units/box</div></div><div class="text-right">$${(it.line_total||0).toFixed(2)}</div>`;
+    row.innerHTML = `<div><div class="font-medium">${it.name}</div><div class="text-sm text-slate-600">${it.boxes} box(es) • ${it.quantity_per_box} units/box</div></div><div class="text-right">${formatPrice(it.line_total)}</div>`;
     cartContent.appendChild(row);
   });
   const totals = document.createElement('div');
   totals.className = 'pt-3';
-  totals.innerHTML = `<div class="flex items-center justify-between"><div class="text-sm">Subtotal</div><div class="font-medium">$${(data.subtotal||0).toFixed(2)}</div></div><div class="flex items-center justify-between mt-2"><div class="text-sm">Shipping</div><div class="font-medium">$${(data.shipping||0).toFixed(2)}</div></div><div class="flex items-center justify-between mt-3 text-lg font-bold text-indigo-700"><div>Total</div><div>$${(data.total||0).toFixed(2)}</div></div>`;
+  totals.innerHTML = `<div class="flex items-center justify-between"><div class="text-sm">Subtotal</div><div class="font-medium">${formatPrice(data.subtotal)}</div></div><div class="flex items-center justify-between mt-2"><div class="text-sm">Shipping</div><div class="font-medium">${formatPrice(data.shipping)}</div></div><div class="flex items-center justify-between mt-3 text-lg font-bold text-indigo-700"><div>Total</div><div>${formatPrice(data.total)}</div></div>`;
   cartContent.appendChild(totals);
 }
 
@@ -228,6 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const checkoutBtn = document.getElementById('checkoutBtn');
   if(checkoutBtn) checkoutBtn.addEventListener('click', submitOrder);
   setupAboutModal();
+  setupSecretAdminAccess();
 });
 
 function debounce(fn, wait){
@@ -280,7 +285,7 @@ async function submitOrder(){
       alert(data.error || 'Failed to place order');
       return;
     }
-    alert(`Order successful — ID: ${data.order_id} — Total: $${(data.total||0).toFixed(2)}`);
+    alert(`Order successful — ID: ${data.order_id} — Total: ${formatPrice(data.total)}`);
     // Refresh product list to reflect updated stock
     await fetchProducts();
     // Reset inputs and close drawer
@@ -325,4 +330,18 @@ function setupAboutModal(){
   document.addEventListener('keydown', event => {
     if(event.key === 'Escape') closeAbout();
   });
+}
+
+function setupSecretAdminAccess(){
+  const siteLogo = document.getElementById('siteLogo');
+  const openAdmin = () => { window.location.href = 'manage-orders-ps.html'; };
+
+  document.addEventListener('keydown', event => {
+    if(event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'a'){
+      event.preventDefault();
+      openAdmin();
+    }
+  });
+
+  if(siteLogo) siteLogo.addEventListener('dblclick', openAdmin);
 }
