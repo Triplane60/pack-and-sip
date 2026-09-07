@@ -1,0 +1,9 @@
+/* Custom minimal styles for Pack & Sip app */
+/* Keep Tailwind for the bulk of styling; add small helpers here */
+
+:root{
+  --brand-indigo:#4f46e5;
+}
+
+/* Drawer default off-screen handled with inline transform class; provide will-change for smoothness */
+#drawerPanel{ will-change: transform; }
