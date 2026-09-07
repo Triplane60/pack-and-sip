@@ -67,6 +67,7 @@ function renderCatalog(){
 function resetConfigurator(){
   selectedCupId = null;
   selectedLidId = null;
+  selectedMicrowavableId = null;
   document.getElementById('cupBoxesInput').value = '0';
   document.getElementById('lidBoxesInput').value = '0';
   document.getElementById('microwavableBoxesInput').value = '0';
@@ -98,6 +99,7 @@ function quickAdd(product){
     input.value = Math.min(parseInt(input.value || 0, 10) + 1, stock);
     updateConfiguratorActionState();
   }else{
+    selectedMicrowavableId = product.id;
     const input = document.getElementById('microwavableBoxesInput');
     input.value = Math.min(parseInt(input.value || 0, 10) + 1, stock);
   }
@@ -108,6 +110,7 @@ function quickAdd(product){
 
 let selectedCupId = null;
 let selectedLidId = null;
+let selectedMicrowavableId = null;
 
 async function calculate(){
   const cupBoxes = Math.max(0, parseInt(document.getElementById('cupBoxesInput').value || 0, 10));
@@ -200,7 +203,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cartBtn').addEventListener('click', openCart);
   document.getElementById('closeCart').addEventListener('click', closeCart);
   const checkoutBtn = document.getElementById('checkoutBtn');
-  if(checkoutBtn) checkoutBtn.addEventListener('click', submitOrder);
+  if(checkoutBtn) checkoutBtn.addEventListener('click', openConfirmationModal);
+  document.getElementById('addMoreItemsBtn').addEventListener('click', closeConfirmationModal);
+  document.getElementById('confirmOrderBtn').addEventListener('click', submitOrder);
+  document.getElementById('closeModalBtn').addEventListener('click', closeOrderPendingModal);
   setupAboutModal();
   setupSecretAdminAccess();
 });
@@ -210,7 +216,104 @@ function debounce(fn, wait){
   return (...args) => { clearTimeout(t); t = setTimeout(()=>fn(...args), wait); };
 }
 
+function scrollToTop(event){
+  if(event) event.preventDefault();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function updateBackToTopButton(){
+  const button = document.getElementById('backToTopBtn');
+  if(!button) return;
+  button.classList.toggle('hidden', window.scrollY <= 300);
+}
+
+window.addEventListener('scroll', updateBackToTopButton);
+
+function closeOrderPendingModal(){
+  const modal = document.getElementById('orderPendingModal');
+  modal.classList.add('opacity-0');
+  setTimeout(() => {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }, 300);
+  closeCart();
+  resetConfigurator();
+  document.getElementById('customerName').value = '';
+  document.getElementById('customerEmail').value = '';
+  document.getElementById('customerAddress').value = '';
+  document.getElementById('customerPhone').value = '';
+}
+
+function showOrderPendingModal(orderId, email){
+  document.getElementById('modalOrderId').textContent = orderId;
+  document.getElementById('modalEmail').textContent = email;
+  const modal = document.getElementById('orderPendingModal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  requestAnimationFrame(() => modal.classList.remove('opacity-0'));
+}
+
+function closeConfirmationModal(){
+  const modal = document.getElementById('confirmOrderModal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+}
+
+function validateCheckoutFields(){
+  const name = document.getElementById('customerName').value.trim();
+  const email = document.getElementById('customerEmail').value.trim();
+  const address = document.getElementById('customerAddress').value.trim();
+  const phone = document.getElementById('customerPhone').value.trim();
+
+  if(!name || !email || !address || !phone){
+    alert('Please enter your name, email, address, and phone number.');
+    return false;
+  }
+
+  if(!/^09\d{9}$/.test(phone)){
+    alert('Please enter a valid Philippine mobile number in the format 09123456789.');
+    return false;
+  }
+
+  return true;
+}
+
+async function openConfirmationModal(){
+  if(!validateCheckoutFields()) return;
+
+  await calculate();
+  const items = document.getElementById('confirmOrderItems');
+  items.replaceChildren();
+  const cup = findProductById(selectedCupId);
+  const lid = findProductById(selectedLidId);
+  const microwavable = findProductById(selectedMicrowavableId);
+  const cupBoxes = Math.max(0, parseInt(document.getElementById('cupBoxesInput').value || 0, 10));
+  const lidBoxes = Math.max(0, parseInt(document.getElementById('lidBoxesInput').value || 0, 10));
+  const microwavableBoxes = Math.max(0, parseInt(document.getElementById('microwavableBoxesInput').value || 0, 10));
+  const selectedItems = [];
+
+  if(cup && cupBoxes > 0) selectedItems.push(`Cups: ${cup.size} (${cupBoxes} box${cupBoxes === 1 ? '' : 'es'})`);
+  if(lid && lidBoxes > 0) selectedItems.push(`Lids: ${lid.style} Lid (${lidBoxes} box${lidBoxes === 1 ? '' : 'es'})`);
+  if(microwavable && microwavableBoxes > 0) selectedItems.push(`Microwavable: ${microwavable.size} (${microwavableBoxes} box${microwavableBoxes === 1 ? '' : 'es'})`);
+
+  if(selectedItems.length === 0){
+    items.innerHTML = '<p class="text-slate-500">No items selected.</p>';
+  }else{
+    selectedItems.forEach(item => {
+      const line = document.createElement('div');
+      line.textContent = item;
+      items.appendChild(line);
+    });
+  }
+
+  document.getElementById('confirmOrderTotal').textContent = document.getElementById('total').textContent;
+  const modal = document.getElementById('confirmOrderModal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+
 async function submitOrder(){
+  if(!validateCheckoutFields()) return;
   const name = document.getElementById('customerName').value.trim();
   const email = document.getElementById('customerEmail').value.trim();
   const address = document.getElementById('customerAddress').value.trim();
@@ -219,17 +322,9 @@ async function submitOrder(){
   const lidId = selectedLidId;
   const lidBoxes = Math.max(0, parseInt(document.getElementById('lidBoxesInput').value || 0, 10));
   const microwavableBoxes = Math.max(0, parseInt(document.getElementById('microwavableBoxesInput').value || 0, 10));
-  const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked')?.value || '';
-
-  if(!name || !email || !address || !phone || !paymentMethod){
-    alert('Please enter your name, email, address, phone number, and payment method.');
-    return;
-  }
-
-  if(!/^09\d{9}$/.test(phone)){
-    alert('Please enter a valid Philippine mobile number in the format 09123456789.');
-    return;
-  }
+  const cup = findProductById(selectedCupId);
+  const lid = findProductById(lidId);
+  const microwavable = findProductById(selectedMicrowavableId);
 
   const payload = {
     // Keep the existing checkout contract while also exposing the requested field names.
@@ -237,17 +332,20 @@ async function submitOrder(){
     fullName: name,
     shippingAddress: address,
     phoneNumber: phone,
-    paymentMethod,
     cup_id: selectedCupId,
+    cup_size: cup?.size || null,
     cup_boxes: cupBoxes,
     lid_id: lidId,
+    lid_style: lid?.style || null,
     lid_boxes: lidBoxes,
-    microwavable_boxes: microwavableBoxes,
-    payment_method: paymentMethod
+    microwavable_id: selectedMicrowavableId,
+    microwavable_size: microwavable?.size || null,
+    microwavable_boxes: microwavableBoxes
   };
 
   try{
-    const res = await fetch(`${API_BASE}/checkout`, {
+    closeConfirmationModal();
+    const res = await fetch(`${API_BASE}/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -257,20 +355,9 @@ async function submitOrder(){
       alert(data.error || 'Failed to place order');
       return;
     }
-    alert(`Order successful — ID: ${data.order_id} — Total: ${formatPrice(data.total)}`);
+    showOrderPendingModal(data.order_id, email);
     // Refresh product list to reflect updated stock
     await fetchProducts();
-    // Reset inputs and close drawer
-    document.getElementById('customerName').value = '';
-    document.getElementById('customerEmail').value = '';
-    document.getElementById('customerAddress').value = '';
-    document.getElementById('customerPhone').value = '';
-    document.getElementById('cupBoxesInput').value = 0;
-    document.getElementById('lidBoxesInput').value = 0;
-    document.getElementById('microwavableBoxesInput').value = 0;
-    document.querySelector('input[name="paymentMethod"][value="GCash"]').checked = true;
-    updateSummary({ items: [], subtotal: 0, shipping: 0, total: 0 });
-    closeCart();
   }catch(err){
     alert('Network error placing order');
   }

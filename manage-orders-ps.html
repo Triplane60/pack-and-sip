@@ -88,7 +88,17 @@
     }
 
     function formatItems(order) {
-      return `Cups: ${Number(order.cup_boxes || 0)} | Lids: ${Number(order.lid_boxes || 0)} | Microwavable: ${Number(order.microwavable_boxes || 0)}`;
+      const items = [];
+      if (Number(order.cup_boxes || 0) > 0) {
+        items.push(`Cups: ${order.cup_size || '—'} (${Number(order.cup_boxes)} box${Number(order.cup_boxes) === 1 ? '' : 'es'})`);
+      }
+      if (Number(order.lid_boxes || 0) > 0) {
+        items.push(`Lids: ${order.lid_style || '—'} Lid (${Number(order.lid_boxes)} box${Number(order.lid_boxes) === 1 ? '' : 'es'})`);
+      }
+      if (Number(order.microwavable_boxes || 0) > 0) {
+        items.push(`Microwavable: ${order.microwavable_size || '—'} (${Number(order.microwavable_boxes)} box${Number(order.microwavable_boxes) === 1 ? '' : 'es'})`);
+      }
+      return items.length ? items.join('<br>') : '—';
     }
 
     function renderOrders(orders) {
@@ -106,7 +116,7 @@
           <td class="px-5 py-4"><div class="font-semibold text-slate-800">${order.full_name || '—'}</div></td>
           <td class="px-5 py-4 text-slate-600"><div>${order.email || '—'}</div><div class="mt-1">${order.phone_number || '—'}</div></td>
           <td class="max-w-[220px] whitespace-normal px-5 py-4 text-slate-600">${formatAddress(order)}</td>
-          <td class="whitespace-nowrap px-5 py-4 text-xs font-semibold text-slate-600">${formatItems(order)}</td>
+          <td class="whitespace-normal px-5 py-4 text-xs font-semibold leading-6 text-slate-600">${formatItems(order)}</td>
           <td class="whitespace-nowrap px-5 py-4 text-slate-600">${order.payment_method || '—'}</td>
           <td class="whitespace-nowrap px-5 py-4 font-bold text-slate-800">${currency.format(Number(order.total_amount || 0))}</td>
           <td class="px-5 py-4"><select data-order-id="${order.id}" class="status-select rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">${statuses.map(status => `<option value="${status}" ${status === order.status ? 'selected' : ''}>${status}</option>`).join('')}</select></td>

@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-slate-50 text-slate-800">
-  <header class="bg-white shadow">
+  <header id="top" class="bg-white shadow">
     <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <div id="siteLogo" class="text-indigo-600 font-bold text-xl">Pack & Sip</div>
@@ -82,7 +82,10 @@
           <p class="text-sm font-semibold uppercase tracking-wide text-indigo-600">Bulk essentials</p>
           <h2 class="text-2xl font-semibold">Catalog</h2>
         </div>
-        <p class="hidden sm:block text-sm text-slate-500">Boxes of 1,000 units</p>
+        <div class="flex items-center gap-4">
+          <p class="hidden sm:block text-sm text-slate-500">Boxes of 1,000 units</p>
+          <a href="#top" onclick="scrollToTop(event)" class="text-sm text-indigo-600 hover:underline font-medium">Back to top ↑</a>
+        </div>
       </div>
       <div id="productList" class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4"></div>
     </section>
@@ -99,6 +102,36 @@
     </section>
 
   </main>
+
+  <button id="backToTopBtn" onclick="scrollToTop(event)" class="fixed bottom-6 right-6 bg-indigo-600 text-white p-3 rounded-full shadow-lg hidden hover:bg-indigo-700 transition-all z-40" aria-label="Back to top">↑</button>
+
+  <!-- Pending order modal -->
+  <div id="orderPendingModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/60 p-4 opacity-0 transition-opacity duration-300" role="dialog" aria-modal="true" aria-labelledby="orderPendingTitle">
+    <div class="w-full max-w-md rounded-xl bg-white p-6 text-center shadow-2xl transition-transform duration-300">
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-3xl text-emerald-600" aria-hidden="true">✓</div>
+      <h2 id="orderPendingTitle" class="mt-4 text-2xl font-bold text-slate-900">Order Placed &amp; Pending</h2>
+      <p class="mt-3 text-sm leading-6 text-slate-600">Your order (ID: <span id="modalOrderId" class="font-semibold text-slate-900"></span>) has been received. Please check your Gmail (<span id="modalEmail" class="font-semibold text-slate-900"></span>) for shipping updates and receipt notifications once processed.</p>
+      <button id="closeModalBtn" type="button" class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700">Done</button>
+    </div>
+  </div>
+
+  <!-- Order confirmation modal -->
+  <div id="confirmOrderModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 p-4" role="dialog" aria-modal="true" aria-labelledby="confirmOrderTitle">
+    <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+      <div class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-2xl text-indigo-600" aria-hidden="true">🛒</div>
+      <h2 id="confirmOrderTitle" class="mt-4 text-2xl font-bold text-slate-900">Confirm Your Order</h2>
+      <p class="mt-2 text-slate-600">Is this everything you'd like to order?</p>
+      <div id="confirmOrderItems" class="mt-5 space-y-2 rounded-lg bg-slate-50 p-4 text-sm text-slate-700"></div>
+      <div class="mt-4 flex items-center justify-between border-t border-slate-200 pt-4 font-bold text-slate-900">
+        <span>Total</span>
+        <span id="confirmOrderTotal">₱0.00</span>
+      </div>
+      <div class="mt-6 grid grid-cols-2 gap-3">
+        <button id="addMoreItemsBtn" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-50">Add More Items</button>
+        <button id="confirmOrderBtn" type="button" class="rounded-md bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700">Yes, Place Order</button>
+      </div>
+    </div>
+  </div>
 
   <!-- About modal -->
   <div id="aboutModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
@@ -121,7 +154,7 @@
 
   <!-- Cart Drawer -->
   <div id="cartDrawer" class="fixed inset-0 flex justify-end pointer-events-none">
-    <div id="drawerPanel" class="w-full md:w-1/3 bg-white shadow-xl transform translate-x-full pointer-events-auto transition-transform duration-300" aria-hidden="true">
+    <div id="drawerPanel" class="max-w-sm w-full bg-white shadow-xl transform translate-x-full pointer-events-auto transition-transform duration-300" aria-hidden="true">
       <div class="p-4 flex items-center justify-between border-b">
         <h3 class="text-lg font-semibold">Order Summary</h3>
         <button id="closeCart" class="text-slate-500">Close</button>
@@ -129,34 +162,17 @@
       <div class="p-4" id="cartContent">
         <p class="text-sm text-slate-600">No items in cart.</p>
       </div>
-      <div class="p-4 border-t space-y-2" id="customerForm">
+      <div class="p-4 border-t space-y-2.5" id="customerForm">
         <label class="block text-sm font-medium text-slate-700">Full Name</label>
-        <input id="customerName" type="text" class="w-full rounded-md border-gray-200 p-2" />
+        <input id="customerName" type="text" class="w-full rounded-md border-gray-200 p-1.5" />
         <label for="customerEmail" class="block text-sm font-medium text-slate-700">Email Address</label>
-        <input type="email" id="customerEmail" required placeholder="name@example.com" class="w-full p-2 border rounded-md mb-3" />
+        <input type="email" id="customerEmail" required placeholder="name@example.com" class="w-full p-1.5 border rounded-md mb-2" />
         <label class="block text-sm font-medium text-slate-700">Shipping Address</label>
-        <textarea id="customerAddress" class="w-full rounded-md border-gray-200 p-2" rows="2"></textarea>
+        <textarea id="customerAddress" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
         <label class="block text-sm font-medium text-slate-700">Phone Number</label>
-        <input type="tel" id="customerPhone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" required class="w-full rounded-md border-gray-200 p-2" />
-        <fieldset class="pt-2">
-          <legend class="block text-sm font-medium text-slate-700">Payment Method</legend>
-          <div class="mt-2 grid grid-cols-2 gap-2">
-            <label class="flex cursor-pointer items-center gap-2 rounded-md border border-slate-200 p-2 text-sm hover:border-indigo-300">
-              <input type="radio" name="paymentMethod" value="GCash" checked>
-              <span>GCash</span>
-            </label>
-            <label class="flex cursor-pointer items-center gap-2 rounded-md border border-slate-200 p-2 text-sm hover:border-indigo-300">
-              <input type="radio" name="paymentMethod" value="Maya">
-              <span>Maya (PayMaya)</span>
-            </label>
-          </div>
-        </fieldset>
+        <input type="tel" id="customerPhone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" required class="w-full rounded-md border-gray-200 p-1.5" />
       </div>
       <div class="p-4 border-t">
-        <div class="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" role="alert">
-          <strong class="block">⚠️ Important Notice</strong>
-          <span>Orders are final and cannot be cancelled once submitted. Available stock will be deducted immediately upon checkout.</span>
-        </div>
         <button id="checkoutBtn" class="w-full bg-indigo-600 text-white py-2 rounded-md">Proceed to Checkout</button>
       </div>
     </div>
@@ -164,7 +180,7 @@
 
   <footer class="bg-gray-900 text-gray-300 pt-12 pb-8 mt-16">
     <div class="max-w-6xl mx-auto px-6">
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div>
           <h2 class="text-xl font-bold text-white">Pack &amp; Sip</h2>
           <p class="mt-3 text-sm leading-6 text-gray-400">High-volume, eco-friendly disposable drinkware solutions</p>
@@ -184,24 +200,10 @@
         </div>
 
         <div>
-          <h3 class="font-semibold text-white">Support</h3>
-          <nav class="mt-3 flex flex-col gap-2 text-sm">
-            <a href="#shipping-information" class="text-gray-400 transition hover:text-white">Shipping Information</a>
-            <a href="#return-policy" class="text-gray-400 transition hover:text-white">Return Policy</a>
-            <a href="#terms-of-service" class="text-gray-400 transition hover:text-white">Terms of Service</a>
-            <a href="#privacy-policy" class="text-gray-400 transition hover:text-white">Privacy Policy</a>
-          </nav>
-        </div>
-
-        <div>
-          <h3 class="font-semibold text-white">Contact &amp; Payments</h3>
+          <h3 class="font-semibold text-white">Contact Us</h3>
           <div class="mt-3 space-y-2 text-sm text-gray-400">
             <a href="tel:+639123456789" class="block transition hover:text-white">+63 912 345 6789</a>
             <a href="mailto:hello@packandsip.example" class="block transition hover:text-white">hello@packandsip.example</a>
-          </div>
-          <div class="mt-5 flex flex-wrap gap-2" aria-label="Accepted payment methods">
-            <span class="rounded-md bg-blue-900 px-3 py-1.5 text-xs font-semibold text-blue-100">GCash</span>
-            <span class="rounded-md bg-green-900 px-3 py-1.5 text-xs font-semibold text-green-100">Maya</span>
           </div>
         </div>
       </div>

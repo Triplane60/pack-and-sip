@@ -76,11 +76,14 @@ def init_db():
             email TEXT,
             customer_address TEXT NOT NULL,
             customer_phone TEXT NOT NULL,
-            payment_method TEXT NOT NULL DEFAULT 'GCash',
+            payment_method TEXT NOT NULL DEFAULT 'Cash on Delivery',
             cup_id TEXT,
+            cup_size TEXT,
             cup_boxes INTEGER,
             lid_id TEXT,
+            lid_style TEXT,
             lid_boxes INTEGER,
+            microwavable_size TEXT,
             microwavable_boxes INTEGER NOT NULL DEFAULT 0,
             total_amount REAL NOT NULL,
             created_at TEXT NOT NULL
@@ -90,11 +93,17 @@ def init_db():
     if 'email' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN email TEXT")
     if 'payment_method' not in order_columns:
-        cursor.execute("ALTER TABLE orders ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'GCash'")
+        cursor.execute("ALTER TABLE orders ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'Cash on Delivery'")
     if 'status' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN status TEXT NOT NULL DEFAULT 'Pending'")
     if 'microwavable_boxes' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN microwavable_boxes INTEGER NOT NULL DEFAULT 0")
+    if 'cup_size' not in order_columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN cup_size TEXT")
+    if 'lid_style' not in order_columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN lid_style TEXT")
+    if 'microwavable_size' not in order_columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN microwavable_size TEXT")
     conn.commit()
 
     conn.close()
@@ -141,8 +150,11 @@ def get_admin_orders():
             customer_address AS shipping_address,
             payment_method,
             COALESCE(cup_boxes, 0) AS cup_boxes,
+            cup_size,
             COALESCE(lid_boxes, 0) AS lid_boxes,
+            lid_style,
             COALESCE(microwavable_boxes, 0) AS microwavable_boxes,
+            microwavable_size,
             total_amount,
             status
         FROM orders
@@ -251,9 +263,13 @@ def process_checkout():
     email = (data.get('email') or '').strip()
     address = (data.get('address') or '').strip()
     phone = (data.get('phone') or '').strip()
-    payment_method = (data.get('payment_method') or '').strip()
+    payment_method = (data.get('payment_method') or 'Cash on Delivery').strip() or 'Cash on Delivery'
     cup_id = data.get('cup_id')
     lid_id = data.get('lid_id')
+    microwavable_id = data.get('microwavable_id')
+    cup_size = (data.get('cup_size') or '').strip() or None
+    lid_style = (data.get('lid_style') or '').strip() or None
+    microwavable_size = (data.get('microwavable_size') or '').strip() or None
 
     try:
         cup_boxes = int(data.get('cup_boxes', 0) or 0)
@@ -264,9 +280,6 @@ def process_checkout():
 
     if not name or not email or not address or not phone:
         return jsonify({"error": "Customer name, email, address and phone are required."}), 400
-
-    if payment_method not in ('GCash', 'Maya'):
-        return jsonify({"error": "Please select GCash or Maya as the payment method."}), 400
 
     if cup_boxes < 0 or lid_boxes < 0 or microwavable_boxes < 0:
         return jsonify({"error": "Quantities cannot be negative"}), 400
@@ -283,6 +296,11 @@ def process_checkout():
         orders_to_process.append((cup_id, cup_boxes))
     if lid_id and lid_boxes > 0:
         orders_to_process.append((lid_id, lid_boxes))
+    if microwavable_id and microwavable_boxes > 0:
+        orders_to_process.append((microwavable_id, microwavable_boxes))
+    elif microwavable_boxes > 0:
+        conn.close()
+        return jsonify({"error": "A microwavable container must be selected."}), 400
 
     for pid, requested_qty in orders_to_process:
         product = cursor.execute('SELECT name, stock_boxes, price_per_box FROM products WHERE id = ?', (pid,)).fetchone()
@@ -313,6 +331,7 @@ def process_checkout():
     try:
         for pid, requested_qty in orders_to_process:
             cursor.execute(
+                # This app stores available inventory in stock_boxes.
                 'UPDATE products SET stock_boxes = stock_boxes - ? WHERE id = ?',
                 (requested_qty, pid)
             )
@@ -321,9 +340,9 @@ def process_checkout():
         created_at = datetime.datetime.utcnow().isoformat()
 
         cursor.execute('''
-            INSERT INTO orders (customer_name, email, customer_address, customer_phone, payment_method, cup_id, cup_boxes, lid_id, lid_boxes, microwavable_boxes, total_amount, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (name, email, address, phone, payment_method, cup_id, cup_boxes, lid_id, lid_boxes, microwavable_boxes, total, created_at))
+            INSERT INTO orders (customer_name, email, customer_address, customer_phone, payment_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total_amount, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (name, email, address, phone, payment_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total, created_at))
 
         order_id = cursor.lastrowid
         conn.commit()
