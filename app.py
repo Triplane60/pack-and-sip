@@ -6,6 +6,7 @@ app = Flask(__name__, template_folder='.')
 CORS(app)
 
 DB_FILE = 'app.db'
+MICROWAVABLE_PRICE_PER_BOX = 1500.0
 
 def get_db():
     """Establish and return a database connection with dict-like row access."""
@@ -50,6 +51,23 @@ def init_db():
         ''', initial_products)
         conn.commit()
 
+    microwavable_products = [
+        ('container-re-3200', 'microwavable', 'RE 3200 Rectangular Container (3,200ml)', '3,200ml', 'RE Series', 100, 1800.0, 20, 'Microwavable rectangular container with a 3,200ml capacity.'),
+        ('container-re-2500', 'microwavable', 'RE 2500 Rectangular Container (2,500ml)', '2,500ml', 'RE Series', 100, 1600.0, 20, 'Microwavable rectangular container with a 2,500ml capacity.'),
+        ('container-re-1600', 'microwavable', 'RE 1600 Rectangular Container (1,600ml)', '1,600ml', 'RE Series', 100, 1400.0, 20, 'Microwavable rectangular container with a 1,600ml capacity.'),
+        ('container-re-1000', 'microwavable', 'RE 1000 Rectangular Container (1,000ml)', '1,000ml', 'RE Series', 100, 1200.0, 20, 'Microwavable rectangular container with a 1,000ml capacity.'),
+        ('container-re-750', 'microwavable', 'RE 750 Rectangular Container (750ml)', '750ml', 'RE Series', 100, 950.0, 20, 'Microwavable rectangular container with a 750ml capacity.'),
+        ('container-re-500', 'microwavable', 'RE 500 Rectangular Container (500ml)', '500ml', 'RE Series', 100, 800.0, 20, 'Microwavable rectangular container with a 500ml capacity.'),
+        ('container-ro-30', 'microwavable', 'RO 30 Round Container (30 oz)', '30oz', 'RO Series', 100, 1100.0, 20, 'Microwavable round container with a 30oz capacity.'),
+        ('container-ro-16', 'microwavable', 'RO 16 Round Container (16 oz)', '16oz', 'RO Series', 100, 900.0, 20, 'Microwavable round container with a 16oz capacity.'),
+        ('container-ro-10', 'microwavable', 'RO 10 Round Container (10 oz)', '10oz', 'RO Series', 100, 750.0, 20, 'Microwavable round container with a 10oz capacity.')
+    ]
+    cursor.executemany('''
+        INSERT OR IGNORE INTO products (id, type, name, size, style, quantity_per_box, price_per_box, stock_boxes, description)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', microwavable_products)
+    conn.commit()
+
     # Create Orders Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS orders (
@@ -63,6 +81,7 @@ def init_db():
             cup_boxes INTEGER,
             lid_id TEXT,
             lid_boxes INTEGER,
+            microwavable_boxes INTEGER NOT NULL DEFAULT 0,
             total_amount REAL NOT NULL,
             created_at TEXT NOT NULL
         )
@@ -74,6 +93,8 @@ def init_db():
         cursor.execute("ALTER TABLE orders ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'GCash'")
     if 'status' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN status TEXT NOT NULL DEFAULT 'Pending'")
+    if 'microwavable_boxes' not in order_columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN microwavable_boxes INTEGER NOT NULL DEFAULT 0")
     conn.commit()
 
     conn.close()
@@ -119,6 +140,9 @@ def get_admin_orders():
             customer_phone AS phone_number,
             customer_address AS shipping_address,
             payment_method,
+            COALESCE(cup_boxes, 0) AS cup_boxes,
+            COALESCE(lid_boxes, 0) AS lid_boxes,
+            COALESCE(microwavable_boxes, 0) AS microwavable_boxes,
             total_amount,
             status
         FROM orders
@@ -234,6 +258,7 @@ def process_checkout():
     try:
         cup_boxes = int(data.get('cup_boxes', 0) or 0)
         lid_boxes = int(data.get('lid_boxes', 0) or 0)
+        microwavable_boxes = int(data.get('microwavable_boxes', 0) or 0)
     except Exception:
         return jsonify({"error": "Invalid quantities provided"}), 400
 
@@ -243,7 +268,10 @@ def process_checkout():
     if payment_method not in ('GCash', 'Maya'):
         return jsonify({"error": "Please select GCash or Maya as the payment method."}), 400
 
-    if cup_boxes <= 0 and lid_boxes <= 0:
+    if cup_boxes < 0 or lid_boxes < 0 or microwavable_boxes < 0:
+        return jsonify({"error": "Quantities cannot be negative"}), 400
+
+    if cup_boxes <= 0 and lid_boxes <= 0 and microwavable_boxes <= 0:
         return jsonify({"error": "Cart is empty"}), 400
 
     conn = get_db()
@@ -275,6 +303,7 @@ def process_checkout():
     if lid_id and lid_boxes > 0:
         lid = cursor.execute('SELECT price_per_box FROM products WHERE id = ?', (lid_id,)).fetchone()
         subtotal += lid['price_per_box'] * lid_boxes
+    subtotal += MICROWAVABLE_PRICE_PER_BOX * microwavable_boxes
 
     subtotal = round(subtotal, 2)
     shipping = 15.0 if subtotal > 0 else 0.0
@@ -292,9 +321,9 @@ def process_checkout():
         created_at = datetime.datetime.utcnow().isoformat()
 
         cursor.execute('''
-            INSERT INTO orders (customer_name, email, customer_address, customer_phone, payment_method, cup_id, cup_boxes, lid_id, lid_boxes, total_amount, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (name, email, address, phone, payment_method, cup_id, cup_boxes, lid_id, lid_boxes, total, created_at))
+            INSERT INTO orders (customer_name, email, customer_address, customer_phone, payment_method, cup_id, cup_boxes, lid_id, lid_boxes, microwavable_boxes, total_amount, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (name, email, address, phone, payment_method, cup_id, cup_boxes, lid_id, lid_boxes, microwavable_boxes, total, created_at))
 
         order_id = cursor.lastrowid
         conn.commit()

@@ -1,4 +1,5 @@
 const API_BASE = 'http://127.0.0.1:5000/api';
+const MICROWAVABLE_BASE_PRICE = 1500;
 let PRODUCTS = [];
 
 function formatPrice(value){
@@ -9,7 +10,6 @@ async function fetchProducts(){
   const res = await fetch(`${API_BASE}/products`);
   const data = await res.json();
   PRODUCTS = Array.isArray(data) ? data : (data.products || []);
-  renderProductOptions();
   renderCatalog();
 }
 
@@ -17,58 +17,19 @@ function findProductById(id){
   return PRODUCTS.find(p => p.id === id);
 }
 
-function renderProductOptions(){
-  const cupOptions = document.getElementById('cupOptions');
-  const lidSelect = document.getElementById('lidSelect');
-  cupOptions.innerHTML = '';
-  lidSelect.innerHTML = '<option value="" disabled selected>Select lid style...</option>';
-
-  const cups = PRODUCTS.filter(p => p.type === 'cup');
-  cups.forEach((c, idx) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'border rounded-md p-2 text-sm';
-    btn.innerText = c.size;
-    btn.dataset.id = c.id;
-    btn.addEventListener('click', () => {
-      selectCup(c.id);
-    });
-    cupOptions.appendChild(btn);
-  });
-
-  if(selectedCupId){
-    updateCupPreview(findProductById(selectedCupId));
-  }else{
-    updateCupPreview(null);
-  }
-
-  const lids = PRODUCTS.filter(p => p.type === 'lid');
-  lids.forEach(l => {
-    const opt = document.createElement('option');
-    opt.value = l.id;
-    opt.text = l.style + ' — ' + formatPrice(l.price_per_box) + '/box';
-    lidSelect.appendChild(opt);
-  });
-  if(selectedLidId){
-    lidSelect.value = selectedLidId;
-    updateLidPreview(findProductById(selectedLidId));
-  }else{
-    updateLidPreview(null);
-  }
-  calculate();
-}
-
 function getProductImage(product){
-  const label = product.type === 'cup' ? `${product.size} Cup` : `${product.style} Lid`;
-  const background = product.type === 'cup' ? 'e0e7ff' : 'f1f5f9';
-  const foreground = product.type === 'cup' ? '3730a3' : '334155';
+  const label = product.type === 'cup' ? `${product.size} Cup` : product.type === 'lid' ? `${product.style} Lid` : `${product.name}`;
+  const background = product.type === 'cup' ? 'e0e7ff' : product.type === 'lid' ? 'f1f5f9' : 'ecfdf5';
+  const foreground = product.type === 'cup' ? '3730a3' : product.type === 'lid' ? '334155' : '047857';
   return `https://placehold.co/640x300/${background}/${foreground}?text=${encodeURIComponent(label)}`;
 }
 
 function renderCatalog(){
   const list = document.getElementById('productList');
-  if(!list) return;
+  const microwavableList = document.getElementById('microwavableList');
+  if(!list || !microwavableList) return;
   list.innerHTML = '';
+  microwavableList.innerHTML = '';
 
   PRODUCTS.forEach(product => {
     const card = document.createElement('article');
@@ -99,8 +60,28 @@ function renderCatalog(){
       </div>
     `;
     card.querySelector('.quickAdd').addEventListener('click', () => quickAdd(product));
-    list.appendChild(card);
+    (product.type === 'microwavable' ? microwavableList : list).appendChild(card);
   });
+}
+
+function resetConfigurator(){
+  selectedCupId = null;
+  selectedLidId = null;
+  document.getElementById('cupBoxesInput').value = '0';
+  document.getElementById('lidBoxesInput').value = '0';
+  document.getElementById('microwavableBoxesInput').value = '0';
+  updateConfiguratorActionState();
+  document.getElementById('subtotal').innerText = '₱0.00';
+  document.getElementById('shipping').innerText = '₱0.00';
+  document.getElementById('total').innerText = '₱0.00';
+  document.getElementById('cartCount').innerText = '0';
+  document.getElementById('cartContent').innerHTML = '<p class="text-sm text-slate-600">No items in cart.</p>';
+}
+
+function updateConfiguratorActionState(){
+  const viewCart = document.getElementById('viewCart');
+  const microwavableBoxes = Number(document.getElementById('microwavableBoxesInput').value || 0);
+  if(viewCart) viewCart.disabled = !selectedCupId && !selectedLidId && microwavableBoxes <= 0;
 }
 
 function quickAdd(product){
@@ -108,58 +89,31 @@ function quickAdd(product){
   if(stock <= 0) return;
 
   if(product.type === 'cup'){
-    selectCup(product.id);
-    const input = document.getElementById('cupBoxes');
+    selectedCupId = product.id;
+    const input = document.getElementById('cupBoxesInput');
     input.value = Math.min(parseInt(input.value || 0, 10) + 1, stock);
-  }else{
-    const lidSelect = document.getElementById('lidSelect');
-    lidSelect.value = product.id;
+  }else if(product.type === 'lid'){
     selectedLidId = product.id;
-    updateLidPreview(product);
-    const input = document.getElementById('lidBoxes');
+    const input = document.getElementById('lidBoxesInput');
+    input.value = Math.min(parseInt(input.value || 0, 10) + 1, stock);
+    updateConfiguratorActionState();
+  }else{
+    const input = document.getElementById('microwavableBoxesInput');
     input.value = Math.min(parseInt(input.value || 0, 10) + 1, stock);
   }
+  updateConfiguratorActionState();
   calculate();
   openCart();
 }
 
 let selectedCupId = null;
 let selectedLidId = null;
-function selectCup(id){
-  selectedCupId = id;
-  updateCupPreview(findProductById(id));
-  document.querySelectorAll('#cupOptions button').forEach(b => b.classList.remove('bg-indigo-50','ring'));
-  const b = document.querySelector(`#cupOptions button[data-id='${id}']`);
-  if(b){ b.classList.add('bg-indigo-50'); }
-  calculate();
-}
-
-function updateCupPreview(product){
-  const image = document.getElementById('cupPreview');
-  if(!product){
-    image.src = 'https://placehold.co/640x300/e0e7ff/3730a3?text=Select+a+cup+size';
-    image.alt = 'Select a cup size to preview';
-    return;
-  }
-  image.src = `https://placehold.co/640x300/e0e7ff/3730a3?text=${encodeURIComponent(product.size + ' Cup')}`;
-  image.alt = `${product.size} cup product preview`;
-}
-
-function updateLidPreview(product){
-  const image = document.getElementById('lidPreview');
-  if(!product){
-    image.src = 'https://placehold.co/640x300/f1f5f9/334155?text=Select+a+lid+style';
-    image.alt = 'Select a lid style to preview';
-    return;
-  }
-  image.src = `https://placehold.co/640x300/f1f5f9/334155?text=${encodeURIComponent(product.style + ' Lid')}`;
-  image.alt = `${product.style} lid product preview`;
-}
 
 async function calculate(){
-  const cupBoxes = Math.max(0, parseInt(document.getElementById('cupBoxes').value || 0, 10));
+  const cupBoxes = Math.max(0, parseInt(document.getElementById('cupBoxesInput').value || 0, 10));
   const lidId = selectedLidId;
-  const lidBoxes = Math.max(0, parseInt(document.getElementById('lidBoxes').value || 0, 10));
+  const lidBoxes = Math.max(0, parseInt(document.getElementById('lidBoxesInput').value || 0, 10));
+  const microwavableBoxes = Math.max(0, parseInt(document.getElementById('microwavableBoxesInput').value || 0, 10));
 
   const body = { cup_id: selectedCupId, cup_boxes: cupBoxes, lid_id: lidId, lid_boxes: lidBoxes };
   const res = await fetch(`${API_BASE}/cart/calculate`, {
@@ -168,6 +122,21 @@ async function calculate(){
     body: JSON.stringify(body)
   });
   const data = await res.json();
+  const microwavableSubtotal = microwavableBoxes * MICROWAVABLE_BASE_PRICE;
+  const subtotal = Number(data.subtotal || 0) + microwavableSubtotal;
+  const shipping = Number(data.shipping || 0) || (microwavableSubtotal > 0 ? 15 : 0);
+  data.subtotal = Math.round(subtotal * 100) / 100;
+  data.shipping = shipping;
+  data.total = Math.round((subtotal + shipping) * 100) / 100;
+  data.items = data.items || [];
+  if(microwavableBoxes > 0){
+    data.items.push({
+      name: 'Microwavable containers',
+      boxes: microwavableBoxes,
+      quantity_per_box: 100,
+      line_total: microwavableSubtotal
+    });
+  }
   updateSummary(data);
 }
 
@@ -209,9 +178,14 @@ function closeCart(){
 
 // Event wiring
 document.addEventListener('DOMContentLoaded', () => {
+  resetConfigurator();
   fetchProducts();
-  document.getElementById('cupBoxes').addEventListener('input', debounce(calculate, 300));
-  document.getElementById('lidBoxes').addEventListener('input', debounce(calculate, 300));
+  document.getElementById('cupBoxesInput').addEventListener('input', debounce(calculate, 300));
+  document.getElementById('lidBoxesInput').addEventListener('input', debounce(calculate, 300));
+  document.getElementById('microwavableBoxesInput').addEventListener('input', debounce(() => {
+    updateConfiguratorActionState();
+    calculate();
+  }, 300));
   document.getElementById('customerPhone').addEventListener('input', function(){
     this.value = this.value.replace(/[^0-9]/g, '');
     if(this.value.length > 0 && !this.value.startsWith('09')){
@@ -221,11 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     this.value = this.value.slice(0, 11);
   });
-  document.getElementById('lidSelect').addEventListener('change', event => {
-    selectedLidId = event.target.value || null;
-    updateLidPreview(findProductById(selectedLidId));
-    calculate();
-  });
+  document.getElementById('clearSelection').addEventListener('click', resetConfigurator);
   document.getElementById('viewCart').addEventListener('click', openCart);
   document.getElementById('cartBtn').addEventListener('click', openCart);
   document.getElementById('closeCart').addEventListener('click', closeCart);
@@ -245,9 +215,10 @@ async function submitOrder(){
   const email = document.getElementById('customerEmail').value.trim();
   const address = document.getElementById('customerAddress').value.trim();
   const phone = document.getElementById('customerPhone').value.trim();
-  const cupBoxes = Math.max(0, parseInt(document.getElementById('cupBoxes').value || 0, 10));
+  const cupBoxes = Math.max(0, parseInt(document.getElementById('cupBoxesInput').value || 0, 10));
   const lidId = selectedLidId;
-  const lidBoxes = Math.max(0, parseInt(document.getElementById('lidBoxes').value || 0, 10));
+  const lidBoxes = Math.max(0, parseInt(document.getElementById('lidBoxesInput').value || 0, 10));
+  const microwavableBoxes = Math.max(0, parseInt(document.getElementById('microwavableBoxesInput').value || 0, 10));
   const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked')?.value || '';
 
   if(!name || !email || !address || !phone || !paymentMethod){
@@ -271,6 +242,7 @@ async function submitOrder(){
     cup_boxes: cupBoxes,
     lid_id: lidId,
     lid_boxes: lidBoxes,
+    microwavable_boxes: microwavableBoxes,
     payment_method: paymentMethod
   };
 
@@ -293,8 +265,9 @@ async function submitOrder(){
     document.getElementById('customerEmail').value = '';
     document.getElementById('customerAddress').value = '';
     document.getElementById('customerPhone').value = '';
-    document.getElementById('cupBoxes').value = 0;
-    document.getElementById('lidBoxes').value = 0;
+    document.getElementById('cupBoxesInput').value = 0;
+    document.getElementById('lidBoxesInput').value = 0;
+    document.getElementById('microwavableBoxesInput').value = 0;
     document.querySelector('input[name="paymentMethod"][value="GCash"]').checked = true;
     updateSummary({ items: [], subtotal: 0, shipping: 0, total: 0 });
     closeCart();
