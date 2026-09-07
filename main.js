@@ -17,7 +17,7 @@ function renderProductOptions(){
   const cupOptions = document.getElementById('cupOptions');
   const lidSelect = document.getElementById('lidSelect');
   cupOptions.innerHTML = '';
-  lidSelect.innerHTML = '';
+  lidSelect.innerHTML = '<option value="" disabled selected>Select lid style...</option>';
 
   const cups = PRODUCTS.filter(p => p.type === 'cup');
   cups.forEach((c, idx) => {
@@ -32,10 +32,10 @@ function renderProductOptions(){
     cupOptions.appendChild(btn);
   });
 
-  if(cups.length && !selectedCupId){
-    selectCup(cups[0].id);
-  }else if(selectedCupId){
+  if(selectedCupId){
     updateCupPreview(findProductById(selectedCupId));
+  }else{
+    updateCupPreview(null);
   }
 
   const lids = PRODUCTS.filter(p => p.type === 'lid');
@@ -45,9 +45,13 @@ function renderProductOptions(){
     opt.text = l.style + ' — $' + l.price_per_box + '/box';
     lidSelect.appendChild(opt);
   });
-  if(lids.length){
-    updateLidPreview(findProductById(lidSelect.value) || lids[0]);
+  if(selectedLidId){
+    lidSelect.value = selectedLidId;
+    updateLidPreview(findProductById(selectedLidId));
+  }else{
+    updateLidPreview(null);
   }
+  calculate();
 }
 
 function getProductImage(product){
@@ -106,6 +110,7 @@ function quickAdd(product){
   }else{
     const lidSelect = document.getElementById('lidSelect');
     lidSelect.value = product.id;
+    selectedLidId = product.id;
     updateLidPreview(product);
     const input = document.getElementById('lidBoxes');
     input.value = Math.min(parseInt(input.value || 0, 10) + 1, stock);
@@ -115,6 +120,7 @@ function quickAdd(product){
 }
 
 let selectedCupId = null;
+let selectedLidId = null;
 function selectCup(id){
   selectedCupId = id;
   updateCupPreview(findProductById(id));
@@ -125,23 +131,31 @@ function selectCup(id){
 }
 
 function updateCupPreview(product){
-  if(!product) return;
   const image = document.getElementById('cupPreview');
+  if(!product){
+    image.src = 'https://placehold.co/640x300/e0e7ff/3730a3?text=Select+a+cup+size';
+    image.alt = 'Select a cup size to preview';
+    return;
+  }
   image.src = `https://placehold.co/640x300/e0e7ff/3730a3?text=${encodeURIComponent(product.size + ' Cup')}`;
   image.alt = `${product.size} cup product preview`;
 }
 
 function updateLidPreview(product){
-  if(!product) return;
   const image = document.getElementById('lidPreview');
+  if(!product){
+    image.src = 'https://placehold.co/640x300/f1f5f9/334155?text=Select+a+lid+style';
+    image.alt = 'Select a lid style to preview';
+    return;
+  }
   image.src = `https://placehold.co/640x300/f1f5f9/334155?text=${encodeURIComponent(product.style + ' Lid')}`;
   image.alt = `${product.style} lid product preview`;
 }
 
 async function calculate(){
-  const cupBoxes = parseInt(document.getElementById('cupBoxes').value || 0, 10);
-  const lidBoxes = parseInt(document.getElementById('lidBoxes').value || 0, 10);
-  const lidId = document.getElementById('lidSelect').value || null;
+  const cupBoxes = Math.max(0, parseInt(document.getElementById('cupBoxes').value || 0, 10));
+  const lidId = selectedLidId;
+  const lidBoxes = Math.max(0, parseInt(document.getElementById('lidBoxes').value || 0, 10));
 
   const body = { cup_id: selectedCupId, cup_boxes: cupBoxes, lid_id: lidId, lid_boxes: lidBoxes };
   const res = await fetch(`${API_BASE}/cart/calculate`, {
@@ -194,8 +208,18 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchProducts();
   document.getElementById('cupBoxes').addEventListener('input', debounce(calculate, 300));
   document.getElementById('lidBoxes').addEventListener('input', debounce(calculate, 300));
+  document.getElementById('customerPhone').addEventListener('input', function(){
+    this.value = this.value.replace(/[^0-9]/g, '');
+    if(this.value.length > 0 && !this.value.startsWith('09')){
+      this.value = this.value.startsWith('9')
+        ? `0${this.value}`
+        : `09${this.value.replace(/^0+/, '')}`;
+    }
+    this.value = this.value.slice(0, 11);
+  });
   document.getElementById('lidSelect').addEventListener('change', event => {
-    updateLidPreview(findProductById(event.target.value));
+    selectedLidId = event.target.value || null;
+    updateLidPreview(findProductById(selectedLidId));
     calculate();
   });
   document.getElementById('viewCart').addEventListener('click', openCart);
@@ -213,20 +237,31 @@ function debounce(fn, wait){
 
 async function submitOrder(){
   const name = document.getElementById('customerName').value.trim();
+  const email = document.getElementById('customerEmail').value.trim();
   const address = document.getElementById('customerAddress').value.trim();
   const phone = document.getElementById('customerPhone').value.trim();
-  const cupBoxes = parseInt(document.getElementById('cupBoxes').value || 0, 10);
-  const lidBoxes = parseInt(document.getElementById('lidBoxes').value || 0, 10);
-  const lidId = document.getElementById('lidSelect').value || null;
+  const cupBoxes = Math.max(0, parseInt(document.getElementById('cupBoxes').value || 0, 10));
+  const lidId = selectedLidId;
+  const lidBoxes = Math.max(0, parseInt(document.getElementById('lidBoxes').value || 0, 10));
   const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked')?.value || '';
 
-  if(!name || !address || !phone || !paymentMethod){
-    alert('Please enter your customer details and select a payment method.');
+  if(!name || !email || !address || !phone || !paymentMethod){
+    alert('Please enter your name, email, address, phone number, and payment method.');
+    return;
+  }
+
+  if(!/^09\d{9}$/.test(phone)){
+    alert('Please enter a valid Philippine mobile number in the format 09123456789.');
     return;
   }
 
   const payload = {
-    name, address, phone,
+    // Keep the existing checkout contract while also exposing the requested field names.
+    name, address, phone, email,
+    fullName: name,
+    shippingAddress: address,
+    phoneNumber: phone,
+    paymentMethod,
     cup_id: selectedCupId,
     cup_boxes: cupBoxes,
     lid_id: lidId,
@@ -250,6 +285,7 @@ async function submitOrder(){
     await fetchProducts();
     // Reset inputs and close drawer
     document.getElementById('customerName').value = '';
+    document.getElementById('customerEmail').value = '';
     document.getElementById('customerAddress').value = '';
     document.getElementById('customerPhone').value = '';
     document.getElementById('cupBoxes').value = 0;

@@ -55,6 +55,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS orders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             customer_name TEXT NOT NULL,
+            email TEXT,
             customer_address TEXT NOT NULL,
             customer_phone TEXT NOT NULL,
             payment_method TEXT NOT NULL DEFAULT 'GCash',
@@ -67,6 +68,8 @@ def init_db():
         )
     ''')
     order_columns = [row['name'] for row in cursor.execute('PRAGMA table_info(orders)').fetchall()]
+    if 'email' not in order_columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN email TEXT")
     if 'payment_method' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'GCash'")
     conn.commit()
@@ -158,10 +161,12 @@ def calculate_cart():
 
 
 @app.route('/api/checkout', methods=['POST'])
+@app.route('/api/orders', methods=['POST'])
 def process_checkout():
     """Deduct stock from SQLite database when an order is submitted."""
     data = request.get_json(force=True, silent=True) or {}
     name = (data.get('name') or '').strip()
+    email = (data.get('email') or '').strip()
     address = (data.get('address') or '').strip()
     phone = (data.get('phone') or '').strip()
     payment_method = (data.get('payment_method') or '').strip()
@@ -174,8 +179,8 @@ def process_checkout():
     except Exception:
         return jsonify({"error": "Invalid quantities provided"}), 400
 
-    if not name or not address or not phone:
-        return jsonify({"error": "Customer name, address and phone are required."}), 400
+    if not name or not email or not address or not phone:
+        return jsonify({"error": "Customer name, email, address and phone are required."}), 400
 
     if payment_method not in ('GCash', 'Maya'):
         return jsonify({"error": "Please select GCash or Maya as the payment method."}), 400
@@ -229,9 +234,9 @@ def process_checkout():
         created_at = datetime.datetime.utcnow().isoformat()
 
         cursor.execute('''
-            INSERT INTO orders (customer_name, customer_address, customer_phone, payment_method, cup_id, cup_boxes, lid_id, lid_boxes, total_amount, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (name, address, phone, payment_method, cup_id, cup_boxes, lid_id, lid_boxes, total, created_at))
+            INSERT INTO orders (customer_name, email, customer_address, customer_phone, payment_method, cup_id, cup_boxes, lid_id, lid_boxes, total_amount, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (name, email, address, phone, payment_method, cup_id, cup_boxes, lid_id, lid_boxes, total, created_at))
 
         order_id = cursor.lastrowid
         conn.commit()
