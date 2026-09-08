@@ -207,11 +207,151 @@ document.addEventListener('DOMContentLoaded', () => {
   const checkoutBtn = document.getElementById('checkoutBtn');
   if(checkoutBtn) checkoutBtn.addEventListener('click', openConfirmationModal);
   document.getElementById('addMoreItemsBtn').addEventListener('click', closeConfirmationModal);
-  document.getElementById('confirmOrderBtn').addEventListener('click', submitOrder);
+    document.getElementById('confirmOrderBtn').addEventListener('click', submitOrder);
   document.getElementById('closeModalBtn').addEventListener('click', closeOrderPendingModal);
+  setupAuthModal();
   setupAboutModal();
   setupSecretAdminAccess();
 });
+
+// Auth modal handlers
+let currentUser = null;
+
+function setupAuthModal(){
+  const authModal = document.getElementById('authModal');
+  const authBtn = document.getElementById('authBtn');
+  const closeAuth = document.getElementById('closeAuth');
+  const tabLogin = document.getElementById('tabLogin');
+  const tabRegister = document.getElementById('tabRegister');
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+
+  const openAuth = () => {
+    authModal.classList.remove('hidden');
+    authModal.classList.add('flex');
+  };
+
+  const closeAuthModal = () => {
+    authModal.classList.add('hidden');
+    authModal.classList.remove('flex');
+  };
+
+  authBtn.addEventListener('click', openAuth);
+  closeAuth.addEventListener('click', closeAuthModal);
+
+  tabLogin.addEventListener('click', () => {
+    tabLogin.classList.add('border-indigo-600', 'text-indigo-600');
+    tabLogin.classList.remove('border-transparent', 'text-slate-500');
+    tabRegister.classList.remove('border-indigo-600', 'text-indigo-600');
+    tabRegister.classList.add('border-transparent', 'text-slate-500');
+    loginForm.classList.remove('hidden');
+    registerForm.classList.add('hidden');
+  });
+
+  tabRegister.addEventListener('click', () => {
+    tabRegister.classList.add('border-indigo-600', 'text-indigo-600');
+    tabRegister.classList.remove('border-transparent', 'text-slate-500');
+    tabLogin.classList.remove('border-indigo-600', 'text-indigo-600');
+    tabLogin.classList.add('border-transparent', 'text-slate-500');
+    registerForm.classList.remove('hidden');
+    loginForm.classList.add('hidden');
+  });
+
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(loginForm);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+      const res = await fetch(`${API_BASE}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        credentials: 'include'
+      });
+
+      const result = await res.json();
+      if (res.ok) {
+        currentUser = result.user;
+        updateAuthUI();
+        closeAuthModal();
+        fillCustomerData();
+      } else {
+        alert(result.error);
+      }
+    } catch (err) {
+      alert('Login failed');
+    }
+  });
+
+  registerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(registerForm);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+      const res = await fetch(`${API_BASE}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        credentials: 'include'
+      });
+
+      const result = await res.json();
+      if (res.ok) {
+        currentUser = result.user;
+        updateAuthUI();
+        closeAuthModal();
+        fillCustomerData();
+      } else {
+        alert(result.error);
+      }
+    } catch (err) {
+      alert('Registration failed');
+    }
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    currentUser = null;
+    updateAuthUI();
+  });
+
+    // Check if already logged in
+  fetch(`${API_BASE}/me`, { credentials: 'include' })
+    .then(res => res.json())
+
+    .then(data => {
+      if (data.user) {
+        currentUser = data.user;
+        updateAuthUI();
+        fillCustomerData();
+      }
+    }).catch(() => {});
+}
+
+function updateAuthUI(){
+  const authBtn = document.getElementById('authBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (currentUser) {
+    authBtn.textContent = currentUser.full_name;
+    authBtn.disabled = true;
+    logoutBtn.classList.remove('hidden');
+  } else {
+    authBtn.textContent = 'Login / Register';
+    authBtn.disabled = false;
+    logoutBtn.classList.add('hidden');
+  }
+}
+
+function fillCustomerData(){
+  if (currentUser) {
+    document.getElementById('customerName').value = currentUser.full_name || '';
+    document.getElementById('customerEmail').value = currentUser.email || '';
+    document.getElementById('customerAddress').value = currentUser.shipping_address || '';
+    document.getElementById('customerPhone').value = currentUser.phone || '';
+  }
+}
+
 
 function debounce(fn, wait){
   let t;
@@ -360,11 +500,13 @@ async function submitOrder(){
   try{
     // Clear the local cart and close checkout before waiting for the network request.
     resetCheckoutState();
-    const res = await fetch(`${API_BASE}/orders`, {
+        const res = await fetch(`${API_BASE}/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      credentials: 'include'
     });
+
     const data = await res.json();
     if(!res.ok){
       alert(data.error || 'Failed to place order');

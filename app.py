@@ -1,11 +1,15 @@
 import sqlite3
 import os
-from flask import Flask, jsonify, render_template, request, send_from_directory
+import datetime
+from flask import Flask, jsonify, render_template, request, send_from_directory, session
+
 from flask_cors import CORS
 from flask_mail import Mail, Message
+from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__, template_folder='.')
-CORS(app)
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'pack-sip-development-secret')
+CORS(app, supports_credentials=True)
 
 app.config.update(
     MAIL_SERVER='smtp.gmail.com',
@@ -57,6 +61,17 @@ def init_db():
     conn = get_db()
     cursor = conn.cursor()
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            password_hash TEXT NOT NULL,
+            full_name TEXT NOT NULL,
+            phone TEXT,
+            shipping_address TEXT
+        )
+    ''')
+
     # Create Products Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS products (
@@ -106,30 +121,26 @@ def init_db():
     ''', microwavable_products)
     conn.commit()
 
-    # Create Orders Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS orders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER REFERENCES users(id),
             customer_name TEXT NOT NULL,
             email TEXT,
             customer_address TEXT NOT NULL,
             customer_phone TEXT NOT NULL,
             payment_method TEXT NOT NULL DEFAULT 'Cash on Delivery',
+            status TEXT NOT NULL DEFAULT 'Pending',
             cup_id TEXT,
             cup_size TEXT,
             cup_boxes INTEGER,
             lid_id TEXT,
             lid_style TEXT,
             lid_boxes INTEGER,
-            microwavable_size TEXT,
-            microwavable_boxes INTEGER NOT NULL DEFAULT 0,
-            total_amount REAL NOT NULL,
-            downpayment_amount REAL NOT NULL DEFAULT 0,
-            remaining_balance REAL NOT NULL DEFAULT 0,
-            payment_status TEXT NOT NULL DEFAULT 'Pending Downpayment',
-            created_at TEXT NOT NULL
+            microwavable_size TEXT
         )
     ''')
+
     order_columns = [row['name'] for row in cursor.execute('PRAGMA table_info(orders)').fetchall()]
     if 'email' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN email TEXT")
@@ -151,12 +162,91 @@ def init_db():
         cursor.execute("ALTER TABLE orders ADD COLUMN remaining_balance REAL NOT NULL DEFAULT 0")
     if 'payment_status' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'Pending Downpayment'")
+    if 'user_id' not in order_columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES users(id)")
     conn.commit()
 
     conn.close()
 
 
 init_db()
+
+
+def user_profile(user):
+    """Return the public profile fields exposed by authentication endpoints."""
+    return {
+        'full_name': user['full_name'],
+        'email': user['email'],
+        'phone': user['phone'],
+        'shipping_address': user['shipping_address']
+    }
+
+
+@app.route('/api/register', methods=['POST'])
+def register():
+    """Create an account and sign the new user into the current session."""
+    data = request.get_json(force=True, silent=True) or {}
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
+    full_name = (data.get('full_name') or data.get('fullName') or '').strip()
+    phone = (data.get('phone') or data.get('phone_number') or '').strip()
+    shipping_address = (data.get('shipping_address') or data.get('shippingAddress') or '').strip()
+
+    if not email or not password or not full_name:
+        return jsonify({'error': 'Email, password, and full name are required.'}), 400
+    if len(password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters.'}), 400
+
+    conn = get_db()
+    try:
+        cursor = conn.execute('''
+            INSERT INTO users (email, password_hash, full_name, phone, shipping_address)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (email, generate_password_hash(password), full_name, phone, shipping_address))
+        conn.commit()
+        user = conn.execute('SELECT * FROM users WHERE id = ?', (cursor.lastrowid,)).fetchone()
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({'error': 'An account with that email already exists.'}), 409
+    conn.close()
+
+    session.clear()
+    session['user_id'] = user['id']
+    return jsonify({'user': user_profile(user)}), 201
+
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    """Validate credentials and store the authenticated user ID in session."""
+    data = request.get_json(force=True, silent=True) or {}
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
+
+    conn = get_db()
+    user = conn.execute('SELECT * FROM users WHERE email = ? COLLATE NOCASE', (email,)).fetchone()
+    conn.close()
+    if not user or not check_password_hash(user['password_hash'], password):
+        return jsonify({'error': 'Invalid email or password.'}), 401
+
+    session.clear()
+    session['user_id'] = user['id']
+    return jsonify({'user': user_profile(user)})
+
+
+@app.route('/api/me', methods=['GET'])
+def current_user():
+    """Return the current user's profile from the signed session."""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Authentication required.'}), 401
+
+    conn = get_db()
+    user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+    conn.close()
+    if not user:
+        session.clear()
+        return jsonify({'error': 'Authentication required.'}), 401
+    return jsonify({'user': user_profile(user)})
 
 
 @app.route('/')
@@ -336,6 +426,7 @@ def process_checkout():
     address = (data.get('address') or '').strip()
     phone = (data.get('phone') or '').strip()
     payment_method = (data.get('payment_method') or 'Cash on Delivery').strip() or 'Cash on Delivery'
+    user_id = session.get('user_id')
     cup_id = data.get('cup_id')
     lid_id = data.get('lid_id')
     microwavable_id = data.get('microwavable_id')
@@ -411,13 +502,13 @@ def process_checkout():
                 (requested_qty, pid)
             )
 
-        import datetime
         created_at = datetime.datetime.utcnow().isoformat()
 
         cursor.execute('''
-            INSERT INTO orders (customer_name, email, customer_address, customer_phone, payment_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total_amount, downpayment_amount, remaining_balance, payment_status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (name, email, address, phone, payment_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total, downpayment_amount, remaining_balance, payment_status, created_at))
+            INSERT INTO orders (user_id, customer_name, email, customer_address, customer_phone, payment_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total_amount, downpayment_amount, remaining_balance, payment_status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, name, email, address, phone, payment_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total, downpayment_amount, remaining_balance, payment_status, created_at))
+
 
         order_id = cursor.lastrowid
         conn.commit()
