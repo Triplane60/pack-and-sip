@@ -158,7 +158,8 @@ function updateSummary(data){
   data.items.forEach(it => {
     const row = document.createElement('div');
     row.className = 'flex items-center justify-between py-2 border-b';
-    row.innerHTML = `<div><div class="font-medium">${it.name}</div><div class="text-sm text-slate-600">${it.boxes} box(es) • ${it.quantity_per_box} units/box</div></div><div class="text-right">${formatPrice(it.line_total)}</div>`;
+    const boxLabel = Number(it.boxes) === 1 ? 'box' : 'boxes';
+    row.innerHTML = `<div><div class="font-medium">${it.name}</div><div class="text-sm text-slate-600">${it.boxes} ${boxLabel} - ${it.quantity_per_box} units/box</div></div><div class="text-right">${formatPrice(it.line_total)}</div>`;
     cartContent.appendChild(row);
   });
   const totals = document.createElement('div');
@@ -259,6 +260,16 @@ function closeConfirmationModal(){
   modal.classList.remove('flex');
 }
 
+function resetCheckoutState(){
+  closeConfirmationModal();
+  closeCart();
+  resetConfigurator();
+  document.getElementById('customerName').value = '';
+  document.getElementById('customerEmail').value = '';
+  document.getElementById('customerAddress').value = '';
+  document.getElementById('customerPhone').value = '';
+}
+
 function validateCheckoutFields(){
   const name = document.getElementById('customerName').value.trim();
   const email = document.getElementById('customerEmail').value.trim();
@@ -292,9 +303,9 @@ async function openConfirmationModal(){
   const microwavableBoxes = Math.max(0, parseInt(document.getElementById('microwavableBoxesInput').value || 0, 10));
   const selectedItems = [];
 
-  if(cup && cupBoxes > 0) selectedItems.push(`Cups: ${cup.size} (${cupBoxes} box${cupBoxes === 1 ? '' : 'es'})`);
-  if(lid && lidBoxes > 0) selectedItems.push(`Lids: ${lid.style} Lid (${lidBoxes} box${lidBoxes === 1 ? '' : 'es'})`);
-  if(microwavable && microwavableBoxes > 0) selectedItems.push(`Microwavable: ${microwavable.size} (${microwavableBoxes} box${microwavableBoxes === 1 ? '' : 'es'})`);
+  if(cup && cupBoxes > 0) selectedItems.push(`Cups: ${cup.size} - ${cupBoxes} ${cupBoxes === 1 ? 'box' : 'boxes'}`);
+  if(lid && lidBoxes > 0) selectedItems.push(`Lids: ${lid.style} Lid - ${lidBoxes} ${lidBoxes === 1 ? 'box' : 'boxes'}`);
+  if(microwavable && microwavableBoxes > 0) selectedItems.push(`Microwavable: ${microwavable.size} - ${microwavableBoxes} ${microwavableBoxes === 1 ? 'box' : 'boxes'}`);
 
   if(selectedItems.length === 0){
     items.innerHTML = '<p class="text-slate-500">No items selected.</p>';
@@ -344,7 +355,8 @@ async function submitOrder(){
   };
 
   try{
-    closeConfirmationModal();
+    // Clear the local cart and close checkout before waiting for the network request.
+    resetCheckoutState();
     const res = await fetch(`${API_BASE}/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

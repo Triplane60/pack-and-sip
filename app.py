@@ -1,12 +1,50 @@
 import sqlite3
-from flask import Flask, jsonify, render_template, request
+import os
+from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_cors import CORS
+from flask_mail import Mail, Message
 
 app = Flask(__name__, template_folder='.')
 CORS(app)
 
+app.config.update(
+    MAIL_SERVER='smtp.gmail.com',
+    MAIL_PORT=587,
+    MAIL_USE_TLS=True,
+    MAIL_USERNAME=os.getenv('MAIL_USERNAME'),
+    MAIL_PASSWORD=os.getenv('MAIL_PASSWORD'),
+    MAIL_DEFAULT_SENDER=os.getenv('MAIL_USERNAME')
+)
+mail = Mail(app)
+
 DB_FILE = 'app.db'
 MICROWAVABLE_PRICE_PER_BOX = 1500.0
+
+
+def send_order_email(recipient, subject, body):
+    """Send an order notification when SMTP credentials are configured."""
+    if not recipient or not app.config.get('MAIL_USERNAME') or not app.config.get('MAIL_PASSWORD'):
+        app.logger.warning('Order email skipped: MAIL_USERNAME/MAIL_PASSWORD is not configured.')
+        return
+    try:
+        mail.send(Message(subject=subject, recipients=[recipient], body=body))
+    except Exception:
+        app.logger.exception('Unable to send order email to %s', recipient)
+
+
+def order_items_text(order):
+    """Build a readable item breakdown for customer notifications."""
+    lines = []
+    if int(order['cup_boxes'] or 0) > 0:
+        cup_label = 'box' if int(order['cup_boxes']) == 1 else 'boxes'
+        lines.append(f"Cups: {order['cup_size'] or 'Selected size'} - {order['cup_boxes']} {cup_label}")
+    if int(order['lid_boxes'] or 0) > 0:
+        lid_label = 'box' if int(order['lid_boxes']) == 1 else 'boxes'
+        lines.append(f"Lids: {order['lid_style'] or 'Selected style'} - {order['lid_boxes']} {lid_label}")
+    if int(order['microwavable_boxes'] or 0) > 0:
+        container_label = 'box' if int(order['microwavable_boxes']) == 1 else 'boxes'
+        lines.append(f"Containers: {order['microwavable_size'] or 'Selected size'} - {order['microwavable_boxes']} {container_label}")
+    return '\n'.join(lines) or 'No item details available.'
 
 def get_db():
     """Establish and return a database connection with dict-like row access."""
@@ -112,6 +150,11 @@ def init_db():
 init_db()
 
 
+@app.route('/')
+def index():
+    return send_from_directory('.', 'index.html')
+
+
 @app.route('/api/products', methods=['GET'])
 def get_products():
     """Fetch all products from SQLite database."""
@@ -129,6 +172,11 @@ def get_products():
         result.append(item)
 
     return jsonify({"products": result})
+
+
+@app.route('/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('.', filename)
 
 
 @app.route('/manage-orders-ps.html', methods=['GET'])
@@ -164,10 +212,11 @@ def get_admin_orders():
     return jsonify({"orders": [dict(order) for order in orders]})
 
 
-@app.route('/api/admin/orders/<int:order_id>/status', methods=['PATCH'])
+@app.route('/api/admin/orders/<int:order_id>/status', methods=['PATCH', 'PUT'])
+@app.route('/api/orders/<int:order_id>/status', methods=['PUT', 'PATCH'])
 def update_order_status(order_id):
     """Update an order's fulfillment status."""
-    allowed_statuses = {'Pending', 'Paid', 'Shipped', 'Completed'}
+    allowed_statuses = {'Pending', 'Paid', 'Shipping', 'Shipped', 'Completed'}
     data = request.get_json(force=True, silent=True) or {}
     status = data.get('status')
 
@@ -177,16 +226,30 @@ def update_order_status(order_id):
         }), 400
 
     conn = get_db()
+    previous_order = conn.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
+    if not previous_order:
+        conn.close()
+        return jsonify({"error": "Order not found."}), 404
+
     cursor = conn.execute(
         'UPDATE orders SET status = ? WHERE id = ?',
         (status, order_id)
     )
-    if cursor.rowcount == 0:
-        conn.close()
-        return jsonify({"error": "Order not found."}), 404
     conn.commit()
     order = conn.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
     conn.close()
+
+    if status in {'Shipping', 'Shipped'} and previous_order['status'] not in {'Shipping', 'Shipped'}:
+        send_order_email(
+            order['email'],
+            f"Your Pack & Sip Order #{order_id} is On Its Way via Lalamove!",
+            f"Hello {order['customer_name']},\n\n"
+            f"We have confirmed receipt of your payment for Pack & Sip order #{order_id}. "
+            "Your package has been booked and dispatched to your shipping address via a Lalamove driver delivery.\n\n"
+            f"Shipping address:\n{order['customer_address']}\n\n"
+            "Thank you for choosing Pack & Sip."
+        )
+
     return jsonify({"order": dict(order)})
 
 
@@ -346,12 +409,29 @@ def process_checkout():
 
         order_id = cursor.lastrowid
         conn.commit()
+        order = conn.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
     except Exception as e:
         conn.rollback()
         conn.close()
         return jsonify({"error": f"Failed to process order: {str(e)}"}), 500
 
     conn.close()
+
+    send_order_email(
+        order['email'],
+        f"Order Received & Pending Payment - Pack & Sip (Order #{order_id})",
+        f"Hello {order['customer_name']},\n\n"
+        "Thank you for ordering from Pack & Sip. We have received your order and its status is Pending.\n\n"
+        "Items:\n"
+        f"{order_items_text(order)}\n\n"
+        f"Total price: ₱{order['total_amount']:.2f}\n\n"
+        "Payment Instructions:\n"
+        "Please settle payment via any of the following options:\n"
+        "• GCash: 0912 345 6789 (Pack & Sip)\n"
+        "• Maya: 0912 345 6789\n"
+        "• Bank Transfer (BDO): 0012 3456 7890\n\n"
+        "Once payment is received, your order will be dispatched via Lalamove."
+    )
 
     return jsonify({
         "success": True,
