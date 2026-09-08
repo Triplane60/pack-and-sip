@@ -164,7 +164,8 @@ function updateSummary(data){
   });
   const totals = document.createElement('div');
   totals.className = 'pt-3';
-  totals.innerHTML = `<div class="flex items-center justify-between"><div class="text-sm">Subtotal</div><div class="font-medium">${formatPrice(data.subtotal)}</div></div><div class="flex items-center justify-between mt-2"><div class="text-sm">Shipping</div><div class="font-medium">${formatPrice(data.shipping)}</div></div><div class="flex items-center justify-between mt-3 text-lg font-bold text-indigo-700"><div>Total</div><div>${formatPrice(data.total)}</div></div>`;
+  const downpayment = Number(data.downpayment_amount ?? (Number(data.total || 0) * 0.5));
+  totals.innerHTML = `<div class="flex items-center justify-between"><div class="text-sm">Subtotal</div><div class="font-medium">${formatPrice(data.subtotal)}</div></div><div class="flex items-center justify-between mt-2"><div class="text-sm">Shipping</div><div class="font-medium">${formatPrice(data.shipping)}</div></div><div class="flex items-center justify-between mt-3 text-lg font-bold text-indigo-700"><div>Total</div><div>${formatPrice(data.total)}</div></div><div class="flex items-center justify-between mt-2 text-sm font-semibold text-amber-700"><div>Required 50% Downpayment</div><div>${formatPrice(downpayment)}</div></div>`;
   cartContent.appendChild(totals);
 }
 
@@ -318,6 +319,8 @@ async function openConfirmationModal(){
   }
 
   document.getElementById('confirmOrderTotal').textContent = document.getElementById('total').textContent;
+  const confirmDownpayment = Number(document.getElementById('total').textContent.replace(/[^0-9.]/g, '') || 0) * 0.5;
+  document.getElementById('confirmOrderDownpayment').textContent = formatPrice(confirmDownpayment);
   const modal = document.getElementById('confirmOrderModal');
   modal.classList.remove('hidden');
   modal.classList.add('flex');

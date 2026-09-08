@@ -124,6 +124,9 @@ def init_db():
             microwavable_size TEXT,
             microwavable_boxes INTEGER NOT NULL DEFAULT 0,
             total_amount REAL NOT NULL,
+            downpayment_amount REAL NOT NULL DEFAULT 0,
+            remaining_balance REAL NOT NULL DEFAULT 0,
+            payment_status TEXT NOT NULL DEFAULT 'Pending Downpayment',
             created_at TEXT NOT NULL
         )
     ''')
@@ -142,6 +145,12 @@ def init_db():
         cursor.execute("ALTER TABLE orders ADD COLUMN lid_style TEXT")
     if 'microwavable_size' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN microwavable_size TEXT")
+    if 'downpayment_amount' not in order_columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN downpayment_amount REAL NOT NULL DEFAULT 0")
+    if 'remaining_balance' not in order_columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN remaining_balance REAL NOT NULL DEFAULT 0")
+    if 'payment_status' not in order_columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'Pending Downpayment'")
     conn.commit()
 
     conn.close()
@@ -389,6 +398,9 @@ def process_checkout():
     subtotal = round(subtotal, 2)
     shipping = 15.0 if subtotal > 0 else 0.0
     total = round(subtotal + shipping, 2)
+    downpayment_amount = round(total * 0.5, 2)
+    remaining_balance = round(total - downpayment_amount, 2)
+    payment_status = 'Pending Downpayment'
 
     # Deduct stock and insert order within a transaction
     try:
@@ -403,9 +415,9 @@ def process_checkout():
         created_at = datetime.datetime.utcnow().isoformat()
 
         cursor.execute('''
-            INSERT INTO orders (customer_name, email, customer_address, customer_phone, payment_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total_amount, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (name, email, address, phone, payment_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total, created_at))
+            INSERT INTO orders (customer_name, email, customer_address, customer_phone, payment_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total_amount, downpayment_amount, remaining_balance, payment_status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (name, email, address, phone, payment_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total, downpayment_amount, remaining_balance, payment_status, created_at))
 
         order_id = cursor.lastrowid
         conn.commit()
@@ -424,13 +436,16 @@ def process_checkout():
         "Thank you for ordering from Pack & Sip. We have received your order and its status is Pending.\n\n"
         "Items:\n"
         f"{order_items_text(order)}\n\n"
-        f"Total price: ₱{order['total_amount']:.2f}\n\n"
+        f"Total Amount: ₱{order['total_amount']:.2f}\n"
+        f"Required 50% Downpayment: ₱{order['downpayment_amount']:.2f}\n"
+        f"Remaining Balance upon Delivery: ₱{order['remaining_balance']:.2f}\n\n"
         "Payment Instructions:\n"
-        "Please settle payment via any of the following options:\n"
+        f"Please send your 50% downpayment (₱{order['downpayment_amount']:.2f}) to confirm your order:\n"
         "• GCash: 0912 345 6789 (Pack & Sip)\n"
         "• Maya: 0912 345 6789\n"
         "• Bank Transfer (BDO): 0012 3456 7890\n\n"
-        "Once payment is received, your order will be dispatched via Lalamove."
+        "Please reply to this email with your payment receipt screenshot. Once verified, your order will be prepared and dispatched via Lalamove. "
+        f"Pay the remaining balance (₱{order['remaining_balance']:.2f}) upon delivery."
     )
 
     return jsonify({
@@ -438,7 +453,10 @@ def process_checkout():
         "order_id": order_id,
         "message": "Order processed successfully!",
         "payment_method": payment_method,
-        "total": total
+        "total": total,
+        "downpayment_amount": downpayment_amount,
+        "remaining_balance": remaining_balance,
+        "payment_status": payment_status
     })
 
 
