@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import datetime
+import threading
 from flask import Flask, jsonify, render_template, request, send_from_directory, session
 
 from flask_cors import CORS
@@ -520,9 +521,8 @@ def process_checkout():
 
     conn.close()
 
-    send_order_email(
-        order['email'],
-        f"Order Received & Pending Payment - Pack & Sip (Order #{order_id})",
+    email_subject = f"Order Received & Pending Payment - Pack & Sip (Order #{order_id})"
+    email_body = (
         f"Hello {order['customer_name']},\n\n"
         "Thank you for ordering from Pack & Sip. We have received your order and its status is Pending.\n\n"
         "Items:\n"
@@ -538,6 +538,14 @@ def process_checkout():
         "Please reply to this email with your payment receipt screenshot. Once verified, your order will be prepared and dispatched via Lalamove. "
         f"Pay the remaining balance (₱{order['remaining_balance']:.2f}) upon delivery."
     )
+
+    # Send the SMTP email in a background thread so the HTTP response
+    # returns immediately without waiting for network completion.
+    threading.Thread(
+        target=send_order_email,
+        args=(order['email'], email_subject, email_body),
+        daemon=True
+    ).start()
 
     return jsonify({
         "success": True,
