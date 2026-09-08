@@ -224,7 +224,7 @@
       <div class="p-4" id="cartContent">
         <p class="text-sm text-slate-600">No items in cart.</p>
       </div>
-      <div class="p-4 border-t space-y-2.5" id="customerForm">
+            <div class="p-4 border-t space-y-2.5" id="customerForm">
         <label class="block text-sm font-medium text-slate-700">Full Name</label>
         <input id="customerName" type="text" class="w-full rounded-md border-gray-200 p-1.5" />
         <label for="customerEmail" class="block text-sm font-medium text-slate-700">Email Address</label>
@@ -233,7 +233,31 @@
         <textarea id="customerAddress" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
         <label class="block text-sm font-medium text-slate-700">Phone Number</label>
         <input type="tel" id="customerPhone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" required class="w-full rounded-md border-gray-200 p-1.5" />
+        
+        <div class="payment-option-group" style="margin: 15px 0;">
+          <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #1e1e2f;">Payment Option</label>
+          <select id="payment-type-select" onchange="updateCheckoutTotals()" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px;">
+            <option value="50_percent">50% Downpayment (Balance on Delivery)</option>
+            <option value="full">100% Full Payment</option>
+          </select>
+        </div>
+                <div id="payment-upload-section" style="margin: 15px 0; padding: 12px; background: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <label style="font-weight: bold; display: block; margin-bottom: 6px; color: #1e1e2f;">
+            Upload Payment Receipt (GCash / Maya)
+          </label>
+          <p style="font-size: 12px; color: #666; margin-bottom: 8px; margin-top: 0;">
+            Send payment to <strong>0912 345 6789 (Pack & Sip)</strong> and upload a screenshot of your receipt:
+          </p>
+          <input type="file" id="payment-receipt-input" accept="image/*" required style="width: 100%; padding: 6px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; background: #fff;">
+        </div>
+
+        <div id="payment-breakdown" style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+
+          <p style="margin: 4px 0; color: #333;"><strong>Amount Due Now:</strong> <span id="due-now-amount" style="color: #2b2672; font-weight: bold;">₱0.00</span></p>
+          <p style="margin: 4px 0; color: #666;" id="remaining-balance-row"><strong>Balance upon Delivery:</strong> <span id="remaining-balance-amount">₱0.00</span></p>
+        </div>
       </div>
+
       <div class="p-4 border-t">
         <button id="checkoutBtn" class="w-full bg-indigo-600 text-white py-2 rounded-md">Proceed to Checkout</button>
       </div>
@@ -277,7 +301,16 @@
     </div>
   </footer>
 
+    <div id="custom-alert-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
+    <div style="background: #fff; padding: 24px; border-radius: 12px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+      <h3 style="margin-top: 0; color: #1e1e2f;">Notice</h3>
+      <p id="custom-alert-message" style="color: #555; margin: 16px 0 24px;"></p>
+      <button onclick="closeCustomAlert()" style="background: #2b2672; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%;">OK</button>
+    </div>
+  </div>
+
   <script src="main.js" defer></script>
+
   <script>
     document.getElementById('copyrightYear').textContent = new Date().getFullYear();
   </script>

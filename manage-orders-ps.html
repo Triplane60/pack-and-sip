@@ -43,10 +43,10 @@
       </div>
     </section>
 
-    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div id="message" class="hidden border-b px-5 py-3 text-sm" role="status"></div>
       <div class="overflow-x-auto">
-        <table class="w-full min-w-[1100px] border-collapse text-left text-sm">
+        <table class="w-full border-collapse text-left text-sm table-auto">
           <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
             <tr>
               <th class="px-5 py-4 font-semibold">Order ID</th>
@@ -54,12 +54,12 @@
               <th class="px-5 py-4 font-semibold">Contact</th>
               <th class="px-5 py-4 font-semibold">Shipping address</th>
               <th class="px-5 py-4 font-semibold">Items</th>
-              <th class="px-5 py-4 font-semibold">Payment</th>
               <th class="px-5 py-4 font-semibold">Total</th>
               <th class="px-5 py-4 font-semibold">Status</th>
               <th class="px-5 py-4 font-semibold">Actions</th>
             </tr>
           </thead>
+
           <tbody id="ordersTableBody" class="divide-y divide-slate-100"></tbody>
         </table>
       </div>
@@ -87,19 +87,20 @@
       return order.shipping_address || '—';
     }
 
-    function formatItems(order) {
+        function formatItems(order) {
       const items = [];
       if (Number(order.cup_boxes || 0) > 0) {
-        items.push(`Cups: ${order.cup_size || '—'} (${Number(order.cup_boxes)} box${Number(order.cup_boxes) === 1 ? '' : 'es'})`);
+        items.push(`Cups: ${order.cup_size || 'Selected size'} (${Number(order.cup_boxes)} box${Number(order.cup_boxes) === 1 ? '' : 'es'})`);
       }
       if (Number(order.lid_boxes || 0) > 0) {
-        items.push(`Lids: ${order.lid_style || '—'} Lid (${Number(order.lid_boxes)} box${Number(order.lid_boxes) === 1 ? '' : 'es'})`);
+        items.push(`Lids: ${order.lid_style || 'Selected style'} Lid (${Number(order.lid_boxes)} box${Number(order.lid_boxes) === 1 ? '' : 'es'})`);
       }
       if (Number(order.microwavable_boxes || 0) > 0) {
-        items.push(`Microwavable: ${order.microwavable_size || '—'} (${Number(order.microwavable_boxes)} box${Number(order.microwavable_boxes) === 1 ? '' : 'es'})`);
+        items.push(`Microwavable: ${order.microwavable_size || 'Selected size'} (${Number(order.microwavable_boxes)} box${Number(order.microwavable_boxes) === 1 ? '' : 'es'})`);
       }
       return items.length ? items.join('<br>') : '—';
     }
+
 
     function renderOrders(orders) {
       ordersTableBody.replaceChildren();
@@ -111,17 +112,17 @@
       orders.forEach(order => {
         const row = document.createElement('tr');
         row.className = 'align-top transition hover:bg-slate-50';
-        row.innerHTML = `
+                row.innerHTML = `
           <td class="whitespace-nowrap px-5 py-4 font-bold text-indigo-700">#${order.id}</td>
           <td class="px-5 py-4"><div class="font-semibold text-slate-800">${order.full_name || '—'}</div></td>
           <td class="px-5 py-4 text-slate-600"><div>${order.email || '—'}</div><div class="mt-1">${order.phone_number || '—'}</div></td>
           <td class="max-w-[220px] whitespace-normal px-5 py-4 text-slate-600">${formatAddress(order)}</td>
           <td class="whitespace-normal px-5 py-4 text-xs font-semibold leading-6 text-slate-600">${formatItems(order)}</td>
-          <td class="whitespace-nowrap px-5 py-4 text-slate-600">${order.payment_method || '—'}</td>
           <td class="whitespace-nowrap px-5 py-4 font-bold text-slate-800">${currency.format(Number(order.total_amount || 0))}</td>
           <td class="px-5 py-4"><select data-order-id="${order.id}" class="status-select rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">${statuses.map(status => `<option value="${status}" ${status === order.status ? 'selected' : ''}>${status}</option>`).join('')}</select></td>
           <td class="px-5 py-4"><button type="button" data-save-id="${order.id}" class="save-button rounded-lg border border-indigo-200 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50">Save status</button></td>
         `;
+
         ordersTableBody.appendChild(row);
       });
     }

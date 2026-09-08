@@ -2,7 +2,16 @@ const API_BASE = 'http://127.0.0.1:5000/api';
 const MICROWAVABLE_BASE_PRICE = 1500;
 let PRODUCTS = [];
 
+function showCustomAlert(message) {
+  document.getElementById('custom-alert-message').innerText = message;
+  document.getElementById('custom-alert-modal').style.display = 'flex';
+}
+function closeCustomAlert() {
+  document.getElementById('custom-alert-modal').style.display = 'none';
+}
+
 function formatPrice(value){
+
   return `₱${Number(value || 0).toFixed(2)}`;
 }
 
@@ -151,6 +160,7 @@ function updateSummary(data){
   if((data.items || []).length === 0){
     cartContent.innerHTML = `<p class="text-sm text-slate-600">No items in cart.</p>`;
     document.getElementById('cartCount').innerText = '0';
+    updateCheckoutTotals();
     return;
   }
   document.getElementById('cartCount').innerText = data.items.reduce((s,i)=>s+i.boxes,0);
@@ -164,9 +174,29 @@ function updateSummary(data){
   });
   const totals = document.createElement('div');
   totals.className = 'pt-3';
-  const downpayment = Number(data.downpayment_amount ?? (Number(data.total || 0) * 0.5));
-  totals.innerHTML = `<div class="flex items-center justify-between"><div class="text-sm">Subtotal</div><div class="font-medium">${formatPrice(data.subtotal)}</div></div><div class="flex items-center justify-between mt-2"><div class="text-sm">Shipping</div><div class="font-medium">${formatPrice(data.shipping)}</div></div><div class="flex items-center justify-between mt-3 text-lg font-bold text-indigo-700"><div>Total</div><div>${formatPrice(data.total)}</div></div><div class="flex items-center justify-between mt-2 text-sm font-semibold text-amber-700"><div>Required 50% Downpayment</div><div>${formatPrice(downpayment)}</div></div>`;
+  totals.innerHTML = `<div class="flex items-center justify-between"><div class="text-sm">Subtotal</div><div class="font-medium">${formatPrice(data.subtotal)}</div></div><div class="flex items-center justify-between mt-2"><div class="text-sm">Shipping</div><div class="font-medium">${formatPrice(data.shipping)}</div></div><div class="flex items-center justify-between mt-3 text-lg font-bold text-indigo-700"><div>Total</div><div>${formatPrice(data.total)}</div></div>`;
   cartContent.appendChild(totals);
+  updateCheckoutTotals();
+}
+
+function updateCheckoutTotals() {
+  const totalStr = document.getElementById('total').innerText.replace(/[^0-9.]/g, '');
+  const total = parseFloat(totalStr) || 0;
+  const paymentType = document.getElementById('payment-type-select').value;
+  
+  let dueNow = total;
+  let remaining = 0;
+  
+  if (paymentType === '50_percent') {
+    dueNow = total * 0.5;
+    remaining = total * 0.5;
+    document.getElementById('remaining-balance-row').style.display = 'block';
+  } else {
+    document.getElementById('remaining-balance-row').style.display = 'none';
+  }
+  
+  document.getElementById('due-now-amount').innerText = formatPrice(dueNow);
+  document.getElementById('remaining-balance-amount').innerText = formatPrice(remaining);
 }
 
 // UI / drawer handlers
@@ -174,7 +204,9 @@ function openCart(){
   const panel = document.getElementById('drawerPanel');
   panel.style.transform = 'translateX(0)';
   panel.setAttribute('aria-hidden','false');
+  updateCheckoutTotals();
 }
+
 function closeCart(){
   const panel = document.getElementById('drawerPanel');
   panel.style.transform = 'translateX(100%)';
@@ -271,16 +303,16 @@ function setupAuthModal(){
       });
 
       const result = await res.json();
-      if (res.ok) {
+            if (res.ok) {
         currentUser = result.user;
         updateAuthUI();
         closeAuthModal();
         fillCustomerData();
       } else {
-        alert(result.error);
+        showCustomAlert(result.error);
       }
     } catch (err) {
-      alert('Login failed');
+      showCustomAlert('Login failed');
     }
   });
 
@@ -296,7 +328,6 @@ function setupAuthModal(){
         body: JSON.stringify(data),
         credentials: 'include'
       });
-
       const result = await res.json();
       if (res.ok) {
         currentUser = result.user;
@@ -304,12 +335,13 @@ function setupAuthModal(){
         closeAuthModal();
         fillCustomerData();
       } else {
-        alert(result.error);
+        showCustomAlert(result.error);
       }
     } catch (err) {
-      alert('Registration failed');
+      showCustomAlert('Registration failed');
     }
   });
+
 
   document.getElementById('logoutBtn').addEventListener('click', () => {
     currentUser = null;
@@ -409,26 +441,35 @@ function resetCheckoutState(){
   document.getElementById('customerEmail').value = '';
   document.getElementById('customerAddress').value = '';
   document.getElementById('customerPhone').value = '';
+  document.getElementById('payment-receipt-input').value = '';
 }
+
 
 function validateCheckoutFields(){
   const name = document.getElementById('customerName').value.trim();
   const email = document.getElementById('customerEmail').value.trim();
   const address = document.getElementById('customerAddress').value.trim();
   const phone = document.getElementById('customerPhone').value.trim();
+  const receipt = document.getElementById('payment-receipt-input').files[0];
 
   if(!name || !email || !address || !phone){
-    alert('Please enter your name, email, address, and phone number.');
+    showCustomAlert('Please enter your name, email, address, and phone number.');
     return false;
   }
 
   if(!/^09\d{9}$/.test(phone)){
-    alert('Please enter a valid Philippine mobile number in the format 09123456789.');
+    showCustomAlert('Please enter a valid Philippine mobile number in the format 09123456789.');
+    return false;
+  }
+
+  if(!receipt){
+    showCustomAlert('Please upload a screenshot of your payment receipt.');
     return false;
   }
 
   return true;
 }
+
 
 async function openConfirmationModal(){
   if(!validateCheckoutFields()) return;
@@ -480,45 +521,55 @@ async function submitOrder(){
   const lid = findProductById(lidId);
   const microwavable = findProductById(selectedMicrowavableId);
 
-  const payload = {
-    // Keep the existing checkout contract while also exposing the requested field names.
-    name, address, phone, email,
-    fullName: name,
-    shippingAddress: address,
-    phoneNumber: phone,
-    cup_id: selectedCupId,
-    cup_size: cup?.size || null,
-    cup_boxes: cupBoxes,
-    lid_id: lidId,
-    lid_style: lid?.style || null,
-    lid_boxes: lidBoxes,
-    microwavable_id: selectedMicrowavableId,
-    microwavable_size: microwavable?.size || null,
-    microwavable_boxes: microwavableBoxes
-  };
+  const totalStr = document.getElementById('total').innerText.replace(/[^0-9.]/g, '');
+  const total = parseFloat(totalStr) || 0;
+  const paymentType = document.getElementById('payment-type-select').value;
+  const dueNow = paymentType === '50_percent' ? total * 0.5 : total;
+  const remaining = paymentType === '50_percent' ? total * 0.5 : 0;
+  
+  const receiptFile = document.getElementById('payment-receipt-input').files[0];
+
+  const formData = new FormData();
+  formData.append('name', name);
+  formData.append('email', email);
+  formData.append('address', address);
+  formData.append('phone', phone);
+  formData.append('cup_id', selectedCupId || '');
+  formData.append('cup_size', cup?.size || '');
+  formData.append('cup_boxes', cupBoxes);
+  formData.append('lid_id', lidId || '');
+  formData.append('lid_style', lid?.style || '');
+  formData.append('lid_boxes', lidBoxes);
+  formData.append('microwavable_id', selectedMicrowavableId || '');
+  formData.append('microwavable_size', microwavable?.size || '');
+  formData.append('microwavable_boxes', microwavableBoxes);
+  formData.append('payment_type', paymentType);
+  formData.append('due_now', dueNow);
+  formData.append('remaining_balance', remaining);
+  formData.append('receipt', receiptFile);
 
   try{
     // Clear the local cart and close checkout before waiting for the network request.
     resetCheckoutState();
-        const res = await fetch(`${API_BASE}/orders`, {
+    const res = await fetch(`${API_BASE}/orders`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: formData,
       credentials: 'include'
     });
-
     const data = await res.json();
     if(!res.ok){
-      alert(data.error || 'Failed to place order');
+      showCustomAlert(data.error || 'Failed to place order');
       return;
     }
     showOrderPendingModal(data.order_id, email);
     // Refresh product list to reflect updated stock
     await fetchProducts();
   }catch(err){
-    alert('Network error placing order');
+    showCustomAlert('Network error placing order');
   }
 }
+
+
 
 function openAbout(){
   const modal = document.getElementById('aboutModal');

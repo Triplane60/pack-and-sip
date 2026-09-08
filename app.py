@@ -435,6 +435,10 @@ def process_checkout():
     lid_style = (data.get('lid_style') or '').strip() or None
     microwavable_size = (data.get('microwavable_size') or '').strip() or None
 
+    payment_type = (data.get('payment_type') or '50_percent').strip()
+    due_now = float(data.get('due_now', 0))
+    remaining_balance = float(data.get('remaining_balance', 0))
+
     try:
         cup_boxes = int(data.get('cup_boxes', 0) or 0)
         lid_boxes = int(data.get('lid_boxes', 0) or 0)
@@ -521,7 +525,7 @@ def process_checkout():
 
     conn.close()
 
-    email_subject = f"Order Received & Pending Payment - Pack & Sip (Order #{order_id})"
+    email_subject = f"Order Received & Pending Payment - Pack & Sip Order #{order_id}"
     email_body = (
         f"Hello {order['customer_name']},\n\n"
         "Thank you for ordering from Pack & Sip. We have received your order and its status is Pending.\n\n"
@@ -531,12 +535,12 @@ def process_checkout():
         f"Required 50% Downpayment: ₱{order['downpayment_amount']:.2f}\n"
         f"Remaining Balance upon Delivery: ₱{order['remaining_balance']:.2f}\n\n"
         "Payment Instructions:\n"
-        f"Please send your 50% downpayment (₱{order['downpayment_amount']:.2f}) to confirm your order:\n"
+        f"Please send your 50% downpayment of ₱{order['downpayment_amount']:.2f} to confirm your order:\n"
         "• GCash: 0912 345 6789 (Pack & Sip)\n"
         "• Maya: 0912 345 6789\n"
         "• Bank Transfer (BDO): 0012 3456 7890\n\n"
         "Please reply to this email with your payment receipt screenshot. Once verified, your order will be prepared and dispatched via Lalamove. "
-        f"Pay the remaining balance (₱{order['remaining_balance']:.2f}) upon delivery."
+        f"Pay the remaining balance of ₱{order['remaining_balance']:.2f} upon delivery."
     )
 
     # Send the SMTP email in a background thread so the HTTP response
