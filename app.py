@@ -185,6 +185,40 @@ def user_profile(user):
     }
 
 
+@app.route('/register', methods=['POST'])
+def register_form():
+    """Create an account from a standard form POST, and redirect to the index."""
+    full_name = request.form.get('full_name', '').strip()
+    email = request.form.get('email', '').strip().lower()
+    password = request.form.get('password', '')
+    phone = request.form.get('phone', '').strip()
+    address = request.form.get('address', '').strip()
+
+    if not email or not password or not full_name:
+        return "Email, password, and full name are required.", 400
+    if len(password) < 8:
+        return "Password must be at least 8 characters.", 400
+
+    conn = get_db()
+    try:
+        password_hash = generate_password_hash(password)
+        cursor = conn.execute('''
+            INSERT INTO users (email, password_hash, full_name, phone, shipping_address)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (email, password_hash, full_name, phone, address))
+        conn.commit()
+        user_id = cursor.lastrowid
+        session.clear()
+        session['user_id'] = user_id
+    except sqlite3.IntegrityError:
+        conn.close()
+        return "An account with that email already exists.", 409
+    conn.close()
+
+    from flask import redirect
+    return redirect('/')
+
+
 @app.route('/api/register', methods=['POST'])
 def register():
     """Create an account and sign the new user into the current session."""
@@ -193,7 +227,7 @@ def register():
     password = data.get('password') or ''
     full_name = (data.get('full_name') or data.get('fullName') or '').strip()
     phone = (data.get('phone') or data.get('phone_number') or '').strip()
-    shipping_address = (data.get('shipping_address') or data.get('shippingAddress') or '').strip()
+    shipping_address = (data.get('address') or data.get('shipping_address') or data.get('shippingAddress') or '').strip()
 
     if not email or not password or not full_name:
         return jsonify({'error': 'Email, password, and full name are required.'}), 400

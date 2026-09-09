@@ -87,7 +87,6 @@
         </div>
         <div class="flex items-center gap-4">
           <p class="hidden sm:block text-sm text-slate-500">Boxes of 1,000 units</p>
-          <a href="#top" onclick="scrollToTop(event)" class="text-sm text-indigo-600 hover:underline font-medium">Back to top ↑</a>
         </div>
       </div>
       <div id="productList" class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4"></div>
@@ -167,7 +166,7 @@
       </form>
 
       <!-- Register Form -->
-      <form id="registerForm" class="mt-6 space-y-4 hidden">
+      <form id="registerForm" action="/register" method="POST" class="mt-6 space-y-4 hidden">
         <div>
           <label class="block text-sm font-medium text-slate-700">Full Name</label>
           <input type="text" name="full_name" required class="w-full border rounded-md p-2 mt-1" />
@@ -187,7 +186,7 @@
         </div>
         <div>
           <label class="block text-sm font-medium text-slate-700">Shipping Address</label>
-          <textarea name="shipping_address" class="w-full border rounded-md p-2 mt-1" rows="2"></textarea>
+          <textarea name="address" class="w-full border rounded-md p-2 mt-1" rows="2"></textarea>
         </div>
         <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-md font-semibold hover:bg-indigo-700">Create Account</button>
       </form>

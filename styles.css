@@ -16,6 +16,18 @@
 body.drawer-open #backToTopBtn,
 body.modal-open #backToTopBtn {
   display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Cart toast: horizontally centered on all viewports */
+#cart-toast {
+  top: auto !important;
+  right: auto !important;
+  bottom: 24px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
 }
 
 /* Mobile Responsiveness & Accessibility */
@@ -49,10 +61,11 @@ body.modal-open #backToTopBtn {
     padding: 1rem !important;
   }
 
-  /* Fixed Toast position on Mobile */
+  /* Keep toast horizontally centered on mobile */
   #cart-toast {
-    top: 16px !important;
-    bottom: auto !important;
+    bottom: 24px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
   }
 }
 

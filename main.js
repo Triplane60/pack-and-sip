@@ -2,6 +2,19 @@ const API_BASE = '/api';
 const MICROWAVABLE_BASE_PRICE = 1500;
 let PRODUCTS = [];
 
+// Force browser to scroll to top on page reload
+if ('scrollRestoration' in history) {
+    history.scrollRestoration = 'manual';
+}
+
+window.addEventListener('beforeunload', () => {
+    window.scrollTo(0, 0);
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    window.scrollTo(0, 0);
+});
+
 function showCustomAlert(message) {
   document.getElementById('custom-alert-message').innerText = message;
   document.getElementById('custom-alert-modal').style.display = 'flex';
@@ -126,18 +139,23 @@ function showToast(message) {
   }
   
   toast.textContent = message;
-  toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl transition-all duration-300 opacity-0 scale-95 font-semibold';
+  toast.className = 'fixed z-[100] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl transition-all duration-300 opacity-0 scale-95 font-semibold';
+  toast.style.bottom = '24px';
+  toast.style.left = '50%';
+  toast.style.top = 'auto';
+  toast.style.right = 'auto';
+  toast.style.transform = 'translateX(-50%)';
   
   // Trigger animation
   requestAnimationFrame(() => {
-    toast.classList.remove('opacity-0', 'scale-95', 'translate-y-[-20px]');
-    toast.classList.add('opacity-100', 'scale-100', 'translate-y-0');
+    toast.classList.remove('opacity-0', 'scale-95');
+    toast.classList.add('opacity-100', 'scale-100');
   });
 
   // Hide after 2.5 seconds
   setTimeout(() => {
-    toast.classList.remove('opacity-100', 'scale-100', 'translate-y-0');
-    toast.classList.add('opacity-0', 'scale-95', 'translate-y-[-20px]');
+    toast.classList.remove('opacity-100', 'scale-100');
+    toast.classList.add('opacity-0', 'scale-95');
   }, 2500);
 }
 
@@ -232,6 +250,7 @@ function openCart(){
   panel.style.transform = 'translateX(0)';
   panel.setAttribute('aria-hidden','false');
   document.body.classList.add('drawer-open');
+  updateBackToTopButton();
   updateCheckoutTotals();
 }
 
@@ -240,6 +259,7 @@ function closeCart(){
   panel.style.transform = 'translateX(100%)';
   panel.setAttribute('aria-hidden','true');
   document.body.classList.remove('drawer-open');
+  updateBackToTopButton();
 }
 
 
@@ -431,7 +451,8 @@ function scrollToTop(event){
 function updateBackToTopButton(){
   const button = document.getElementById('backToTopBtn');
   if(!button) return;
-  button.classList.toggle('hidden', window.scrollY <= 300);
+  const drawerOpen = document.body.classList.contains('drawer-open');
+  button.classList.toggle('hidden', drawerOpen || window.scrollY <= 300);
 }
 
 window.addEventListener('scroll', updateBackToTopButton);
