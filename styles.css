@@ -6,4 +6,54 @@
 }
 
 /* Drawer default off-screen handled with inline transform class; provide will-change for smoothness */
-#drawerPanel{ will-change: transform; }
+#drawerPanel { 
+  will-change: transform; 
+  max-height: 100vh;
+  overflow-y: auto;
+}
+
+/* Hide FAB when drawer/modals are open */
+body.drawer-open #backToTopBtn,
+body.modal-open #backToTopBtn {
+  display: none !important;
+}
+
+/* Mobile Responsiveness & Accessibility */
+@media (max-width: 768px) {
+  /* ... existing styles ... */
+  #drawerPanel {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    padding-bottom: 100px; /* Space for browser nav bars */
+  }
+
+
+
+  /* Touch-friendly inputs and buttons */
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  select,
+  textarea,
+  button,
+  .btn {
+    min-height: 44px;
+    font-size: 16px !important; /* Prevents auto-zoom on iOS */
+  }
+
+    /* Adjust padding for mobile */
+  .p-6 {
+    padding: 1rem !important;
+  }
+
+  /* Fixed Toast position on Mobile */
+  #cart-toast {
+    top: 16px !important;
+    bottom: auto !important;
+  }
+}
+
+

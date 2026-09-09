@@ -57,8 +57,10 @@
               <th class="px-5 py-4 font-semibold">Total</th>
               <th class="px-5 py-4 font-semibold">Status</th>
               <th class="px-5 py-4 font-semibold">Actions</th>
-            </tr>
-          </thead>
+              <th class="px-5 py-4 font-semibold text-red-600">Danger Zone</th>
+        </tr>
+      </thead>
+
 
           <tbody id="ordersTableBody" class="divide-y divide-slate-100"></tbody>
         </table>
@@ -72,7 +74,7 @@
 
   <script>
     const statuses = ['Pending', 'Paid', 'Shipping', 'Completed'];
-    const ADMIN_API_URL = 'http://127.0.0.1:5000/api/admin/orders';
+    const ADMIN_API_URL = '/api/admin/orders';
     const currency = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
     const ordersTableBody = document.getElementById('ordersTableBody');
     const emptyState = document.getElementById('emptyState');
@@ -115,13 +117,15 @@
                 row.innerHTML = `
           <td class="whitespace-nowrap px-5 py-4 font-bold text-indigo-700">#${order.id}</td>
           <td class="px-5 py-4"><div class="font-semibold text-slate-800">${order.full_name || '—'}</div></td>
-          <td class="px-5 py-4 text-slate-600"><div>${order.email || '—'}</div><div class="mt-1">${order.phone_number || '—'}</div></td>
+                    <td class="px-5 py-4 text-slate-600"><div>${order.email || '—'}</div><div class="mt-1">${order.phone_number || '—'}</div></td>
           <td class="max-w-[220px] whitespace-normal px-5 py-4 text-slate-600">${formatAddress(order)}</td>
           <td class="whitespace-normal px-5 py-4 text-xs font-semibold leading-6 text-slate-600">${formatItems(order)}</td>
           <td class="whitespace-nowrap px-5 py-4 font-bold text-slate-800">${currency.format(Number(order.total_amount || 0))}</td>
-          <td class="px-5 py-4"><select data-order-id="${order.id}" class="status-select rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">${statuses.map(status => `<option value="${status}" ${status === order.status ? 'selected' : ''}>${status}</option>`).join('')}</select></td>
+          <td class="px-5 py-4"><select data-order-id="${order.id}" class="status-select rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" onchange="toggleDeleteButton(${order.id}, this.value)">${statuses.map(status => `<option value="${status}" ${status === order.status ? 'selected' : ''}>${status}</option>`).join('')}</select></td>
           <td class="px-5 py-4"><button type="button" data-save-id="${order.id}" class="save-button rounded-lg border border-indigo-200 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50">Save status</button></td>
+          <td class="px-5 py-4"><button type="button" data-delete-id="${order.id}" class="delete-button rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed" ${order.status === 'Completed' ? '' : 'disabled'}>Delete</button></td>
         `;
+
 
         ordersTableBody.appendChild(row);
       });
@@ -161,13 +165,41 @@
       }
     }
 
+        function toggleDeleteButton(orderId, status) {
+      const btn = document.querySelector(`[data-delete-id="${orderId}"]`);
+      if (btn) btn.disabled = (status !== 'Completed');
+    }
+
+    async function deleteOrder(orderId, button) {
+      if (!confirm(`Are you sure you want to delete Order #${orderId}? This action cannot be undone.`)) return;
+      button.disabled = true;
+      try {
+        const response = await fetch(`/api/orders/delete/${orderId}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to delete order.');
+        button.closest('tr').remove();
+        showMessage(`Order #${orderId} deleted.`);
+      } catch (error) {
+        showMessage(error.message, true);
+        button.disabled = false;
+      }
+    }
+
     ordersTableBody.addEventListener('click', event => {
-      const button = event.target.closest('[data-save-id]');
-      if (!button) return;
-      const row = button.closest('tr');
-      const status = row.querySelector('.status-select').value;
-      updateStatus(button.dataset.saveId, status, button);
+      const saveBtn = event.target.closest('[data-save-id]');
+      if (saveBtn) {
+        const row = saveBtn.closest('tr');
+        const status = row.querySelector('.status-select').value;
+        updateStatus(saveBtn.dataset.saveId, status, saveBtn);
+        return;
+      }
+
+      const deleteBtn = event.target.closest('[data-delete-id]');
+      if (deleteBtn) {
+        deleteOrder(deleteBtn.dataset.deleteId, deleteBtn);
+      }
     });
+
 
     document.getElementById('refreshButton').addEventListener('click', fetchOrders);
     document.addEventListener('DOMContentLoaded', fetchOrders);

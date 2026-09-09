@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Pack & Sip — Wholesale Cups & Lids</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="styles.css">
@@ -214,55 +214,49 @@
     </div>
   </div>
 
-  <!-- Cart Drawer -->
+    <!-- Cart Drawer -->
   <div id="cartDrawer" class="fixed inset-0 flex justify-end pointer-events-none">
-    <div id="drawerPanel" class="max-w-sm w-full bg-white shadow-xl transform translate-x-full pointer-events-auto transition-transform duration-300" aria-hidden="true">
-      <div class="p-4 flex items-center justify-between border-b">
+    <div id="drawerPanel" class="max-w-sm w-full bg-white shadow-xl transform translate-x-full pointer-events-auto transition-transform duration-300 flex flex-col" aria-hidden="true">
+      <div class="p-4 flex items-center justify-between border-b shrink-0">
         <h3 class="text-lg font-semibold">Order Summary</h3>
         <button id="closeCart" class="text-slate-500">Close</button>
       </div>
-      <div class="p-4" id="cartContent">
-        <p class="text-sm text-slate-600">No items in cart.</p>
-      </div>
-            <div class="p-4 border-t space-y-2.5" id="customerForm">
-        <label class="block text-sm font-medium text-slate-700">Full Name</label>
-        <input id="customerName" type="text" class="w-full rounded-md border-gray-200 p-1.5" />
-        <label for="customerEmail" class="block text-sm font-medium text-slate-700">Email Address</label>
-        <input type="email" id="customerEmail" required placeholder="name@example.com" class="w-full p-1.5 border rounded-md mb-2" />
-        <label class="block text-sm font-medium text-slate-700">Shipping Address</label>
-        <textarea id="customerAddress" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
-        <label class="block text-sm font-medium text-slate-700">Phone Number</label>
-        <input type="tel" id="customerPhone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" required class="w-full rounded-md border-gray-200 p-1.5" />
-        
-        <div class="payment-option-group" style="margin: 15px 0;">
-          <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #1e1e2f;">Payment Option</label>
-          <select id="payment-type-select" onchange="updateCheckoutTotals()" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px;">
-            <option value="50_percent">50% Downpayment (Balance on Delivery)</option>
-            <option value="full">100% Full Payment</option>
-          </select>
+      <div class="flex-1 overflow-y-auto">
+        <div class="p-4" id="cartContent">
+          <p class="text-sm text-slate-600">No items in cart.</p>
         </div>
-                <div id="payment-upload-section" style="margin: 15px 0; padding: 12px; background: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 8px;">
-          <label style="font-weight: bold; display: block; margin-bottom: 6px; color: #1e1e2f;">
-            Upload Payment Receipt (GCash / Maya)
-          </label>
-          <p style="font-size: 12px; color: #666; margin-bottom: 8px; margin-top: 0;">
-            Send payment to <strong>0912 345 6789 (Pack & Sip)</strong> and upload a screenshot of your receipt:
-          </p>
-          <input type="file" id="payment-receipt-input" accept="image/*" required style="width: 100%; padding: 6px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; background: #fff;">
-        </div>
+        <div class="p-4 border-t space-y-2.5" id="customerForm">
+          <label class="block text-sm font-medium text-slate-700">Full Name</label>
+          <input id="customerName" type="text" class="w-full rounded-md border-gray-200 p-1.5" />
+          <label for="customerEmail" class="block text-sm font-medium text-slate-700">Email Address</label>
+          <input type="email" id="customerEmail" required placeholder="name@example.com" class="w-full p-1.5 border rounded-md mb-2" />
+          <label class="block text-sm font-medium text-slate-700">Shipping Address</label>
+          <textarea id="customerAddress" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
+          <label class="block text-sm font-medium text-slate-700">Phone Number</label>
+          <input type="tel" id="customerPhone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" required class="w-full rounded-md border-gray-200 p-1.5" />
+          
+          <div class="payment-option-group" style="margin: 15px 0;">
+            <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #1e1e2f;">Payment Option</label>
+            <select id="payment-type-select" onchange="updateCheckoutTotals()" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px;">
+              <option value="50_percent">50% Downpayment (Balance on Delivery)</option>
+              <option value="full">100% Full Payment</option>
+            </select>
+          </div>
 
-        <div id="payment-breakdown" style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+          <div id="payment-breakdown" style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
 
-          <p style="margin: 4px 0; color: #333;"><strong>Amount Due Now:</strong> <span id="due-now-amount" style="color: #2b2672; font-weight: bold;">₱0.00</span></p>
-          <p style="margin: 4px 0; color: #666;" id="remaining-balance-row"><strong>Balance upon Delivery:</strong> <span id="remaining-balance-amount">₱0.00</span></p>
+            <p style="margin: 4px 0; color: #333;"><strong>Amount Due Now:</strong> <span id="due-now-amount" style="color: #2b2672; font-weight: bold;">₱0.00</span></p>
+            <p style="margin: 4px 0; color: #666;" id="remaining-balance-row"><strong>Balance upon Delivery:</strong> <span id="remaining-balance-amount">₱0.00</span></p>
+          </div>
         </div>
       </div>
 
-      <div class="p-4 border-t">
-        <button id="checkoutBtn" class="w-full bg-indigo-600 text-white py-2 rounded-md">Proceed to Checkout</button>
+      <div class="p-4 border-t sticky bottom-0 bg-white">
+        <button id="checkoutBtn" class="w-full bg-indigo-600 text-white py-2 rounded-md">Place Order & Proceed</button>
       </div>
     </div>
   </div>
+
 
   <footer class="bg-gray-900 text-gray-300 pt-12 pb-8 mt-16">
     <div class="max-w-6xl mx-auto px-6">

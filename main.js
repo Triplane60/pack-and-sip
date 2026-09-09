@@ -1,4 +1,4 @@
-const API_BASE = 'http://127.0.0.1:5000/api';
+const API_BASE = '/api';
 const MICROWAVABLE_BASE_PRICE = 1500;
 let PRODUCTS = [];
 
@@ -114,8 +114,35 @@ function quickAdd(product){
   }
   updateConfiguratorActionState();
   calculate();
-  openCart();
+  showToast(`${product.name} added to cart!`);
 }
+
+function showToast(message) {
+  let toast = document.getElementById('cart-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'cart-toast';
+    document.body.appendChild(toast);
+  }
+  
+  toast.textContent = message;
+  toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl transition-all duration-300 opacity-0 scale-95 font-semibold';
+  
+  // Trigger animation
+  requestAnimationFrame(() => {
+    toast.classList.remove('opacity-0', 'scale-95', 'translate-y-[-20px]');
+    toast.classList.add('opacity-100', 'scale-100', 'translate-y-0');
+  });
+
+  // Hide after 2.5 seconds
+  setTimeout(() => {
+    toast.classList.remove('opacity-100', 'scale-100', 'translate-y-0');
+    toast.classList.add('opacity-0', 'scale-95', 'translate-y-[-20px]');
+  }, 2500);
+}
+
+
+
 
 let selectedCupId = null;
 let selectedLidId = null;
@@ -204,6 +231,7 @@ function openCart(){
   const panel = document.getElementById('drawerPanel');
   panel.style.transform = 'translateX(0)';
   panel.setAttribute('aria-hidden','false');
+  document.body.classList.add('drawer-open');
   updateCheckoutTotals();
 }
 
@@ -211,7 +239,9 @@ function closeCart(){
   const panel = document.getElementById('drawerPanel');
   panel.style.transform = 'translateX(100%)';
   panel.setAttribute('aria-hidden','true');
+  document.body.classList.remove('drawer-open');
 }
+
 
 // Event wiring
 document.addEventListener('DOMContentLoaded', () => {
@@ -258,15 +288,18 @@ function setupAuthModal(){
   const loginForm = document.getElementById('loginForm');
   const registerForm = document.getElementById('registerForm');
 
-  const openAuth = () => {
+    const openAuth = () => {
     authModal.classList.remove('hidden');
     authModal.classList.add('flex');
+    document.body.classList.add('modal-open');
   };
 
   const closeAuthModal = () => {
     authModal.classList.add('hidden');
     authModal.classList.remove('flex');
+    document.body.classList.remove('modal-open');
   };
+
 
   authBtn.addEventListener('click', openAuth);
   closeAuth.addEventListener('click', closeAuthModal);
@@ -431,7 +464,9 @@ function closeConfirmationModal(){
   const modal = document.getElementById('confirmOrderModal');
   modal.classList.add('hidden');
   modal.classList.remove('flex');
+  document.body.classList.remove('modal-open');
 }
+
 
 function resetCheckoutState(){
   closeConfirmationModal();
@@ -475,7 +510,9 @@ async function openConfirmationModal(){
   if(!validateCheckoutFields()) return;
 
   await calculate();
+  document.body.classList.add('modal-open');
   const items = document.getElementById('confirmOrderItems');
+
   items.replaceChildren();
   const cup = findProductById(selectedCupId);
   const lid = findProductById(selectedLidId);
@@ -575,13 +612,16 @@ function openAbout(){
   const modal = document.getElementById('aboutModal');
   modal.classList.remove('hidden');
   modal.classList.add('flex');
+  document.body.classList.add('modal-open');
 }
 
 function closeAbout(){
   const modal = document.getElementById('aboutModal');
   modal.classList.add('hidden');
   modal.classList.remove('flex');
+  document.body.classList.remove('modal-open');
 }
+
 
 function setupAboutModal(){
   const aboutLink = document.getElementById('aboutLink');

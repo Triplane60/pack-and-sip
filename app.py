@@ -2,7 +2,8 @@ import sqlite3
 import os
 import datetime
 import threading
-from flask import Flask, jsonify, render_template, request, send_from_directory, session
+from flask import Flask, jsonify, render_template, request, send_from_directory, session, render_template_string
+from werkzeug.utils import secure_filename
 
 from flask_cors import CORS
 from flask_mail import Mail, Message
@@ -18,7 +19,8 @@ app.config.update(
     MAIL_USE_TLS=True,
     MAIL_USERNAME=os.getenv('MAIL_USERNAME'),
     MAIL_PASSWORD=os.getenv('MAIL_PASSWORD'),
-    MAIL_DEFAULT_SENDER=os.getenv('MAIL_USERNAME')
+    MAIL_DEFAULT_SENDER=os.getenv('MAIL_USERNAME'),
+    UPLOAD_FOLDER='static/uploads'
 )
 mail = Mail(app)
 
@@ -526,6 +528,10 @@ def process_checkout():
     conn.close()
 
     email_subject = f"Order Received & Pending Payment - Pack & Sip Order #{order_id}"
+    # Construct base URL for the receipt upload link
+    base_url = request.host_url.rstrip('/')
+    upload_link = f"{base_url}/upload-receipt?order_id={order_id}"
+
     email_body = (
         f"Hello {order['customer_name']},\n\n"
         "Thank you for ordering from Pack & Sip. We have received your order and its status is Pending.\n\n"
@@ -539,7 +545,8 @@ def process_checkout():
         "• GCash: 0912 345 6789 (Pack & Sip)\n"
         "• Maya: 0912 345 6789\n"
         "• Bank Transfer (BDO): 0012 3456 7890\n\n"
-        "Please reply to this email with your payment receipt screenshot. Once verified, your order will be prepared and dispatched via Lalamove. "
+        f"Please upload your payment receipt screenshot here: {upload_link}\n\n"
+        "Once verified, your order will be prepared and dispatched via Lalamove. "
         f"Pay the remaining balance of ₱{order['remaining_balance']:.2f} upon delivery."
     )
 
@@ -563,6 +570,72 @@ def process_checkout():
     })
 
 
+@app.route('/upload-receipt', methods=['GET', 'POST'])
+def upload_receipt():
+    order_id = request.args.get('order_id')
+    if request.method == 'POST':
+        order_id = request.form.get('order_id')
+        file = request.files.get('receipt')
+        if not order_id or not file:
+            return "Missing Order ID or Receipt File", 400
+        
+        filename = secure_filename(f"receipt_{order_id}_{file.filename}")
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        
+        conn = get_db()
+        conn.execute('UPDATE orders SET payment_status = ? WHERE id = ?', ('Receipt Uploaded', order_id))
+        conn.commit()
+        conn.close()
+        
+        return "<h1>Receipt Uploaded Successfully!</h1><p>We will verify your payment and update your order status soon.</p>"
+
+    return render_template_string('''
+        <!doctype html>
+        <html>
+        <head>
+            <title>Upload Receipt - Pack & Sip</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="bg-slate-50 flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+                <h1 class="text-2xl font-bold mb-4 text-indigo-700">Upload Payment Receipt</h1>
+                <p class="text-slate-600 mb-6 text-sm">Please upload your GCash/Maya screenshot for Order #{{ order_id }}</p>
+                <form method="POST" enctype="multipart/form-data" class="space-y-4">
+                    <input type="hidden" name="order_id" value="{{ order_id }}">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Select Screenshot</label>
+                        <input type="file" name="receipt" accept="image/*" required class="w-full border p-2 rounded-md">
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-md font-bold hover:bg-indigo-700">Upload Receipt</button>
+                </form>
+            </div>
+        </body>
+        </html>
+    ''', order_id=order_id)
+
+
+@app.route('/api/orders/delete/<int:order_id>', methods=['DELETE'])
+def delete_order(order_id):
+    """Delete an order only if its status is 'Completed'."""
+    conn = get_db()
+    order = conn.execute('SELECT status FROM orders WHERE id = ?', (order_id,)).fetchone()
+    
+    if not order:
+        conn.close()
+        return jsonify({"error": "Order not found."}), 404
+        
+    if order['status'] != 'Completed':
+        conn.close()
+        return jsonify({"error": "Only completed orders can be deleted."}), 400
+
+    conn.execute('DELETE FROM orders WHERE id = ?', (order_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": f"Order #{order_id} deleted successfully."})
+
+
 if __name__ == '__main__':
     init_db()
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
