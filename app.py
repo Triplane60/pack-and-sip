@@ -806,6 +806,41 @@ def delete_order(order_id):
     return jsonify({'success': True, 'message': 'Order deleted successfully'})
 
 
+@app.route('/api/admin/inventory', methods=['GET'])
+def admin_inventory():
+    """Fetch all products and their stock levels for management."""
+    conn = get_db()
+    products = conn.execute('SELECT id, name, stock_boxes FROM products').fetchall()
+    conn.close()
+    return jsonify({"inventory": [dict(p) for p in products]})
+
+
+@app.route('/api/admin/update-stock', methods=['POST'])
+def update_stock():
+    """Update stock_boxes for a specific product."""
+    data = request.get_json(force=True, silent=True) or {}
+    product_id = data.get('product_id')
+    try:
+        new_stock = int(data.get('new_stock', 0))
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid stock value"}), 400
+
+    if not product_id:
+        return jsonify({"error": "Product ID required"}), 400
+
+    conn = get_db()
+    cursor = conn.execute('UPDATE products SET stock_boxes = ? WHERE id = ?', (new_stock, product_id))
+    conn.commit()
+    success = cursor.rowcount > 0
+    conn.close()
+
+    if not success:
+        return jsonify({"error": "Product not found"}), 404
+
+    return jsonify({"success": True, "message": "Stock updated successfully"})
+
+
 if __name__ == '__main__':
+
     init_db()
     app.run(host='0.0.0.0', port=5000, debug=True)

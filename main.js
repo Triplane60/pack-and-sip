@@ -69,8 +69,8 @@ function renderCatalog(){
           <p class="text-sm text-slate-600">${product.description}</p>
           <div class="mt-4 flex items-end justify-between gap-3">
             <div>
-              <span class="text-2xl font-bold text-indigo-700">${formatPrice(product.price_per_box)}</span>
-              <span class="text-xs text-slate-500"> / box</span>
+              <span class="cardPrice text-2xl font-bold text-indigo-700">${formatPrice(product.price_per_box)}</span>
+              <span class="cardPriceUnit text-xs text-slate-500"> / box</span>
             </div>
             <span class="text-xs text-slate-500">${stock} box(es)</span>
           </div>
@@ -154,13 +154,30 @@ function applyCatalogQty(product, value){
 
 function refreshCatalogQuantityInputs(){
   // Mirror the Quick Configurator quantities back onto the matching catalog
-  // card inputs so both views always stay in sync.
+  // card inputs AND update each card's dynamic price display so everything
+  // stays in sync. Card price = unit price × quantity (total) when qty > 1;
+  // otherwise the base unit price is shown.
   const cards = document.querySelectorAll('[data-qty-id]');
   cards.forEach(card => {
-    const input = card.querySelector('.qtyInput');
     const product = findProductById(card.dataset.qtyId);
-    if(!input || !product) return;
-    input.value = getQty(product);
+    if(!product) return;
+
+    const input = card.querySelector('.qtyInput');
+    if(input) input.value = getQty(product);
+
+    const priceEl = card.querySelector('.cardPrice');
+    if(!priceEl) return;
+    const unitEl = card.querySelector('.cardPriceUnit');
+    const qty = getQty(product);
+    const unitPrice = Number(product.price_per_box || 0);
+    if(qty > 1){
+      const lineTotal = Math.round(qty * unitPrice * 100) / 100;
+      priceEl.textContent = formatPrice(lineTotal);
+      if(unitEl) unitEl.textContent = ` / ${qty} boxes total`;
+    }else{
+      priceEl.textContent = formatPrice(unitPrice);
+      if(unitEl) unitEl.textContent = ' / box';
+    }
   });
 }
 
@@ -511,12 +528,22 @@ function updateAuthUI(){
 
 function fillCustomerData(){
   if (currentUser) {
-    document.getElementById('customerName').value = currentUser.full_name || '';
-    document.getElementById('customerEmail').value = currentUser.email || '';
-    document.getElementById('customerAddress').value = currentUser.shipping_address || '';
-    document.getElementById('customerPhone').value = currentUser.phone || '';
+    const nameField = document.getElementById('customerName');
+    const emailField = document.getElementById('customerEmail');
+    const addressField = document.getElementById('customerAddress');
+    const phoneField = document.getElementById('customerPhone');
+
+    if (nameField) nameField.value = currentUser.full_name || '';
+    if (emailField) {
+      emailField.value = currentUser.email || '';
+      emailField.readOnly = true;
+      emailField.classList.add('bg-slate-50', 'text-slate-500', 'cursor-not-allowed');
+    }
+    if (addressField) addressField.value = currentUser.shipping_address || '';
+    if (phoneField) phoneField.value = currentUser.phone || '';
   }
 }
+
 
 
 function debounce(fn, wait){
