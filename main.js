@@ -1,5 +1,4 @@
 const API_BASE = '/api';
-const MICROWAVABLE_BASE_PRICE = 1500;
 let PRODUCTS = [];
 
 // Force browser to scroll to top on page reload
@@ -78,10 +77,43 @@ function renderCatalog(){
         </div>
       </div>
       <div class="p-5 pt-0">
-        <button type="button" class="quickAdd w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300" ${stock === 0 ? 'disabled' : ''}>Quick Add</button>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="qtyBtn qtyMinus flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-lg font-bold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Decrease quantity for ${product.name}"
+            ${stock === 0 ? 'disabled' : ''}
+          >&minus;</button>
+          <input
+            type="number"
+            min="0"
+            value="0"
+            class="qtyInput w-full rounded-md border border-slate-300 px-2 py-1.5 text-center text-sm font-semibold text-slate-800"
+            aria-label="Quantity for ${product.name}"
+            ${stock === 0 ? 'disabled' : ''}
+          />
+          <button
+            type="button"
+            class="qtyBtn qtyPlus flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-lg font-bold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Increase quantity for ${product.name}"
+            ${stock === 0 ? 'disabled' : ''}
+          >+</button>
+        </div>
       </div>
     `;
-    card.querySelector('.quickAdd').addEventListener('click', () => quickAdd(product));
+    card.dataset.qtyId = product.id;
+    const qtyInput = card.querySelector('.qtyInput');
+    const qtyMinus = card.querySelector('.qtyMinus');
+    const qtyPlus = card.querySelector('.qtyPlus');
+    qtyMinus.addEventListener('click', () => {
+      const current = parseInt(qtyInput.value || 0, 10) || 0;
+      applyCatalogQty(product, current - 1);
+    });
+    qtyPlus.addEventListener('click', () => {
+      const current = parseInt(qtyInput.value || 0, 10) || 0;
+      applyCatalogQty(product, current + 1);
+    });
+    qtyInput.addEventListener('input', () => applyCatalogQty(product, qtyInput.value));
     (product.type === 'microwavable' ? microwavableList : list).appendChild(card);
   });
 }
@@ -90,6 +122,7 @@ function resetConfigurator(){
   selectedCupId = null;
   selectedLidId = null;
   selectedMicrowavableId = null;
+  Object.keys(qtys).forEach(id => delete qtys[id]);
   document.getElementById('cupBoxesInput').value = '0';
   document.getElementById('lidBoxesInput').value = '0';
   document.getElementById('microwavableBoxesInput').value = '0';
@@ -99,35 +132,36 @@ function resetConfigurator(){
   document.getElementById('total').innerText = '₱0.00';
   document.getElementById('cartCount').innerText = '0';
   document.getElementById('cartContent').innerHTML = '<p class="text-sm text-slate-600">No items in cart.</p>';
+  refreshCatalogQuantityInputs();
 }
 
 function updateConfiguratorActionState(){
   const viewCart = document.getElementById('viewCart');
-  const microwavableBoxes = Number(document.getElementById('microwavableBoxesInput').value || 0);
-  if(viewCart) viewCart.disabled = !selectedCupId && !selectedLidId && microwavableBoxes <= 0;
+  if(!viewCart) return;
+  const hasItems = PRODUCTS.some(product => getQty(product) > 0);
+  viewCart.disabled = !hasItems;
 }
 
-function quickAdd(product){
-  const stock = Number(product.stock_boxes || 0);
-  if(stock <= 0) return;
-
-  if(product.type === 'cup'){
-    selectedCupId = product.id;
-    const input = document.getElementById('cupBoxesInput');
-    input.value = Math.min(parseInt(input.value || 0, 10) + 1, stock);
-  }else if(product.type === 'lid'){
-    selectedLidId = product.id;
-    const input = document.getElementById('lidBoxesInput');
-    input.value = Math.min(parseInt(input.value || 0, 10) + 1, stock);
-    updateConfiguratorActionState();
-  }else{
-    selectedMicrowavableId = product.id;
-    const input = document.getElementById('microwavableBoxesInput');
-    input.value = Math.min(parseInt(input.value || 0, 10) + 1, stock);
-  }
+function applyCatalogQty(product, value){
+  // Clamp the entered/edited quantity to the available stock: never below 0,
+  // never above what's in stock. Applies independently per product card.
+  const parsed = Math.max(0, Math.min(parseInt(value, 10) || 0, Number(product.stock_boxes || 0)));
+  setQty(product, parsed);
   updateConfiguratorActionState();
+  refreshCatalogQuantityInputs();
   calculate();
-  showToast(`${product.name} added to cart!`);
+}
+
+function refreshCatalogQuantityInputs(){
+  // Mirror the Quick Configurator quantities back onto the matching catalog
+  // card inputs so both views always stay in sync.
+  const cards = document.querySelectorAll('[data-qty-id]');
+  cards.forEach(card => {
+    const input = card.querySelector('.qtyInput');
+    const product = findProductById(card.dataset.qtyId);
+    if(!input || !product) return;
+    input.value = getQty(product);
+  });
 }
 
 function showToast(message) {
@@ -165,36 +199,58 @@ function showToast(message) {
 let selectedCupId = null;
 let selectedLidId = null;
 let selectedMicrowavableId = null;
+// Per-product box quantities so every catalog card (12oz, 16oz, 22oz cups,
+// lid styles, microwavable sizes) can be ordered independently.
+const qtys = {};
+
+function productConfiguratorId(product){
+  if(product.type === 'cup') return 'cupBoxesInput';
+  if(product.type === 'lid') return 'lidBoxesInput';
+  return 'microwavableBoxesInput';
+}
+
+function getQty(product){
+  return Math.max(0, parseInt(qtys[product.id] || 0, 10) || 0);
+}
+
+function setQty(product, value){
+  const parsed = Math.max(0, Math.min(parseInt(value, 10) || 0, Number(product.stock_boxes || 0)));
+  qtys[product.id] = parsed;
+  if(product.type === 'cup') selectedCupId = product.id;
+  else if(product.type === 'lid') selectedLidId = product.id;
+  else selectedMicrowavableId = product.id;
+}
 
 async function calculate(){
-  const cupBoxes = Math.max(0, parseInt(document.getElementById('cupBoxesInput').value || 0, 10));
-  const lidId = selectedLidId;
-  const lidBoxes = Math.max(0, parseInt(document.getElementById('lidBoxesInput').value || 0, 10));
-  const microwavableBoxes = Math.max(0, parseInt(document.getElementById('microwavableBoxesInput').value || 0, 10));
-
-  const body = { cup_id: selectedCupId, cup_boxes: cupBoxes, lid_id: lidId, lid_boxes: lidBoxes };
-  const res = await fetch(`${API_BASE}/cart/calculate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  const data = await res.json();
-  const microwavableSubtotal = microwavableBoxes * MICROWAVABLE_BASE_PRICE;
-  const subtotal = Number(data.subtotal || 0) + microwavableSubtotal;
-  const shipping = Number(data.shipping || 0) || (microwavableSubtotal > 0 ? 15 : 0);
-  data.subtotal = Math.round(subtotal * 100) / 100;
-  data.shipping = shipping;
-  data.total = Math.round((subtotal + shipping) * 100) / 100;
-  data.items = data.items || [];
-  if(microwavableBoxes > 0){
-    data.items.push({
-      name: 'Microwavable containers',
-      boxes: microwavableBoxes,
-      quantity_per_box: 100,
-      line_total: microwavableSubtotal
+  // Aggregate every independently-ordered catalog item (12oz/16oz/22oz cups,
+  // lid styles, microwavable containers) by its own price per box.
+  let subtotal = 0;
+  const items = [];
+  PRODUCTS.forEach(product => {
+    const boxes = getQty(product);
+    if(boxes <= 0) return;
+    const lineTotal = Math.round(boxes * Number(product.price_per_box || 0) * 100) / 100;
+    subtotal += lineTotal;
+    items.push({
+      id: product.id,
+      name: product.name,
+      boxes,
+      quantity_per_box: product.quantity_per_box,
+      line_total: lineTotal
     });
-  }
-  updateSummary(data);
+  });
+  subtotal = Math.round(subtotal * 100) / 100;
+
+  // Flat base shipping fee when the cart is not empty.
+  const shipping = subtotal > 0 ? 15 : 0;
+  const total = Math.round((subtotal + shipping) * 100) / 100;
+
+  updateSummary({
+    subtotal,
+    shipping,
+    total,
+    items
+  });
 }
 
 function updateSummary(data){
@@ -267,10 +323,30 @@ function closeCart(){
 document.addEventListener('DOMContentLoaded', () => {
   resetConfigurator();
   fetchProducts();
-  document.getElementById('cupBoxesInput').addEventListener('input', debounce(calculate, 300));
-  document.getElementById('lidBoxesInput').addEventListener('input', debounce(calculate, 300));
+  document.getElementById('cupBoxesInput').addEventListener('input', debounce(() => {
+    const current = Math.max(0, parseInt(document.getElementById('cupBoxesInput').value || 0, 10));
+    (PRODUCTS.filter(p => p.type === 'cup').forEach(product => {
+      // Set the currently selected cup size to the typed value; clear others.
+      qtys[product.id] = product.id === selectedCupId ? current : 0;
+    }));
+    refreshCatalogQuantityInputs();
+    calculate();
+  }, 300));
+  document.getElementById('lidBoxesInput').addEventListener('input', debounce(() => {
+    const current = Math.max(0, parseInt(document.getElementById('lidBoxesInput').value || 0, 10));
+    PRODUCTS.filter(p => p.type === 'lid').forEach(product => {
+      qtys[product.id] = product.id === selectedLidId ? current : 0;
+    });
+    refreshCatalogQuantityInputs();
+    calculate();
+  }, 300));
   document.getElementById('microwavableBoxesInput').addEventListener('input', debounce(() => {
+    const current = Math.max(0, parseInt(document.getElementById('microwavableBoxesInput').value || 0, 10));
+    PRODUCTS.filter(p => p.type === 'microwavable').forEach(product => {
+      qtys[product.id] = product.id === selectedMicrowavableId ? current : 0;
+    });
     updateConfiguratorActionState();
+    refreshCatalogQuantityInputs();
     calculate();
   }, 300));
   document.getElementById('customerPhone').addEventListener('input', function(){
@@ -530,12 +606,28 @@ function populateCheckoutHiddenFields(){
     if(el) el.value = (value === undefined || value === null) ? '' : value;
   };
 
-  const cup = findProductById(selectedCupId);
-  const lid = findProductById(selectedLidId);
-  const microwavable = findProductById(selectedMicrowavableId);
-  const cupBoxes = Math.max(0, parseInt(document.getElementById('cupBoxesInput').value || 0, 10));
-  const lidBoxes = Math.max(0, parseInt(document.getElementById('lidBoxesInput').value || 0, 10));
-  const microwavableBoxes = Math.max(0, parseInt(document.getElementById('microwavableBoxesInput').value || 0, 10));
+  // Aggregate the independently-quantified catalog products into the single
+  // product-per-category fields the checkout endpoint expects. For each type,
+  // use the product with the highest quantity as the representative variation
+  // and sum its category's boxes so nothing is silently dropped from the total.
+  const itemsByType = { cup: [], lid: [], microwavable: [] };
+  PRODUCTS.forEach(product => {
+    const boxes = getQty(product);
+    if(boxes <= 0) return;
+    itemsByType[product.type] = itemsByType[product.type] || [];
+    itemsByType[product.type].push({ product, boxes });
+  });
+
+  const cupItems = itemsByType.cup.sort((a,b) => b.boxes - a.boxes);
+  const lidItems = itemsByType.lid.sort((a,b) => b.boxes - a.boxes);
+  const microItems = itemsByType.microwavable.sort((a,b) => b.boxes - a.boxes);
+
+  const cup = cupItems[0] || {};
+  const lid = lidItems[0] || {};
+  const micro = microItems[0] || {};
+  const cupBoxes = cupItems.reduce((s, i) => s + i.boxes, 0);
+  const lidBoxes = lidItems.reduce((s, i) => s + i.boxes, 0);
+  const microBoxes = microItems.reduce((s, i) => s + i.boxes, 0);
 
   const subtotal = parseFloat(document.getElementById('subtotal').innerText.replace(/[^0-9.]/g, '') || 0);
   const shipping = parseFloat(document.getElementById('shipping').innerText.replace(/[^0-9.]/g, '') || 0);
@@ -544,15 +636,15 @@ function populateCheckoutHiddenFields(){
   const dueNow = paymentType === '50_percent' ? Math.round(total * 0.5 * 100) / 100 : total;
   const remaining = paymentType === '50_percent' ? Math.round(total * 0.5 * 100) / 100 : 0;
 
-  setHidden('checkoutCupId', selectedCupId);
-  setHidden('checkoutCupSize', cup?.size);
+  setHidden('checkoutCupId', cup.product ? cup.product.id : '');
+  setHidden('checkoutCupSize', cup.product?.size || '');
   setHidden('checkoutCupBoxes', cupBoxes);
-  setHidden('checkoutLidId', lid ? lid.id : selectedLidId);
-  setHidden('checkoutLidStyle', lid?.style);
+  setHidden('checkoutLidId', lid.product ? lid.product.id : '');
+  setHidden('checkoutLidStyle', lid.product?.style || '');
   setHidden('checkoutLidBoxes', lidBoxes);
-  setHidden('checkoutMicrowavableId', selectedMicrowavableId);
-  setHidden('checkoutMicrowavableSize', microwavable?.size);
-  setHidden('checkoutMicrowavableBoxes', microwavableBoxes);
+  setHidden('checkoutMicrowavableId', micro.product ? micro.product.id : '');
+  setHidden('checkoutMicrowavableSize', micro.product?.size || '');
+  setHidden('checkoutMicrowavableBoxes', microBoxes);
   setHidden('checkoutSubtotal', Math.round(subtotal * 100) / 100);
   setHidden('checkoutShipping', Math.round(shipping * 100) / 100);
   setHidden('checkoutTotal', Math.round(total * 100) / 100);
@@ -569,17 +661,13 @@ async function openConfirmationModal(){
   const items = document.getElementById('confirmOrderItems');
 
   items.replaceChildren();
-  const cup = findProductById(selectedCupId);
-  const lid = findProductById(selectedLidId);
-  const microwavable = findProductById(selectedMicrowavableId);
-  const cupBoxes = Math.max(0, parseInt(document.getElementById('cupBoxesInput').value || 0, 10));
-  const lidBoxes = Math.max(0, parseInt(document.getElementById('lidBoxesInput').value || 0, 10));
-  const microwavableBoxes = Math.max(0, parseInt(document.getElementById('microwavableBoxesInput').value || 0, 10));
   const selectedItems = [];
-
-  if(cup && cupBoxes > 0) selectedItems.push(`Cups: ${cup.size} - ${cupBoxes} ${cupBoxes === 1 ? 'box' : 'boxes'}`);
-  if(lid && lidBoxes > 0) selectedItems.push(`Lids: ${lid.style} Lid - ${lidBoxes} ${lidBoxes === 1 ? 'box' : 'boxes'}`);
-  if(microwavable && microwavableBoxes > 0) selectedItems.push(`Microwavable: ${microwavable.size} - ${microwavableBoxes} ${microwavableBoxes === 1 ? 'box' : 'boxes'}`);
+  PRODUCTS.forEach(product => {
+    const boxes = getQty(product);
+    if(boxes <= 0) return;
+    const label = product.type === 'cup' ? `Cups: ${product.size}` : product.type === 'lid' ? `Lids: ${product.style} Lid` : `Microwavable: ${product.size}`;
+    selectedItems.push(`${label} - ${boxes} ${boxes === 1 ? 'box' : 'boxes'}`);
+  });
 
   if(selectedItems.length === 0){
     items.innerHTML = '<p class="text-slate-500">No items selected.</p>';

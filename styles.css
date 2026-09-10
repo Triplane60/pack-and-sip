@@ -21,6 +21,18 @@ body.modal-open #backToTopBtn {
   pointer-events: none !important;
 }
 
+/* Hide native number input spinners (WebKit/Blink) */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Hide native number input spinners (Firefox) */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 /* Cart toast: horizontally centered on all viewports */
 #cart-toast {
   top: auto !important;
