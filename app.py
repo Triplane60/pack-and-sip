@@ -140,7 +140,9 @@ def init_db():
             lid_id TEXT,
             lid_style TEXT,
             lid_boxes INTEGER,
-            microwavable_size TEXT
+            microwavable_size TEXT,
+            total_amount REAL,
+            created_at TEXT
         )
     ''')
 
@@ -167,6 +169,10 @@ def init_db():
         cursor.execute("ALTER TABLE orders ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'Pending Downpayment'")
     if 'user_id' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES users(id)")
+    if 'total_amount' not in order_columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN total_amount REAL NOT NULL DEFAULT 0")
+    if 'created_at' not in order_columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN created_at TEXT")
     conn.commit()
 
     conn.close()
@@ -453,27 +459,40 @@ def calculate_cart():
     })
 
 
+@app.route('/checkout', methods=['POST'])
 @app.route('/api/checkout', methods=['POST'])
 @app.route('/api/orders', methods=['POST'])
 def process_checkout():
-    """Deduct stock from SQLite database when an order is submitted."""
-    data = request.get_json(force=True, silent=True) or {}
+    """Read the customer details and cart items, then save the order to app.db."""
+    data = request.get_json(silent=True)
+    if not data:
+        # Accept standard form/multipart submissions, e.g.
+        # <form action="/checkout" method="POST" id="checkoutForm">. The cart
+        # items, quantities and totals arrive as hidden fields in the form.
+        data = {key: request.form.get(key) for key in request.form}
+
     name = (data.get('name') or '').strip()
     email = (data.get('email') or '').strip()
     address = (data.get('address') or '').strip()
     phone = (data.get('phone') or '').strip()
-    payment_method = (data.get('payment_method') or 'Cash on Delivery').strip() or 'Cash on Delivery'
+    payment_type = (data.get('payment_type') or '50_percent').strip()
+    payment_method = (data.get('payment_method') or '').strip()
+    if not payment_method:
+        payment_method = 'GCash (50% Downpayment)' if payment_type == '50_percent' else 'GCash (Full Payment)'
     user_id = session.get('user_id')
-    cup_id = data.get('cup_id')
-    lid_id = data.get('lid_id')
-    microwavable_id = data.get('microwavable_id')
+    cup_id = data.get('cup_id') or None
+    lid_id = data.get('lid_id') or None
+    microwavable_id = data.get('microwavable_id') or None
     cup_size = (data.get('cup_size') or '').strip() or None
     lid_style = (data.get('lid_style') or '').strip() or None
     microwavable_size = (data.get('microwavable_size') or '').strip() or None
 
-    payment_type = (data.get('payment_type') or '50_percent').strip()
-    due_now = float(data.get('due_now', 0))
-    remaining_balance = float(data.get('remaining_balance', 0))
+    try:
+        due_now = float(data.get('due_now', 0))
+        remaining_balance = float(data.get('remaining_balance', 0))
+    except (TypeError, ValueError):
+        due_now = 0.0
+        remaining_balance = 0.0
 
     try:
         cup_boxes = int(data.get('cup_boxes', 0) or 0)
@@ -530,9 +549,14 @@ def process_checkout():
     subtotal = round(subtotal, 2)
     shipping = 15.0 if subtotal > 0 else 0.0
     total = round(subtotal + shipping, 2)
-    downpayment_amount = round(total * 0.5, 2)
-    remaining_balance = round(total - downpayment_amount, 2)
-    payment_status = 'Pending Downpayment'
+    if payment_type == 'full':
+        downpayment_amount = round(total, 2)
+        remaining_balance = 0.0
+        payment_status = 'Full Payment Pending'
+    else:
+        downpayment_amount = round(total * 0.5, 2)
+        remaining_balance = round(total - downpayment_amount, 2)
+        payment_status = 'Pending Downpayment'
 
     # Deduct stock and insert order within a transaction
     try:
@@ -561,28 +585,45 @@ def process_checkout():
 
     conn.close()
 
-    email_subject = f"Order Received & Pending Payment - Pack & Sip Order #{order_id}"
+    email_subject = f"Order Received & Payment Confirmation - Pack & Sip Order #{order_id}"
     # Construct base URL for the receipt upload link
     base_url = request.host_url.rstrip('/')
     upload_link = f"{base_url}/upload-receipt?order_id={order_id}"
 
-    email_body = (
-        f"Hello {order['customer_name']},\n\n"
-        "Thank you for ordering from Pack & Sip. We have received your order and its status is Pending.\n\n"
-        "Items:\n"
-        f"{order_items_text(order)}\n\n"
-        f"Total Amount: ₱{order['total_amount']:.2f}\n"
-        f"Required 50% Downpayment: ₱{order['downpayment_amount']:.2f}\n"
-        f"Remaining Balance upon Delivery: ₱{order['remaining_balance']:.2f}\n\n"
-        "Payment Instructions:\n"
-        f"Please send your 50% downpayment of ₱{order['downpayment_amount']:.2f} to confirm your order:\n"
-        "• GCash: 0912 345 6789 (Pack & Sip)\n"
-        "• Maya: 0912 345 6789\n"
-        "• Bank Transfer (BDO): 0012 3456 7890\n\n"
-        f"Please upload your payment receipt screenshot here: {upload_link}\n\n"
-        "Once verified, your order will be prepared and dispatched via Lalamove. "
-        f"Pay the remaining balance of ₱{order['remaining_balance']:.2f} upon delivery."
-    )
+    if payment_type == 'full':
+        email_body = (
+            f"Hello {order['customer_name']},\n\n"
+            "Thank you for ordering from Pack & Sip. We have received your order and its status is Pending.\n\n"
+            "Items:\n"
+            f"{order_items_text(order)}\n\n"
+            f"Total Amount: ₱{order['total_amount']:.2f}\n"
+            "Payment Required: Full payment of the total above is required to confirm your order.\n\n"
+            "Payment Instructions:\n"
+            f"Please send your full payment of ₱{order['total_amount']:.2f} to confirm your order:\n"
+            "• GCash: 0912 345 6789 (Pack & Sip)\n"
+            "• Maya: 0912 345 6789\n"
+            "• Bank Transfer (BDO): 0012 3456 7890\n\n"
+            f"Please upload your payment receipt screenshot here: {upload_link}\n\n"
+            "Once verified, your order will be prepared and dispatched via Lalamove."
+        )
+    else:
+        email_body = (
+            f"Hello {order['customer_name']},\n\n"
+            "Thank you for ordering from Pack & Sip. We have received your order and its status is Pending.\n\n"
+            "Items:\n"
+            f"{order_items_text(order)}\n\n"
+            f"Total Amount: ₱{order['total_amount']:.2f}\n"
+            f"Required 50% Downpayment: ₱{order['downpayment_amount']:.2f}\n"
+            f"Remaining Balance upon Delivery: ₱{order['remaining_balance']:.2f}\n\n"
+            "Payment Instructions:\n"
+            f"Please send your 50% downpayment of ₱{order['downpayment_amount']:.2f} to confirm your order:\n"
+            "• GCash: 0912 345 6789 (Pack & Sip)\n"
+            "• Maya: 0912 345 6789\n"
+            "• Bank Transfer (BDO): 0012 3456 7890\n\n"
+            f"Please upload your payment receipt screenshot here: {upload_link}\n\n"
+            "Once verified, your order will be prepared and dispatched via Lalamove. "
+            f"Pay the remaining balance of ₱{order['remaining_balance']:.2f} upon delivery."
+        )
 
     # Send the SMTP email in a background thread so the HTTP response
     # returns immediately without waiting for network completion.

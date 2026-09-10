@@ -286,10 +286,15 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('viewCart').addEventListener('click', openCart);
   document.getElementById('cartBtn').addEventListener('click', openCart);
   document.getElementById('closeCart').addEventListener('click', closeCart);
-  const checkoutBtn = document.getElementById('checkoutBtn');
-  if(checkoutBtn) checkoutBtn.addEventListener('click', openConfirmationModal);
+  const checkoutForm = document.getElementById('checkoutForm');
+  if(checkoutForm){
+    checkoutForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      openConfirmationModal();
+    });
+  }
   document.getElementById('addMoreItemsBtn').addEventListener('click', closeConfirmationModal);
-    document.getElementById('confirmOrderBtn').addEventListener('click', submitOrder);
+  document.getElementById('confirmOrderBtn').addEventListener('click', submitOrder);
   document.getElementById('closeModalBtn').addEventListener('click', closeOrderPendingModal);
   setupAuthModal();
   setupAboutModal();
@@ -527,10 +532,47 @@ function validateCheckoutFields(){
 }
 
 
+function populateCheckoutHiddenFields(){
+  const setHidden = (id, value) => {
+    const el = document.getElementById(id);
+    if(el) el.value = (value === undefined || value === null) ? '' : value;
+  };
+
+  const cup = findProductById(selectedCupId);
+  const lid = findProductById(selectedLidId);
+  const microwavable = findProductById(selectedMicrowavableId);
+  const cupBoxes = Math.max(0, parseInt(document.getElementById('cupBoxesInput').value || 0, 10));
+  const lidBoxes = Math.max(0, parseInt(document.getElementById('lidBoxesInput').value || 0, 10));
+  const microwavableBoxes = Math.max(0, parseInt(document.getElementById('microwavableBoxesInput').value || 0, 10));
+
+  const subtotal = parseFloat(document.getElementById('subtotal').innerText.replace(/[^0-9.]/g, '') || 0);
+  const shipping = parseFloat(document.getElementById('shipping').innerText.replace(/[^0-9.]/g, '') || 0);
+  const total = parseFloat(document.getElementById('total').innerText.replace(/[^0-9.]/g, '') || 0);
+  const paymentType = document.getElementById('payment-type-select').value;
+  const dueNow = paymentType === '50_percent' ? Math.round(total * 0.5 * 100) / 100 : total;
+  const remaining = paymentType === '50_percent' ? Math.round(total * 0.5 * 100) / 100 : 0;
+
+  setHidden('checkoutCupId', selectedCupId);
+  setHidden('checkoutCupSize', cup?.size);
+  setHidden('checkoutCupBoxes', cupBoxes);
+  setHidden('checkoutLidId', lid ? lid.id : selectedLidId);
+  setHidden('checkoutLidStyle', lid?.style);
+  setHidden('checkoutLidBoxes', lidBoxes);
+  setHidden('checkoutMicrowavableId', selectedMicrowavableId);
+  setHidden('checkoutMicrowavableSize', microwavable?.size);
+  setHidden('checkoutMicrowavableBoxes', microwavableBoxes);
+  setHidden('checkoutSubtotal', Math.round(subtotal * 100) / 100);
+  setHidden('checkoutShipping', Math.round(shipping * 100) / 100);
+  setHidden('checkoutTotal', Math.round(total * 100) / 100);
+  setHidden('checkoutDueNow', dueNow);
+  setHidden('checkoutRemainingBalance', remaining);
+}
+
 async function openConfirmationModal(){
   if(!validateCheckoutFields()) return;
 
   await calculate();
+  populateCheckoutHiddenFields();
   document.body.classList.add('modal-open');
   const items = document.getElementById('confirmOrderItems');
 
@@ -567,49 +609,19 @@ async function openConfirmationModal(){
 
 async function submitOrder(){
   if(!validateCheckoutFields()) return;
-  const name = document.getElementById('customerName').value.trim();
   const email = document.getElementById('customerEmail').value.trim();
-  const address = document.getElementById('customerAddress').value.trim();
-  const phone = document.getElementById('customerPhone').value.trim();
-  const cupBoxes = Math.max(0, parseInt(document.getElementById('cupBoxesInput').value || 0, 10));
-  const lidId = selectedLidId;
-  const lidBoxes = Math.max(0, parseInt(document.getElementById('lidBoxesInput').value || 0, 10));
-  const microwavableBoxes = Math.max(0, parseInt(document.getElementById('microwavableBoxesInput').value || 0, 10));
-  const cup = findProductById(selectedCupId);
-  const lid = findProductById(lidId);
-  const microwavable = findProductById(selectedMicrowavableId);
-
-  const totalStr = document.getElementById('total').innerText.replace(/[^0-9.]/g, '');
-  const total = parseFloat(totalStr) || 0;
-  const paymentType = document.getElementById('payment-type-select').value;
-  const dueNow = paymentType === '50_percent' ? total * 0.5 : total;
-  const remaining = paymentType === '50_percent' ? total * 0.5 : 0;
-  
-  const receiptFile = document.getElementById('payment-receipt-input').files[0];
-
-  const formData = new FormData();
-  formData.append('name', name);
-  formData.append('email', email);
-  formData.append('address', address);
-  formData.append('phone', phone);
-  formData.append('cup_id', selectedCupId || '');
-  formData.append('cup_size', cup?.size || '');
-  formData.append('cup_boxes', cupBoxes);
-  formData.append('lid_id', lidId || '');
-  formData.append('lid_style', lid?.style || '');
-  formData.append('lid_boxes', lidBoxes);
-  formData.append('microwavable_id', selectedMicrowavableId || '');
-  formData.append('microwavable_size', microwavable?.size || '');
-  formData.append('microwavable_boxes', microwavableBoxes);
-  formData.append('payment_type', paymentType);
-  formData.append('due_now', dueNow);
-  formData.append('remaining_balance', remaining);
-  formData.append('receipt', receiptFile);
 
   try{
+    // Recalculate the totals and mirror the selected items/quantities/totals
+    // into the hidden fields of #checkoutForm so the POSTed payload is complete.
+    await calculate();
+    populateCheckoutHiddenFields();
+
+    const formData = new FormData(document.getElementById('checkoutForm'));
+
     // Clear the local cart and close checkout before waiting for the network request.
     resetCheckoutState();
-    const res = await fetch(`${API_BASE}/orders`, {
+    const res = await fetch('/checkout', {
       method: 'POST',
       body: formData,
       credentials: 'include'
