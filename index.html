@@ -112,7 +112,7 @@
     <div class="w-full max-w-md rounded-xl bg-white p-6 text-center shadow-2xl transition-transform duration-300">
       <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-3xl text-emerald-600" aria-hidden="true">✓</div>
       <h2 id="orderPendingTitle" class="mt-4 text-2xl font-bold text-slate-900">Order Placed &amp; Pending</h2>
-            <p class="mt-3 text-sm leading-6 text-slate-600">Your order ID <span id="modalOrderId" class="font-semibold text-slate-900"></span> has been received. Please check your Gmail <span id="modalEmail" class="font-semibold text-slate-900"></span> for shipping updates and receipt notifications once processed.</p>
+            <p class="mt-3 text-sm leading-6 text-slate-600">Your order has been received. Please check your Gmail <span id="modalEmail" class="font-semibold text-slate-900"></span> for shipping updates and receipt notifications once processed.</p>
 
       <button id="closeModalBtn" type="button" class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700">Done</button>
     </div>
@@ -129,11 +129,15 @@
         <span>Total</span>
         <span id="confirmOrderTotal">₱0.00</span>
       </div>
-      <div class="mt-2 flex items-center justify-between text-sm font-semibold text-amber-700">
+      <div class="mt-2 flex items-center justify-between text-sm font-semibold text-amber-700" id="confirmOrderFullRow">
+        <span>Required Payment</span>
+        <span id="confirmOrderRequiredPayment">₱0.00</span>
+      </div>
+      <div class="mt-2 flex items-center justify-between text-sm font-semibold text-amber-700" id="confirmOrderDownpaymentRow">
         <span>Required 50% Downpayment</span>
         <span id="confirmOrderDownpayment">₱0.00</span>
       </div>
-      <p class="mt-4 text-xs leading-5 text-slate-500">A 50% downpayment is required via GCash/Maya to process your order. The remaining balance will be paid upon Lalamove delivery.</p>
+      <p id="confirmOrderPaymentNote" class="mt-4 text-xs leading-5 text-slate-500">A 50% downpayment is required via GCash/Maya to process your order. The remaining balance will be paid upon Lalamove delivery.</p>
       <div class="mt-6 grid grid-cols-2 gap-3">
         <button id="addMoreItemsBtn" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-50">Add More Items</button>
         <button id="confirmOrderBtn" type="button" class="rounded-md bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700">Yes, Place Order</button>
@@ -247,9 +251,6 @@
               <p style="margin: 4px 0; color: #333;"><strong>Amount Due Now:</strong> <span id="due-now-amount" style="color: #2b2672; font-weight: bold;">₱0.00</span></p>
               <p style="margin: 4px 0; color: #666;" id="remaining-balance-row"><strong>Balance upon Delivery:</strong> <span id="remaining-balance-amount">₱0.00</span></p>
             </div>
-
-            <label for="payment-receipt-input" class="block text-sm font-medium text-slate-700">Payment Receipt (GCash/Maya Screenshot)</label>
-            <input id="payment-receipt-input" name="receipt" type="file" accept="image/*" required class="w-full rounded-md border-gray-200 p-1.5" />
 
             <!-- Cart payload hidden fields; populated by main.js before submission -->
             <input type="hidden" id="checkoutCupId" name="cup_id" value="" />

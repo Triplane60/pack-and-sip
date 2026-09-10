@@ -13,30 +13,78 @@ app = Flask(__name__, template_folder='.')
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'pack-sip-development-secret')
 CORS(app, supports_credentials=True)
 
-app.config.update(
-    MAIL_SERVER='smtp.gmail.com',
-    MAIL_PORT=587,
-    MAIL_USE_TLS=True,
-    MAIL_USERNAME=os.getenv('MAIL_USERNAME'),
-    MAIL_PASSWORD=os.getenv('MAIL_PASSWORD'),
-    MAIL_DEFAULT_SENDER=os.getenv('MAIL_USERNAME'),
-    UPLOAD_FOLDER='static/uploads'
-)
+# Flask-Mail configuration for Gmail SMTP.
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'jambyletesa@gmail.com'  # Replace with your real sender email
+app.config['MAIL_PASSWORD'] = 'hzwmquliysbajowt'  # Google App Password
+app.config['MAIL_DEFAULT_SENDER'] = 'jambyletesa@gmail.com'
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
 mail = Mail(app)
 
 DB_FILE = 'app.db'
 MICROWAVABLE_PRICE_PER_BOX = 1500.0
 
 
+def is_gmail_app_password(password):
+    """Return True if the configured MAIL_PASSWORD looks like a Google App Password.
+
+    Google App Passwords are exactly 16 characters long (usually displayed in the
+    "abcd efgh ijkl mnop" format). A regular Gmail account password does not match
+    this format and is rejected by Gmail's SMTP server when sign-in security is on.
+    """
+    if not password:
+        return False
+    compact = str(password).replace(' ', '')
+    return len(compact) == 16 and compact.isalnum()
+
+
+def log_email_fallback(recipient, subject, body, reason):
+    """Print the full email content to the console when SMTP cannot be used.
+
+    This keeps local development/testing uninterrupted even when Gmail rejects
+    the configured credentials.
+    """
+    print('\n' + '=' * 72)
+    print(' SMTP EMAIL FALLBACK - {}'.format(reason))
+    print('=' * 72)
+    print('To      : {}'.format(recipient))
+    print('Subject : {}'.format(subject))
+    print('-' * 72)
+    print(body)
+    print('=' * 72 + '\n')
+
+
 def send_order_email(recipient, subject, body):
-    """Send an order notification when SMTP credentials are configured."""
+    """Send an order notification when SMTP credentials are configured.
+
+    Email delivery is best-effort: failures (network errors, Gmail rejecting a
+    normal account password, missing credentials, ...) never crash the request.
+    The full email content is printed to the console as a fallback so testing
+    can continue uninterrupted.
+    """
     if not recipient or not app.config.get('MAIL_USERNAME') or not app.config.get('MAIL_PASSWORD'):
         app.logger.warning('Order email skipped: MAIL_USERNAME/MAIL_PASSWORD is not configured.')
+        log_email_fallback(recipient, subject, body, 'MAIL_USERNAME/MAIL_PASSWORD is not configured')
         return
+
+    # Gmail only accepts SMTP logins using a Google App Password. A normal Gmail
+    # password will be rejected, so detect it early and fall back to console output.
+    if not is_gmail_app_password(app.config.get('MAIL_PASSWORD')):
+        app.logger.warning(
+            'MAIL_PASSWORD does not look like a Google App Password. '
+            'Create a 16-character App Password at https://myaccount.google.com/apppasswords '
+            'so real SMTP delivery works. Falling back to console output for this email.'
+        )
+        log_email_fallback(recipient, subject, body, 'MAIL_PASSWORD does not look like a Google App Password')
+        return
+
     try:
         mail.send(Message(subject=subject, recipients=[recipient], body=body))
     except Exception:
         app.logger.exception('Unable to send order email to %s', recipient)
+        log_email_fallback(recipient, subject, body, 'SMTP send failed (see exception logged above)')
 
 
 def order_items_text(order):
@@ -346,7 +394,8 @@ def get_admin_orders():
             COALESCE(microwavable_boxes, 0) AS microwavable_boxes,
             microwavable_size,
             total_amount,
-            status
+            status,
+            payment_status
         FROM orders
         ORDER BY created_at DESC, id DESC
     ''').fetchall()
@@ -393,6 +442,50 @@ def update_order_status(order_id):
         )
 
     return jsonify({"order": dict(order)})
+
+
+@app.route('/admin/ship-order/<int:order_id>', methods=['POST'])
+def admin_ship_order(order_id):
+    """Verify payment receipt and mark order as Shipping."""
+    conn = get_db()
+    order = conn.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
+    if not order:
+        conn.close()
+        return jsonify({"error": "Order not found."}), 404
+
+    conn.execute(
+        'UPDATE orders SET status = ?, payment_status = ? WHERE id = ?',
+        ('Shipping', 'Verified', order_id)
+    )
+    conn.commit()
+    order = conn.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
+    conn.close()
+
+    email_subject = f"Payment Received & Order Shipped! - Pack & Sip (Order #{order_id})"
+    email_body = (
+        f"Hello {order['customer_name']},\n\n"
+        f"We have verified your payment proof for Pack & Sip order #{order_id}.\n"
+        f"Your payment status is now Verified, and your order status is updated to Shipping.\n\n"
+        f"Your package has been prepared and dispatched to your shipping address via a Lalamove driver delivery.\n\n"
+        f"Shipping address:\n{order['customer_address']}\n\n"
+        f"Order Details:\n"
+        f"{order_items_text(order)}\n\n"
+        f"Total Amount: ₱{order['total_amount']:.2f}\n"
+        f"Remaining Balance upon Delivery: ₱{order['remaining_balance']:.2f}\n\n"
+        "Thank you for choosing Pack & Sip."
+    )
+
+    threading.Thread(
+        target=send_order_email,
+        args=(order['email'], email_subject, email_body),
+        daemon=True
+    ).start()
+
+    return jsonify({
+        "success": True,
+        "message": f"Order #{order_id} verified and shipped successfully.",
+        "order": dict(order)
+    })
 
 
 @app.route('/api/cart/calculate', methods=['POST'])
@@ -585,7 +678,7 @@ def process_checkout():
 
     conn.close()
 
-    email_subject = f"Order Received & Payment Confirmation - Pack & Sip Order #{order_id}"
+    email_subject = "Order Received - Pack & Sip"
     # Construct base URL for the receipt upload link
     base_url = request.host_url.rstrip('/')
     upload_link = f"{base_url}/upload-receipt?order_id={order_id}"
@@ -603,7 +696,7 @@ def process_checkout():
             "• GCash: 0912 345 6789 (Pack & Sip)\n"
             "• Maya: 0912 345 6789\n"
             "• Bank Transfer (BDO): 0012 3456 7890\n\n"
-            f"Please upload your payment receipt screenshot here: {upload_link}\n\n"
+            f"Please reply directly to this email with your proof of payment/receipt, or upload your receipt screenshot here: {upload_link}\n\n"
             "Once verified, your order will be prepared and dispatched via Lalamove."
         )
     else:
@@ -620,18 +713,30 @@ def process_checkout():
             "• GCash: 0912 345 6789 (Pack & Sip)\n"
             "• Maya: 0912 345 6789\n"
             "• Bank Transfer (BDO): 0012 3456 7890\n\n"
-            f"Please upload your payment receipt screenshot here: {upload_link}\n\n"
+            f"Please reply directly to this email with your proof of payment/receipt, or upload your receipt screenshot here: {upload_link}\n\n"
             "Once verified, your order will be prepared and dispatched via Lalamove. "
             f"Pay the remaining balance of ₱{order['remaining_balance']:.2f} upon delivery."
         )
 
-    # Send the SMTP email in a background thread so the HTTP response
-    # returns immediately without waiting for network completion.
-    threading.Thread(
-        target=send_order_email,
-        args=(order['email'], email_subject, email_body),
-        daemon=True
-    ).start()
+    # Send the order confirmation email asynchronously in a background thread.
+    # This keeps the checkout response snappy: the DB insert commits and the
+    # success JSON is returned immediately, without waiting for SMTP network
+    # response times. Any mail error is still printed to the terminal.
+    def send_confirmation_email():
+        # Flask-Mail's mail.send() needs the Flask application context, which
+        # is not available in this background thread by default.
+        with app.app_context():
+            try:
+                msg = Message(
+                    subject=email_subject,
+                    recipients=[order['email']],
+                    body=email_body
+                )
+                mail.send(msg)
+            except Exception as e:
+                print(f"Mail Error: {e}")
+
+    threading.Thread(target=send_confirmation_email, daemon=True).start()
 
     return jsonify({
         "success": True,
@@ -691,24 +796,14 @@ def upload_receipt():
     ''', order_id=order_id)
 
 
-@app.route('/api/orders/delete/<int:order_id>', methods=['DELETE'])
+@app.route('/admin/delete-order/<int:order_id>', methods=['DELETE', 'POST'])
 def delete_order(order_id):
-    """Delete an order only if its status is 'Completed'."""
+    """Delete an order from the database."""
     conn = get_db()
-    order = conn.execute('SELECT status FROM orders WHERE id = ?', (order_id,)).fetchone()
-    
-    if not order:
-        conn.close()
-        return jsonify({"error": "Order not found."}), 404
-        
-    if order['status'] != 'Completed':
-        conn.close()
-        return jsonify({"error": "Only completed orders can be deleted."}), 400
-
     conn.execute('DELETE FROM orders WHERE id = ?', (order_id,))
     conn.commit()
     conn.close()
-    return jsonify({"success": True, "message": f"Order #{order_id} deleted successfully."})
+    return jsonify({'success': True, 'message': 'Order deleted successfully'})
 
 
 if __name__ == '__main__':

@@ -477,8 +477,7 @@ function closeOrderPendingModal(){
   document.getElementById('customerPhone').value = '';
 }
 
-function showOrderPendingModal(orderId, email){
-  document.getElementById('modalOrderId').textContent = orderId;
+function showOrderPendingModal(email){
   document.getElementById('modalEmail').textContent = email;
   const modal = document.getElementById('orderPendingModal');
   modal.classList.remove('hidden');
@@ -502,7 +501,6 @@ function resetCheckoutState(){
   document.getElementById('customerEmail').value = '';
   document.getElementById('customerAddress').value = '';
   document.getElementById('customerPhone').value = '';
-  document.getElementById('payment-receipt-input').value = '';
 }
 
 
@@ -511,7 +509,6 @@ function validateCheckoutFields(){
   const email = document.getElementById('customerEmail').value.trim();
   const address = document.getElementById('customerAddress').value.trim();
   const phone = document.getElementById('customerPhone').value.trim();
-  const receipt = document.getElementById('payment-receipt-input').files[0];
 
   if(!name || !email || !address || !phone){
     showCustomAlert('Please enter your name, email, address, and phone number.');
@@ -520,11 +517,6 @@ function validateCheckoutFields(){
 
   if(!/^09\d{9}$/.test(phone)){
     showCustomAlert('Please enter a valid Philippine mobile number in the format 09123456789.');
-    return false;
-  }
-
-  if(!receipt){
-    showCustomAlert('Please upload a screenshot of your payment receipt.');
     return false;
   }
 
@@ -600,8 +592,28 @@ async function openConfirmationModal(){
   }
 
   document.getElementById('confirmOrderTotal').textContent = document.getElementById('total').textContent;
-  const confirmDownpayment = Number(document.getElementById('total').textContent.replace(/[^0-9.]/g, '') || 0) * 0.5;
-  document.getElementById('confirmOrderDownpayment').textContent = formatPrice(confirmDownpayment);
+
+  const totalAmount = Number(document.getElementById('total').textContent.replace(/[^0-9.]/g, '') || 0);
+  const paymentType = document.getElementById('payment-type-select').value;
+  const fullRow = document.getElementById('confirmOrderFullRow');
+  const downpaymentRow = document.getElementById('confirmOrderDownpaymentRow');
+  const paymentNote = document.getElementById('confirmOrderPaymentNote');
+
+  if (paymentType === 'full') {
+    // 100% Full Payment: show the full total as the required payment.
+    fullRow.style.display = 'flex';
+    downpaymentRow.style.display = 'none';
+    document.getElementById('confirmOrderRequiredPayment').textContent = formatPrice(totalAmount);
+    paymentNote.textContent = 'Full payment required via GCash/Maya.';
+  } else {
+    // 50% Downpayment: show half of the total and the balance-on-delivery note.
+    fullRow.style.display = 'none';
+    downpaymentRow.style.display = 'flex';
+    const confirmDownpayment = Math.round(totalAmount * 0.5 * 100) / 100;
+    document.getElementById('confirmOrderDownpayment').textContent = formatPrice(confirmDownpayment);
+    paymentNote.textContent = 'A 50% downpayment is required via GCash/Maya to process your order. The remaining balance will be paid upon Lalamove delivery.';
+  }
+
   const modal = document.getElementById('confirmOrderModal');
   modal.classList.remove('hidden');
   modal.classList.add('flex');
@@ -631,7 +643,7 @@ async function submitOrder(){
       showCustomAlert(data.error || 'Failed to place order');
       return;
     }
-    showOrderPendingModal(data.order_id, email);
+    showOrderPendingModal(email);
     // Refresh product list to reflect updated stock
     await fetchProducts();
   }catch(err){
