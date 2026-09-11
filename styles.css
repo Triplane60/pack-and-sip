@@ -28,9 +28,9 @@ input[type="number"]::-webkit-inner-spin-button {
   margin: 0;
 }
 
-/* Hide native number input spinners (Firefox) */
 input[type="number"] {
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 /* Cart toast: horizontally centered on all viewports */
@@ -208,5 +208,3 @@ input[type="number"] {
     transform: translateX(-50%) !important;
   }
 }
-
-

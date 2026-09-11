@@ -29,7 +29,18 @@
     </div>
 
         <section class="mb-6 grid gap-4 sm:grid-cols-3" aria-label="Order summary">
-      <!-- ... existing summary cards ... -->
+      <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Total orders</p>
+        <p id="totalOrders" class="mt-2 text-3xl font-bold tracking-tight text-slate-900">0</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Pending</p>
+        <p id="pendingOrders" class="mt-2 text-3xl font-bold tracking-tight text-amber-600">0</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Revenue</p>
+        <p id="revenue" class="mt-2 text-3xl font-bold tracking-tight text-emerald-600">₱0.00</p>
+      </div>
     </section>
 
     <!-- Inventory Management Section -->
@@ -61,14 +72,23 @@
       </div>
     </section>
 
-    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p class="text-sm text-slate-500">Fulfillment overview</p>
-        <h2 class="mt-1 text-3xl font-bold tracking-tight">All orders</h2>
-      </div>
-
-
-
+    <section class="mb-12 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div id="message" class="hidden border-b px-5 py-3 text-sm" role="status"></div>
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-left text-sm table-auto">
+          <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+            <tr>
+              <th class="px-5 py-4 font-semibold">Order</th>
+              <th class="px-5 py-4 font-semibold">Customer</th>
+              <th class="px-5 py-4 font-semibold">Contact</th>
+              <th class="px-5 py-4 font-semibold">Shipping Address</th>
+              <th class="px-5 py-4 font-semibold">Items</th>
+              <th class="px-5 py-4 font-semibold">Total</th>
+              <th class="px-5 py-4 font-semibold">Status</th>
+              <th class="px-5 py-4 font-semibold">Actions</th>
+              <th class="px-5 py-4 font-semibold text-right">Delete</th>
+            </tr>
+          </thead>
           <tbody id="ordersTableBody" class="divide-y divide-slate-100"></tbody>
         </table>
       </div>
@@ -144,8 +164,9 @@
     }
 
     function showMessage(text, isError = false) {
-
+      if (!message) return;
       message.textContent = text;
+      message.classList.remove('hidden');
       message.className = `border-b px-5 py-3 text-sm ${isError ? 'border-red-100 bg-red-50 text-red-700' : 'border-emerald-100 bg-emerald-50 text-emerald-700'}`;
     }
 
