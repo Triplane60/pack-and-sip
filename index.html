@@ -39,20 +39,37 @@
       <div class="w-full md:w-1/3 bg-white rounded-lg shadow p-4">
         <h3 class="text-lg font-semibold text-slate-800">Quick Configurator</h3>
         <form id="configForm" class="mt-3 space-y-3">
-          <div>
+                    <div>
             <label for="cupBoxesInput" class="block text-sm font-medium text-slate-700">Cup Boxes</label>
-            <input id="cupBoxesInput" type="number" min="0" value="0" class="w-full border rounded-md p-1.5 text-sm my-1" />
+            <input id="cupBoxesInput" type="number" min="0" value="0" placeholder="0" title="Cup Boxes" class="w-full border rounded-md p-1.5 text-sm my-1" />
           </div>
 
           <div>
             <label for="lidBoxesInput" class="block text-sm font-medium text-slate-700">Lid Boxes</label>
-            <input id="lidBoxesInput" type="number" min="0" value="0" class="w-full border rounded-md p-1.5 text-sm my-1" />
+            <input id="lidBoxesInput" type="number" min="0" value="0" placeholder="0" title="Lid Boxes" class="w-full border rounded-md p-1.5 text-sm my-1" />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Microwavable Boxes</label>
-            <input type="number" id="microwavableBoxesInput" min="0" value="0" class="w-full border rounded-md p-2 mb-4 text-sm" />
+            <label for="microwavableBoxesInput" class="block text-sm font-medium text-gray-700 mb-1">Microwavable Boxes</label>
+            <input type="number" id="microwavableBoxesInput" min="0" value="0" placeholder="0" title="Microwavable Boxes" class="w-full border rounded-md p-2 mb-4 text-sm" />
           </div>
+
+          <!-- Category totals (synced live from catalog card quantities) -->
+          <div class="grid grid-cols-3 gap-2 text-center" aria-live="polite">
+            <div class="rounded-md bg-slate-50 p-2">
+              <div class="text-xs text-slate-500">Cup Boxes</div>
+              <div id="config-cup-boxes" class="text-sm font-bold text-slate-800">0</div>
+            </div>
+            <div class="rounded-md bg-slate-50 p-2">
+              <div class="text-xs text-slate-500">Lid Boxes</div>
+              <div id="config-lid-boxes" class="text-sm font-bold text-slate-800">0</div>
+            </div>
+            <div class="rounded-md bg-slate-50 p-2">
+              <div class="text-xs text-slate-500">Micro Boxes</div>
+              <div id="config-micro-boxes" class="text-sm font-bold text-slate-800">0</div>
+            </div>
+          </div>
+
 
           <div class="pt-2 border-t mt-2">
             <div class="flex items-center justify-between">
@@ -153,18 +170,19 @@
           <button id="tabLogin" class="text-lg font-bold border-b-2 border-indigo-600 text-indigo-600">Login</button>
           <button id="tabRegister" class="text-lg font-bold border-b-2 border-transparent text-slate-500">Register</button>
         </div>
-        <button id="closeAuth" class="text-slate-500 hover:text-slate-900">✕</button>
+                <button id="closeAuth" class="text-slate-500 hover:text-slate-900" aria-label="Close Login Modal">✕</button>
+
       </div>
 
-      <!-- Login Form -->
+            <!-- Login Form -->
       <form id="loginForm" class="mt-6 space-y-4">
         <div>
-          <label class="block text-sm font-medium text-slate-700">Email Address</label>
-          <input type="email" name="email" required class="w-full border rounded-md p-2 mt-1" />
+          <label for="loginEmail" class="block text-sm font-medium text-slate-700">Email Address</label>
+          <input type="email" id="loginEmail" name="email" required title="Email Address" class="w-full border rounded-md p-2 mt-1" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700">Password</label>
-          <input type="password" name="password" required class="w-full border rounded-md p-2 mt-1" />
+          <label for="loginPassword" class="block text-sm font-medium text-slate-700">Password</label>
+          <input type="password" id="loginPassword" name="password" required title="Password" class="w-full border rounded-md p-2 mt-1" />
         </div>
         <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-md font-semibold hover:bg-indigo-700">Login</button>
       </form>
@@ -172,28 +190,29 @@
       <!-- Register Form -->
       <form id="registerForm" action="/register" method="POST" class="mt-6 space-y-4 hidden">
         <div>
-          <label class="block text-sm font-medium text-slate-700">Full Name</label>
-          <input type="text" name="full_name" required class="w-full border rounded-md p-2 mt-1" />
+          <label for="registerName" class="block text-sm font-medium text-slate-700">Full Name</label>
+          <input type="text" id="registerName" name="full_name" required title="Full Name" class="w-full border rounded-md p-2 mt-1" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700">Email Address</label>
-          <input type="email" name="email" required class="w-full border rounded-md p-2 mt-1" />
+          <label for="registerEmail" class="block text-sm font-medium text-slate-700">Email Address</label>
+          <input type="email" id="registerEmail" name="email" required title="Email Address" class="w-full border rounded-md p-2 mt-1" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700">Password</label>
-          <input type="password" name="password" required minlength="8" class="w-full border rounded-md p-2 mt-1" />
+          <label for="registerPassword" class="block text-sm font-medium text-slate-700">Password</label>
+          <input type="password" id="registerPassword" name="password" required minlength="8" title="Password" class="w-full border rounded-md p-2 mt-1" />
           <p class="text-xs text-slate-500 mt-1">Minimum 8 characters</p>
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700">Phone Number</label>
-          <input type="tel" name="phone" placeholder="09123456789" class="w-full border rounded-md p-2 mt-1" />
+          <label for="registerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
+          <input type="tel" id="registerPhone" name="phone" placeholder="09123456789" title="Phone Number" class="w-full border rounded-md p-2 mt-1" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700">Shipping Address</label>
-          <textarea name="address" class="w-full border rounded-md p-2 mt-1" rows="2"></textarea>
+          <label for="registerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
+          <textarea id="registerAddress" name="address" title="Shipping Address" class="w-full border rounded-md p-2 mt-1" rows="2"></textarea>
         </div>
         <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-md font-semibold hover:bg-indigo-700">Create Account</button>
       </form>
+
     </div>
   </div>
 
@@ -219,54 +238,56 @@
 
     <!-- Cart Drawer -->
   <div id="cartDrawer" class="fixed inset-0 flex justify-end pointer-events-none">
-    <div id="drawerPanel" class="max-w-sm w-full bg-white shadow-xl transform translate-x-full pointer-events-auto transition-transform duration-300 flex flex-col" aria-hidden="true">
-      <div class="p-4 flex items-center justify-between border-b shrink-0">
+    <div id="drawerPanel" class="max-w-sm w-full bg-white shadow-xl transform translate-x-full pointer-events-auto transition-transform duration-300 flex flex-col drawer-closed-state" aria-hidden="true">
+            <div class="p-4 flex items-center justify-between border-b shrink-0">
         <h3 class="text-lg font-semibold">Order Summary</h3>
-        <button id="closeCart" class="text-slate-500">Close</button>
+        <button id="closeCart" class="text-slate-500" aria-label="Close cart summary">Close</button>
       </div>
-      <form id="checkoutForm" action="/checkout" method="POST" novalidate style="display: contents;">
+
+            <form id="checkoutForm" action="/checkout" method="POST" novalidate class="contents-display">
         <div class="flex-1 overflow-y-auto">
           <div class="p-4" id="cartContent">
             <p class="text-sm text-slate-600">No items in cart.</p>
           </div>
           <div class="p-4 border-t space-y-2.5" id="customerForm">
             <label for="customerName" class="block text-sm font-medium text-slate-700">Full Name</label>
-            <input id="customerName" name="name" type="text" required class="w-full rounded-md border-gray-200 p-1.5" />
+            <input id="customerName" name="name" type="text" required title="Full Name" class="w-full rounded-md border-gray-200 p-1.5" />
             <label for="customerEmail" class="block text-sm font-medium text-slate-700">Email Address</label>
-            <input type="email" id="customerEmail" name="email" required placeholder="name@example.com" class="w-full p-1.5 border rounded-md mb-2" />
+            <input type="email" id="customerEmail" name="email" required placeholder="name@example.com" title="Email Address" class="w-full p-1.5 border rounded-md mb-2" />
             <label for="customerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
-            <textarea id="customerAddress" name="address" required class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
+            <textarea id="customerAddress" name="address" required title="Shipping Address" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
             <label for="customerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
-            <input type="tel" id="customerPhone" name="phone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" required class="w-full rounded-md border-gray-200 p-1.5" />
+            <input type="tel" id="customerPhone" name="phone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" required title="Phone Number" class="w-full rounded-md border-gray-200 p-1.5" />
 
-            <div class="payment-option-group" style="margin: 15px 0;">
-              <label for="payment-type-select" style="font-weight: bold; display: block; margin-bottom: 5px; color: #1e1e2f;">Payment Option</label>
-              <select id="payment-type-select" name="payment_type" onchange="updateCheckoutTotals()" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px;">
+            <div class="payment-option-group">
+              <label for="payment-type-select" class="payment-type-label">Payment Option</label>
+              <select id="payment-type-select" name="payment_type" onchange="updateCheckoutTotals()" title="Payment Option" class="payment-type-select">
                 <option value="50_percent">50% Downpayment (Balance on Delivery)</option>
                 <option value="full">100% Full Payment</option>
               </select>
             </div>
 
-            <div id="payment-breakdown" style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
-              <p style="margin: 4px 0; color: #333;"><strong>Amount Due Now:</strong> <span id="due-now-amount" style="color: #2b2672; font-weight: bold;">₱0.00</span></p>
-              <p style="margin: 4px 0; color: #666;" id="remaining-balance-row"><strong>Balance upon Delivery:</strong> <span id="remaining-balance-amount">₱0.00</span></p>
+            <div id="payment-breakdown" class="payment-breakdown">
+              <p class="breakdown-row"><strong>Amount Due Now:</strong> <span id="due-now-amount" class="due-now-amount">₱0.00</span></p>
+              <p class="breakdown-row-secondary" id="remaining-balance-row"><strong>Balance upon Delivery:</strong> <span id="remaining-balance-amount">₱0.00</span></p>
             </div>
 
+
             <!-- Cart payload hidden fields; populated by main.js before submission -->
-            <input type="hidden" id="checkoutCupId" name="cup_id" value="" />
-            <input type="hidden" id="checkoutCupSize" name="cup_size" value="" />
-            <input type="hidden" id="checkoutCupBoxes" name="cup_boxes" value="0" />
-            <input type="hidden" id="checkoutLidId" name="lid_id" value="" />
-            <input type="hidden" id="checkoutLidStyle" name="lid_style" value="" />
-            <input type="hidden" id="checkoutLidBoxes" name="lid_boxes" value="0" />
-            <input type="hidden" id="checkoutMicrowavableId" name="microwavable_id" value="" />
-            <input type="hidden" id="checkoutMicrowavableSize" name="microwavable_size" value="" />
-            <input type="hidden" id="checkoutMicrowavableBoxes" name="microwavable_boxes" value="0" />
-            <input type="hidden" id="checkoutSubtotal" name="subtotal" value="0" />
-            <input type="hidden" id="checkoutShipping" name="shipping" value="0" />
-            <input type="hidden" id="checkoutTotal" name="total" value="0" />
-            <input type="hidden" id="checkoutDueNow" name="due_now" value="0" />
-            <input type="hidden" id="checkoutRemainingBalance" name="remaining_balance" value="0" />
+            <input type="hidden" id="checkoutCupId" name="cup_id" value="" title="Checkout cup ID" />
+            <input type="hidden" id="checkoutCupSize" name="cup_size" value="" title="Checkout cup size" />
+            <input type="hidden" id="checkoutCupBoxes" name="cup_boxes" value="0" title="Checkout cup boxes" />
+            <input type="hidden" id="checkoutLidId" name="lid_id" value="" title="Checkout lid ID" />
+            <input type="hidden" id="checkoutLidStyle" name="lid_style" value="" title="Checkout lid style" />
+            <input type="hidden" id="checkoutLidBoxes" name="lid_boxes" value="0" title="Checkout lid boxes" />
+            <input type="hidden" id="checkoutMicrowavableId" name="microwavable_id" value="" title="Checkout microwavable ID" />
+            <input type="hidden" id="checkoutMicrowavableSize" name="microwavable_size" value="" title="Checkout microwavable size" />
+            <input type="hidden" id="checkoutMicrowavableBoxes" name="microwavable_boxes" value="0" title="Checkout microwavable boxes" />
+            <input type="hidden" id="checkoutSubtotal" name="subtotal" value="0" title="Checkout subtotal" />
+            <input type="hidden" id="checkoutShipping" name="shipping" value="0" title="Checkout shipping" />
+            <input type="hidden" id="checkoutTotal" name="total" value="0" title="Checkout total" />
+            <input type="hidden" id="checkoutDueNow" name="due_now" value="0" title="Checkout amount due now" />
+            <input type="hidden" id="checkoutRemainingBalance" name="remaining_balance" value="0" title="Checkout remaining balance" />
           </div>
         </div>
 
@@ -315,13 +336,14 @@
     </div>
   </footer>
 
-    <div id="custom-alert-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
-    <div style="background: #fff; padding: 24px; border-radius: 12px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-      <h3 style="margin-top: 0; color: #1e1e2f;">Notice</h3>
-      <p id="custom-alert-message" style="color: #555; margin: 16px 0 24px;"></p>
-      <button onclick="closeCustomAlert()" style="background: #2b2672; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%;">OK</button>
+        <div id="custom-alert-modal" class="custom-alert-overlay">
+    <div class="custom-alert-box">
+      <h3 class="custom-alert-title">Notice</h3>
+      <p id="custom-alert-message" class="custom-alert-message"></p>
+      <button onclick="closeCustomAlert()" class="custom-alert-btn">OK</button>
     </div>
   </div>
+
 
   <script src="main.js" defer></script>
 

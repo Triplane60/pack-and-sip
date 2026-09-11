@@ -16,10 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function showCustomAlert(message) {
   document.getElementById('custom-alert-message').innerText = message;
-  document.getElementById('custom-alert-modal').style.display = 'flex';
+  document.getElementById('custom-alert-modal').classList.add('is-open');
 }
 function closeCustomAlert() {
-  document.getElementById('custom-alert-modal').style.display = 'none';
+  document.getElementById('custom-alert-modal').classList.remove('is-open');
 }
 
 function formatPrice(value){
@@ -84,14 +84,17 @@ function renderCatalog(){
             aria-label="Decrease quantity for ${product.name}"
             ${stock === 0 ? 'disabled' : ''}
           >&minus;</button>
-          <input
+                    <input
             type="number"
             min="0"
             value="0"
             class="qtyInput w-full rounded-md border border-slate-300 px-2 py-1.5 text-center text-sm font-semibold text-slate-800"
+            placeholder="0"
             aria-label="Quantity for ${product.name}"
+            title="Quantity for ${product.name}"
             ${stock === 0 ? 'disabled' : ''}
           />
+
           <button
             type="button"
             class="qtyBtn qtyPlus flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-lg font-bold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
@@ -127,12 +130,14 @@ function resetConfigurator(){
   document.getElementById('lidBoxesInput').value = '0';
   document.getElementById('microwavableBoxesInput').value = '0';
   updateConfiguratorActionState();
+  syncCategoryTotals();
   document.getElementById('subtotal').innerText = '₱0.00';
   document.getElementById('shipping').innerText = '₱0.00';
   document.getElementById('total').innerText = '₱0.00';
   document.getElementById('cartCount').innerText = '0';
   document.getElementById('cartContent').innerHTML = '<p class="text-sm text-slate-600">No items in cart.</p>';
   refreshCatalogQuantityInputs();
+  updateCheckoutTotals();
 }
 
 function updateConfiguratorActionState(){
@@ -149,6 +154,7 @@ function applyCatalogQty(product, value){
   setQty(product, parsed);
   updateConfiguratorActionState();
   refreshCatalogQuantityInputs();
+  syncCategoryTotals();
   calculate();
 }
 
@@ -190,12 +196,7 @@ function showToast(message) {
   }
   
   toast.textContent = message;
-  toast.className = 'fixed z-[100] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl transition-all duration-300 opacity-0 scale-95 font-semibold';
-  toast.style.bottom = '24px';
-  toast.style.left = '50%';
-  toast.style.top = 'auto';
-  toast.style.right = 'auto';
-  toast.style.transform = 'translateX(-50%)';
+  toast.className = 'fixed z-[100] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl transition-all duration-300 opacity-0 scale-95 font-semibold cart-toast-position';
   
   // Trigger animation
   requestAnimationFrame(() => {
@@ -220,6 +221,78 @@ let selectedMicrowavableId = null;
 // lid styles, microwavable sizes) can be ordered independently.
 const qtys = {};
 
+// ---------------------------------------------------------------------------
+// Quantity sync + price calculation
+// ---------------------------------------------------------------------------
+
+// 1. Item Category Summing:
+//    Cup Boxes = Qty(12oz) + Qty(16oz) + Qty(22oz).
+//    Lid Boxes = Qty(Strawless) + Qty(Dome) + Qty(Flat).
+//    Microwavable Boxes = sum of all microwavable container card quantities.
+//    Quantities are read from the per-card `qtys` map keyed by product id, so
+//    every catalog card contributes independently via its own price per box.
+function getQtyById(id){
+  return Math.max(0, parseInt(qtys[id] || 0, 10) || 0);
+}
+
+function getCategoryTotals(){
+  // Explicit per-SKU sums required by the spec. Any future/unknown SKUs of
+  // the same type are folded in via the type fallback so totals never drift.
+  let cupBoxes = getQtyById('cup-12oz') + getQtyById('cup-16oz') + getQtyById('cup-22oz');
+  let lidBoxes = getQtyById('lid-strawless') + getQtyById('lid-dome') + getQtyById('lid-flat');
+  let microwavableBoxes = 0;
+  PRODUCTS.forEach(product => {
+    const boxes = getQty(product);
+    if(product.type === 'cup' && !['cup-12oz', 'cup-16oz', 'cup-22oz'].includes(product.id)) cupBoxes += boxes;
+    else if(product.type === 'lid' && !['lid-strawless', 'lid-dome', 'lid-flat'].includes(product.id)) lidBoxes += boxes;
+    else if(product.type === 'microwavable') microwavableBoxes += boxes;
+  });
+  return { cupBoxes, lidBoxes, microwavableBoxes };
+}
+
+// 2. Quick Configurator Sync:
+//    Mirror the summed category totals onto the configurator inputs/readouts so
+//    catalog card edits are reflected live in the Quick Configurator.
+function syncCategoryTotals(){
+  const totals = getCategoryTotals();
+  const cupInput = document.getElementById('cupBoxesInput');
+  const lidInput = document.getElementById('lidBoxesInput');
+  const microInput = document.getElementById('microwavableBoxesInput');
+  if(cupInput && document.activeElement !== cupInput) cupInput.value = String(totals.cupBoxes);
+  if(lidInput && document.activeElement !== lidInput) lidInput.value = String(totals.lidBoxes);
+  if(microInput && document.activeElement !== microInput) microInput.value = String(totals.microwavableBoxes);
+
+  const cupBoxesEl = document.getElementById('config-cup-boxes');
+  const lidBoxesEl = document.getElementById('config-lid-boxes');
+  const microBoxesEl = document.getElementById('config-micro-boxes');
+  if(cupBoxesEl) cupBoxesEl.textContent = String(totals.cupBoxes);
+  if(lidBoxesEl) lidBoxesEl.textContent = String(totals.lidBoxes);
+  if(microBoxesEl) microBoxesEl.textContent = String(totals.microwavableBoxes);
+  return totals;
+}
+
+// Distribute a Quick Configurator category total back across that category's
+// catalog cards. The typed value is split evenly (front-loaded remainder) and
+// each share is clamped to that product's available stock. Remainders that do
+// not fit are left unallocated and reported via the configurator input.
+function distributeCategoryQty(type, total){
+  const items = PRODUCTS.filter(p => p.type === type);
+  if(items.length === 0) return;
+  const wanted = Math.max(0, parseInt(total, 10) || 0);
+  const perItem = Math.floor(wanted / items.length);
+  let remainder = wanted - perItem * items.length;
+  items.forEach(product => {
+    const stock = Number(product.stock_boxes || 0);
+    let share = perItem + (remainder > 0 ? 1 : 0);
+    if(remainder > 0) remainder -= 1;
+    share = Math.max(0, Math.min(share, stock));
+    qtys[product.id] = share;
+    if(product.type === 'cup') selectedCupId = product.id;
+    else if(product.type === 'lid') selectedLidId = product.id;
+    else selectedMicrowavableId = product.id;
+  });
+}
+
 function productConfiguratorId(product){
   if(product.type === 'cup') return 'cupBoxesInput';
   if(product.type === 'lid') return 'lidBoxesInput';
@@ -239,6 +312,13 @@ function setQty(product, value){
 }
 
 async function calculate(){
+  // 3. Live Subtotal & Total Updates:
+  //    Multiply every selected item's unit price by its box quantity, then
+  //    update Subtotal / Shipping / Final Total in real-time on both the Quick
+  //    Configurator and the Cart modal. Re-sync the summed category totals
+  //    first so the configurator inputs/readouts match the catalog cards.
+  syncCategoryTotals();
+
   // Aggregate every independently-ordered catalog item (12oz/16oz/22oz cups,
   // lid styles, microwavable containers) by its own price per box.
   let subtotal = 0;
@@ -308,9 +388,11 @@ function updateCheckoutTotals() {
   if (paymentType === '50_percent') {
     dueNow = total * 0.5;
     remaining = total * 0.5;
-    document.getElementById('remaining-balance-row').style.display = 'block';
+    document.getElementById('remaining-balance-row').classList.remove('is-hidden-row');
+    document.getElementById('remaining-balance-row').classList.add('is-block-row');
   } else {
-    document.getElementById('remaining-balance-row').style.display = 'none';
+    document.getElementById('remaining-balance-row').classList.remove('is-block-row');
+    document.getElementById('remaining-balance-row').classList.add('is-hidden-row');
   }
   
   document.getElementById('due-now-amount').innerText = formatPrice(dueNow);
@@ -320,7 +402,8 @@ function updateCheckoutTotals() {
 // UI / drawer handlers
 function openCart(){
   const panel = document.getElementById('drawerPanel');
-  panel.style.transform = 'translateX(0)';
+  panel.classList.remove('drawer-closed-state');
+  panel.classList.add('drawer-open-state');
   panel.setAttribute('aria-hidden','false');
   document.body.classList.add('drawer-open');
   updateBackToTopButton();
@@ -329,7 +412,8 @@ function openCart(){
 
 function closeCart(){
   const panel = document.getElementById('drawerPanel');
-  panel.style.transform = 'translateX(100%)';
+  panel.classList.remove('drawer-open-state');
+  panel.classList.add('drawer-closed-state');
   panel.setAttribute('aria-hidden','true');
   document.body.classList.remove('drawer-open');
   updateBackToTopButton();
@@ -341,27 +425,25 @@ document.addEventListener('DOMContentLoaded', () => {
   resetConfigurator();
   fetchProducts();
   document.getElementById('cupBoxesInput').addEventListener('input', debounce(() => {
-    const current = Math.max(0, parseInt(document.getElementById('cupBoxesInput').value || 0, 10));
-    (PRODUCTS.filter(p => p.type === 'cup').forEach(product => {
-      // Set the currently selected cup size to the typed value; clear others.
-      qtys[product.id] = product.id === selectedCupId ? current : 0;
-    }));
+    // Quick Configurator Sync: distribute the typed Cup Boxes total across
+    // 12oz/16oz/22oz cards, then refresh quantities + live totals.
+    distributeCategoryQty('cup', document.getElementById('cupBoxesInput').value);
+    updateConfiguratorActionState();
     refreshCatalogQuantityInputs();
     calculate();
   }, 300));
   document.getElementById('lidBoxesInput').addEventListener('input', debounce(() => {
-    const current = Math.max(0, parseInt(document.getElementById('lidBoxesInput').value || 0, 10));
-    PRODUCTS.filter(p => p.type === 'lid').forEach(product => {
-      qtys[product.id] = product.id === selectedLidId ? current : 0;
-    });
+    // Quick Configurator Sync: distribute the typed Lid Boxes total across
+    // Strawless/Dome/Flat cards, then refresh quantities + live totals.
+    distributeCategoryQty('lid', document.getElementById('lidBoxesInput').value);
+    updateConfiguratorActionState();
     refreshCatalogQuantityInputs();
     calculate();
   }, 300));
   document.getElementById('microwavableBoxesInput').addEventListener('input', debounce(() => {
-    const current = Math.max(0, parseInt(document.getElementById('microwavableBoxesInput').value || 0, 10));
-    PRODUCTS.filter(p => p.type === 'microwavable').forEach(product => {
-      qtys[product.id] = product.id === selectedMicrowavableId ? current : 0;
-    });
+    // Quick Configurator Sync: distribute the typed Microwavable Boxes total
+    // across all microwavable container cards, then refresh + live totals.
+    distributeCategoryQty('microwavable', document.getElementById('microwavableBoxesInput').value);
     updateConfiguratorActionState();
     refreshCatalogQuantityInputs();
     calculate();
@@ -716,14 +798,18 @@ async function openConfirmationModal(){
 
   if (paymentType === 'full') {
     // 100% Full Payment: show the full total as the required payment.
-    fullRow.style.display = 'flex';
-    downpaymentRow.style.display = 'none';
+    fullRow.classList.remove('is-hidden-row');
+    fullRow.classList.add('is-flex-row');
+    downpaymentRow.classList.remove('is-flex-row');
+    downpaymentRow.classList.add('is-hidden-row');
     document.getElementById('confirmOrderRequiredPayment').textContent = formatPrice(totalAmount);
     paymentNote.textContent = 'Full payment required via GCash/Maya.';
   } else {
     // 50% Downpayment: show half of the total and the balance-on-delivery note.
-    fullRow.style.display = 'none';
-    downpaymentRow.style.display = 'flex';
+    fullRow.classList.remove('is-flex-row');
+    fullRow.classList.add('is-hidden-row');
+    downpaymentRow.classList.remove('is-hidden-row');
+    downpaymentRow.classList.add('is-flex-row');
     const confirmDownpayment = Math.round(totalAmount * 0.5 * 100) / 100;
     document.getElementById('confirmOrderDownpayment').textContent = formatPrice(confirmDownpayment);
     paymentNote.textContent = 'A 50% downpayment is required via GCash/Maya to process your order. The remaining balance will be paid upon Lalamove delivery.';
