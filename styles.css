@@ -193,15 +193,13 @@ input[type="number"] {
   button,
   .btn {
     min-height: 44px;
-    font-size: 16px !important; /* Prevents auto-zoom on iOS */
+    font-size: 16px !important;
   }
 
-    /* Adjust padding for mobile */
   .p-6 {
     padding: 1rem !important;
   }
 
-  /* Keep toast horizontally centered on mobile */
   #cart-toast {
     bottom: 24px !important;
     left: 50% !important;
