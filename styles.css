@@ -223,9 +223,7 @@ input[type="number"] {
   padding: 16px;
 }
 
-/* Screens 768px or smaller: hide the app and show the warning overlay */
 @media (max-width: 768px) {
-  /* Force-hide main layout containers (header, main, footer, drawers, toast) */
   header,
   main,
   footer,
@@ -243,11 +241,6 @@ input[type="number"] {
   }
 }
 
-/* ============================================================
-   Disable autofill overlay / "black popup":
-   Override browser autofill backgrounds (dark blue/yellow) with
-   a clean white background and slate-800 text.
-   ============================================================ */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,

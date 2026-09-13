@@ -215,7 +215,7 @@
         </div>
         <div>
           <label for="loginPassword" class="block text-sm font-medium text-slate-700">Password</label>
-          <input type="password" id="loginPassword" name="password" autocomplete="off" required title="Password" class="w-full border rounded-md p-2 mt-1" />
+          <input type="password" id="loginPassword" name="password" autocomplete="off" required maxlength="20" title="Password" class="w-full border rounded-md p-2 mt-1" />
         </div>
         <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-md font-semibold hover:bg-indigo-700">Login</button>
       </form>
@@ -232,7 +232,7 @@
         </div>
         <div>
           <label for="registerPassword" class="block text-sm font-medium text-slate-700">Password</label>
-          <input type="password" id="registerPassword" name="password" autocomplete="off" required minlength="8" title="Password" class="w-full border rounded-md p-2 mt-1" />
+          <input type="password" id="registerPassword" name="password" autocomplete="off" required minlength="8" maxlength="20" title="Password" class="w-full border rounded-md p-2 mt-1" />
           <p class="text-xs text-slate-500 mt-1">Minimum 8 characters</p>
         </div>
         <div>
@@ -265,6 +265,19 @@
         <div class="rounded-md bg-slate-50 p-3"><strong class="block text-slate-900">Eco-minded</strong><span class="text-sm text-slate-600">Practical drinkware for lower-waste service.</span></div>
         <div class="rounded-md bg-slate-50 p-3"><strong class="block text-slate-900">Fast delivery</strong><span class="text-sm text-slate-600">Reliable fulfillment for your next rush.</span></div>
         <div class="rounded-md bg-slate-50 p-3"><strong class="block text-slate-900">Bulk support</strong><span class="text-sm text-slate-600">Simple ordering by the box or by volume.</span></div>
+      </div>
+    </div>
+  </div>
+
+    <!-- Customer Orders Modal -->
+  <div id="customer-orders-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true" aria-labelledby="customerOrdersTitle">
+    <div class="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+      <div class="flex items-center justify-between border-b pb-4">
+        <h2 id="customerOrdersTitle" class="text-lg font-bold text-slate-900">My Orders</h2>
+        <button id="closeCustomerOrders" type="button" class="text-slate-500 hover:text-slate-900" aria-label="Close Orders Modal">✕</button>
+      </div>
+      <div id="customer-orders-list" class="mt-5 space-y-3">
+        <p class="text-sm text-slate-500">Your orders will appear here.</p>
       </div>
     </div>
   </div>
