@@ -8,6 +8,28 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-slate-50 text-slate-800">
+  <!-- Mobile view restriction: this platform is desktop-only -->
+  <div id="mobile-overlay" class="fixed inset-0 hidden items-center justify-center" role="alertdialog" aria-modal="true" aria-labelledby="mobileOverlayTitle" tabindex="-1">
+    <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl text-center">
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-3xl" aria-hidden="true">📱</div>
+      <h2 id="mobileOverlayTitle" class="mt-4 text-xl font-bold text-slate-900">Desktop Site Required</h2>
+      <p class="mt-2 text-sm leading-6 text-slate-600">
+        Pack &amp; Sip is a desktop-only ordering platform. Switch your mobile browser to
+        <em class="text-indigo-700 font-semibold">&ldquo;Desktop site&rdquo;</em> mode, or open the platform on a
+        desktop computer.
+      </p>
+
+      <h3 class="mt-4 text-sm font-semibold text-slate-700">Enable &ldquo;Desktop site&rdquo; in 3 steps:</h3>
+      <ol class="mt-2 text-left text-sm text-slate-700 list-decimal space-y-1.5">
+        <li>Open your browser&rsquo;s <strong>menu</strong> &mdash; tap the <strong>⋮ / ≡</strong> icon in the top-right corner.</li>
+        <li>Check the <strong>&ldquo;Desktop site&rdquo;</strong> option (also labeled &ldquo;Request desktop website&rdquo; on some browsers).</li>
+        <li>The page reloads automatically &mdash; if it doesn&rsquo;t, refresh it manually.</li>
+      </ol>
+
+      <p class="mt-3 text-xs text-slate-500">No browser menu? Open this platform on any desktop computer or laptop instead.</p>
+    </div>
+  </div>
+
   <header id="top" class="bg-white shadow">
     <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
       <div class="flex items-center gap-4">
@@ -38,7 +60,7 @@
       </div>
       <div class="w-full md:w-1/3 bg-white rounded-lg shadow p-4">
         <h3 class="text-lg font-semibold text-slate-800">Quick Configurator</h3>
-        <form id="configForm" class="mt-3 space-y-3">
+        <form id="configForm" autocomplete="off" class="mt-3 space-y-3">
                     <div>
             <label for="cupBoxesInput" class="block text-sm font-medium text-slate-700">Cup Boxes</label>
             <input id="cupBoxesInput" type="number" min="0" value="0" placeholder="0" title="Cup Boxes" class="w-full border rounded-md p-1.5 text-sm my-1" />
@@ -175,40 +197,40 @@
       </div>
 
             <!-- Login Form -->
-      <form id="loginForm" class="mt-6 space-y-4">
+      <form id="loginForm" autocomplete="off" class="mt-6 space-y-4">
         <div>
           <label for="loginEmail" class="block text-sm font-medium text-slate-700">Email Address</label>
-          <input type="email" id="loginEmail" name="email" required title="Email Address" class="w-full border rounded-md p-2 mt-1" />
+          <input type="email" id="loginEmail" name="email" autocomplete="off" required title="Email Address" class="w-full border rounded-md p-2 mt-1" />
         </div>
         <div>
           <label for="loginPassword" class="block text-sm font-medium text-slate-700">Password</label>
-          <input type="password" id="loginPassword" name="password" required title="Password" class="w-full border rounded-md p-2 mt-1" />
+          <input type="password" id="loginPassword" name="password" autocomplete="off" required title="Password" class="w-full border rounded-md p-2 mt-1" />
         </div>
         <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-md font-semibold hover:bg-indigo-700">Login</button>
       </form>
 
       <!-- Register Form -->
-      <form id="registerForm" action="/register" method="POST" class="mt-6 space-y-4 hidden">
+      <form id="registerForm" action="/register" method="POST" autocomplete="off" class="mt-6 space-y-4 hidden">
         <div>
           <label for="registerName" class="block text-sm font-medium text-slate-700">Full Name</label>
-          <input type="text" id="registerName" name="full_name" required title="Full Name" class="w-full border rounded-md p-2 mt-1" />
+          <input type="text" id="registerName" name="full_name" autocomplete="off" required title="Full Name" class="w-full border rounded-md p-2 mt-1" />
         </div>
         <div>
           <label for="registerEmail" class="block text-sm font-medium text-slate-700">Email Address</label>
-          <input type="email" id="registerEmail" name="email" required title="Email Address" class="w-full border rounded-md p-2 mt-1" />
+          <input type="email" id="registerEmail" name="email" autocomplete="off" required title="Email Address" class="w-full border rounded-md p-2 mt-1" />
         </div>
         <div>
           <label for="registerPassword" class="block text-sm font-medium text-slate-700">Password</label>
-          <input type="password" id="registerPassword" name="password" required minlength="8" title="Password" class="w-full border rounded-md p-2 mt-1" />
+          <input type="password" id="registerPassword" name="password" autocomplete="off" required minlength="8" title="Password" class="w-full border rounded-md p-2 mt-1" />
           <p class="text-xs text-slate-500 mt-1">Minimum 8 characters</p>
         </div>
         <div>
           <label for="registerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
-          <input type="tel" id="registerPhone" name="phone" placeholder="09123456789" title="Phone Number" class="w-full border rounded-md p-2 mt-1" />
+          <input type="tel" id="registerPhone" name="phone" placeholder="09123456789" maxlength="11" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '');" title="Phone Number" class="w-full border rounded-md p-2 mt-1" />
         </div>
         <div>
           <label for="registerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
-          <textarea id="registerAddress" name="address" title="Shipping Address" class="w-full border rounded-md p-2 mt-1" rows="2"></textarea>
+          <textarea id="registerAddress" name="address" autocomplete="off" title="Shipping Address" class="w-full border rounded-md p-2 mt-1" rows="2"></textarea>
         </div>
         <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-md font-semibold hover:bg-indigo-700">Create Account</button>
       </form>
@@ -244,20 +266,26 @@
         <button id="closeCart" class="text-slate-500" aria-label="Close cart summary">Close</button>
       </div>
 
-            <form id="checkoutForm" action="/checkout" method="POST" novalidate class="contents-display">
+            <form id="checkoutForm" action="/checkout" method="POST" novalidate autocomplete="off" class="contents-display">
         <div class="flex-1 overflow-y-auto">
           <div class="p-4" id="cartContent">
             <p class="text-sm text-slate-600">No items in cart.</p>
           </div>
           <div class="p-4 border-t space-y-2.5" id="customerForm">
-            <label for="customerName" class="block text-sm font-medium text-slate-700">Full Name</label>
-            <input id="customerName" name="name" type="text" required title="Full Name" class="w-full rounded-md border-gray-200 p-1.5" />
+            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
+              <label for="customerName" class="block text-sm font-medium text-slate-700">Full Name</label>
+              <input id="customerName" name="name" type="text" autocomplete="off" required title="Full Name" class="w-full rounded-md border-gray-200 p-1.5" />
+            </div>
             <label for="customerEmail" class="block text-sm font-medium text-slate-700">Email Address</label>
-            <input type="email" id="customerEmail" name="email" required placeholder="name@example.com" title="Email Address" class="w-full p-1.5 border rounded-md mb-2" />
-            <label for="customerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
-            <textarea id="customerAddress" name="address" required title="Shipping Address" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
-            <label for="customerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
-            <input type="tel" id="customerPhone" name="phone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" required title="Phone Number" class="w-full rounded-md border-gray-200 p-1.5" />
+            <input type="email" id="customerEmail" name="email" autocomplete="off" required placeholder="name@example.com" title="Email Address" class="w-full p-1.5 border rounded-md mb-2" />
+            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
+              <label for="customerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
+              <textarea id="customerAddress" name="address" autocomplete="off" required title="Shipping Address" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
+            </div>
+            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
+              <label for="customerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
+              <input type="tel" id="customerPhone" name="phone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '');" required title="Phone Number" class="w-full rounded-md border-gray-200 p-1.5" />
+            </div>
 
             <div class="payment-option-group">
               <label for="payment-type-select" class="payment-type-label">Payment Option</label>
