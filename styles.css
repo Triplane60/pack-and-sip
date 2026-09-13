@@ -11,7 +11,9 @@
 
 /* Hide FAB when drawer/modals are open */
 body.drawer-open #backToTopBtn,
-body.modal-open #backToTopBtn {
+body.modal-open #backToTopBtn,
+body.drawer-open #floating-cart-btn,
+body.modal-open #floating-cart-btn {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
@@ -230,7 +232,8 @@ input[type="number"] {
   #cartDrawer,
   #drawerPanel,
   #cart-toast,
-  #backToTopBtn {
+  #backToTopBtn,
+  #floating-cart-btn {
     display: none !important;
   }
 

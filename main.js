@@ -134,7 +134,7 @@ function resetConfigurator(){
   document.getElementById('subtotal').innerText = '₱0.00';
   document.getElementById('shipping').innerText = '₱0.00';
   document.getElementById('total').innerText = '₱0.00';
-  document.getElementById('cartCount').innerText = '0';
+  updateCartBadges(0);
   document.getElementById('cartContent').innerHTML = '<p class="text-sm text-slate-600">No items in cart.</p>';
   refreshCatalogQuantityInputs();
   updateCheckoutTotals();
@@ -357,11 +357,11 @@ function updateSummary(data){
   const cartContent = document.getElementById('cartContent');
   if((data.items || []).length === 0){
     cartContent.innerHTML = `<p class="text-sm text-slate-600">No items in cart.</p>`;
-    document.getElementById('cartCount').innerText = '0';
+    updateCartBadges(0);
     updateCheckoutTotals();
     return;
   }
-  document.getElementById('cartCount').innerText = data.items.reduce((s,i)=>s+i.boxes,0);
+  updateCartBadges(data.items.reduce((s,i)=>s+i.boxes,0));
   cartContent.innerHTML = '';
   data.items.forEach(it => {
     const row = document.createElement('div');
@@ -399,6 +399,15 @@ function updateCheckoutTotals() {
   document.getElementById('remaining-balance-amount').innerText = formatPrice(remaining);
 }
 
+// Keep the header (#cart-badge) and floating (#floating-cart-badge) cart
+// counts in sync whenever the cart contents change.
+function updateCartBadges(count){
+  const headerBadge = document.getElementById('cart-badge');
+  const floatingBadge = document.getElementById('floating-cart-badge');
+  if(headerBadge) headerBadge.innerText = String(count);
+  if(floatingBadge) floatingBadge.innerText = String(count);
+}
+
 // UI / drawer handlers
 function openCart(){
   const panel = document.getElementById('drawerPanel');
@@ -417,6 +426,11 @@ function closeCart(){
   panel.setAttribute('aria-hidden','true');
   document.body.classList.remove('drawer-open');
   updateBackToTopButton();
+}
+
+// Alias used by the floating cart button's inline onclick handler.
+function openCartModal(){
+  openCart();
 }
 
 
