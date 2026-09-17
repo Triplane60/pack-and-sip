@@ -519,6 +519,29 @@ function setupAuthModal(){
   authBtn.addEventListener('click', openAuth);
   closeAuth.addEventListener('click', closeAuthModal);
 
+  // Forgot password modal wiring
+  const forgotPasswordBtn = document.getElementById('forgotPasswordBtn');
+  const closeForgotPasswordBtn = document.getElementById('closeForgotPassword');
+  const forgotPasswordForm = document.getElementById('forgotPasswordForm');
+  const forgotPasswordModal = document.getElementById('forgot-password-modal');
+
+  if(forgotPasswordBtn) forgotPasswordBtn.addEventListener('click', showForgotPassword);
+  if(closeForgotPasswordBtn) closeForgotPasswordBtn.addEventListener('click', closeForgotPassword);
+  if(forgotPasswordForm){
+    forgotPasswordForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleResetPassword();
+    });
+  }
+  if(forgotPasswordModal){
+    forgotPasswordModal.addEventListener('click', (e) => {
+      if(e.target === forgotPasswordModal) closeForgotPassword();
+    });
+  }
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'Escape') closeForgotPassword();
+  });
+
   tabLogin.addEventListener('click', () => {
     tabLogin.classList.add('border-indigo-600', 'text-indigo-600');
     tabLogin.classList.remove('border-transparent', 'text-slate-500');
@@ -604,6 +627,110 @@ function setupAuthModal(){
         fillCustomerData();
       }
     }).catch(() => {});
+}
+
+// Forgot password flow: the login tab links here to let a customer set a new
+// password for their own account from the reset modal.
+function showForgotPassword(){
+  const modal = document.getElementById('forgot-password-modal');
+  if(!modal) return;
+
+  // Close the login/register modal so the reset dialog is the only one open.
+  const authModal = document.getElementById('authModal');
+  if(authModal){
+    authModal.classList.add('hidden');
+    authModal.classList.remove('flex');
+  }
+
+  const errorBox = document.getElementById('forgotPasswordError');
+  if(errorBox){
+    errorBox.textContent = '';
+    errorBox.classList.add('hidden');
+  }
+
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  document.body.classList.add('modal-open');
+
+  const emailInput = document.getElementById('resetEmail');
+  if(emailInput) emailInput.focus();
+}
+
+function closeForgotPassword(){
+  const modal = document.getElementById('forgot-password-modal');
+  if(!modal || modal.classList.contains('hidden')) return;
+
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+  document.body.classList.remove('modal-open');
+
+  const errorBox = document.getElementById('forgotPasswordError');
+  if(errorBox){
+    errorBox.textContent = '';
+    errorBox.classList.add('hidden');
+  }
+
+  const form = document.getElementById('forgotPasswordForm');
+  if(form) form.reset();
+}
+
+async function handleResetPassword(){
+  const form = document.getElementById('forgotPasswordForm');
+  if(!form) return;
+
+  const submitButton = form.querySelector('button[type="submit"]');
+  const errorBox = document.getElementById('forgotPasswordError');
+  const email = (document.getElementById('resetEmail').value || '').trim();
+  const newPassword = document.getElementById('resetNewPassword').value || '';
+
+  const showResetError = (text) => {
+    if(!errorBox) return;
+    errorBox.textContent = text;
+    errorBox.classList.remove('hidden');
+  };
+
+  if(errorBox){
+    errorBox.textContent = '';
+    errorBox.classList.add('hidden');
+  }
+
+  if(!email || !newPassword){
+    showResetError('Email address and new password are required.');
+    return;
+  }
+  if(newPassword.length < 8){
+    showResetError('New password must be at least 8 characters.');
+    return;
+  }
+
+  if(submitButton){
+    submitButton.disabled = true;
+    submitButton.textContent = 'Resetting...';
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, new_password: newPassword }),
+      credentials: 'include'
+    });
+    const result = await res.json().catch(() => ({}));
+
+    if(res.ok){
+      closeForgotPassword();
+      showCustomAlert(result.message || 'Your password has been reset. You can now log in.');
+    } else {
+      showResetError(result.error || 'Unable to reset password.');
+    }
+  } catch (err) {
+    showResetError('Unable to reset password. Please try again.');
+  } finally {
+    if(submitButton){
+      submitButton.disabled = false;
+      submitButton.textContent = 'Reset Password';
+    }
+  }
 }
 
 // Sign the customer out: invalidate the server session, clear browser storage

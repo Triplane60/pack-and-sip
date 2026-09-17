@@ -324,6 +324,40 @@ def login():
     return jsonify({'user': user_profile(user)})
 
 
+@app.route('/api/reset-password', methods=['POST'])
+def reset_password():
+    """Set a new password for the account matching the supplied email address.
+
+    This prototype flow lets a customer choose a new password directly from the
+    browser (no emailed reset token), so it intentionally reports whether the
+    email exists to keep the UI helpful. A production deployment should instead
+    email a single-use, expiring reset link and always return a generic message.
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    email = (data.get('email') or '').strip().lower()
+    new_password = data.get('new_password') or data.get('newPassword') or data.get('password') or ''
+
+    if not email or not new_password:
+        return jsonify({'error': 'Email address and new password are required.'}), 400
+    if len(new_password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters.'}), 400
+
+    conn = get_db()
+    user = conn.execute('SELECT * FROM users WHERE email = ? COLLATE NOCASE', (email,)).fetchone()
+    if not user:
+        conn.close()
+        return jsonify({'error': 'No account found with that email address.'}), 404
+
+    conn.execute(
+        'UPDATE users SET password_hash = ? WHERE id = ?',
+        (generate_password_hash(new_password), user['id'])
+    )
+    conn.commit()
+    conn.close()
+
+    return jsonify({'success': True, 'message': 'Your password has been reset. You can now log in.'}), 200
+
+
 @app.route('/api/me', methods=['GET'])
 def current_user():
     """Return the current user's profile from the signed session."""
