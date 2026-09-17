@@ -99,9 +99,26 @@
     </section>
   </main>
 
+  <!-- Admin authentication gate (fixed backdrop modal) -->
+  <div id="admin-auth-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-slate-900/60 px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="admin-auth-title">
+    <div class="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+      <p class="text-xs font-bold uppercase tracking-[0.22em] text-indigo-600">Pack &amp; Sip</p>
+      <h2 id="admin-auth-title" class="mt-1 text-xl font-bold tracking-tight text-slate-900">Admin access</h2>
+      <p class="mt-1 text-sm text-slate-500">Enter the admin password to view orders and inventory.</p>
+      <form id="admin-auth-form" class="mt-5" novalidate>
+        <label for="admin-password" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Password</label>
+        <input id="admin-password" type="password" autocomplete="current-password" required class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="Enter admin password">
+        <p id="auth-error-msg" class="mt-2 hidden text-sm font-semibold text-red-600" role="alert"></p>
+        <button type="submit" class="mt-4 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Unlock dashboard</button>
+      </form>
+    </div>
+  </div>
+
   <script>
     const statuses = ['Pending', 'Paid', 'Shipping', 'Completed'];
     const ADMIN_API_URL = '/api/admin/orders';
+    const ADMIN_AUTH_KEY = 'adminAuthenticated';
+    const ADMIN_PASSWORD = 'admin123';
     const currency = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
     const ordersTableBody = document.getElementById('ordersTableBody');
     const emptyState = document.getElementById('emptyState');
@@ -322,10 +339,66 @@
     });
 
 
+    /* ---------------------------------------------------------------
+       Admin authentication gate
+       Orders and inventory are only loaded after the admin password
+       is verified (persisted for the tab session in sessionStorage).
+    --------------------------------------------------------------- */
+    const adminAuthModal = document.getElementById('admin-auth-modal');
+    const adminPasswordInput = document.getElementById('admin-password');
+    const authErrorMsg = document.getElementById('auth-error-msg');
+
+    function isAdminAuthenticated() {
+      return sessionStorage.getItem(ADMIN_AUTH_KEY) === 'true';
+    }
+
+    function showAuthModal() {
+      adminAuthModal.classList.remove('hidden');
+      adminAuthModal.classList.add('flex');
+      document.body.classList.add('modal-open');
+      adminPasswordInput.focus();
+    }
+
+    function hideAuthModal() {
+      adminAuthModal.classList.add('hidden');
+      adminAuthModal.classList.remove('flex');
+      document.body.classList.remove('modal-open');
+      authErrorMsg.classList.add('hidden');
+    }
+
+    function verifyAdminPassword() {
+      const enteredPassword = adminPasswordInput.value;
+
+      if (enteredPassword === ADMIN_PASSWORD) {
+        sessionStorage.setItem(ADMIN_AUTH_KEY, 'true');
+        adminPasswordInput.value = '';
+        hideAuthModal();
+        fetchOrders();
+        fetchInventory();
+        return true;
+      }
+
+      authErrorMsg.textContent = 'Incorrect password. Please try again.';
+      authErrorMsg.classList.remove('hidden');
+      adminPasswordInput.value = '';
+      adminPasswordInput.focus();
+      return false;
+    }
+
+    document.getElementById('admin-auth-form').addEventListener('submit', event => {
+      event.preventDefault();
+      verifyAdminPassword();
+    });
+
+
     document.getElementById('refreshButton').addEventListener('click', fetchOrders);
-        document.addEventListener('DOMContentLoaded', () => {
-      fetchOrders();
-      fetchInventory();
+    document.addEventListener('DOMContentLoaded', () => {
+      if (isAdminAuthenticated()) {
+        fetchOrders();
+        fetchInventory();
+      } else {
+        showAuthModal();
+      }
     });
   </script>
 
