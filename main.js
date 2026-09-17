@@ -134,7 +134,7 @@ function resetConfigurator(){
   document.getElementById('subtotal').innerText = '₱0.00';
   document.getElementById('shipping').innerText = '₱0.00';
   document.getElementById('total').innerText = '₱0.00';
-  document.getElementById('cartCount').innerText = '0';
+  updateCartBadges(0);
   document.getElementById('cartContent').innerHTML = '<p class="text-sm text-slate-600">No items in cart.</p>';
   refreshCatalogQuantityInputs();
   updateCheckoutTotals();
@@ -357,11 +357,11 @@ function updateSummary(data){
   const cartContent = document.getElementById('cartContent');
   if((data.items || []).length === 0){
     cartContent.innerHTML = `<p class="text-sm text-slate-600">No items in cart.</p>`;
-    document.getElementById('cartCount').innerText = '0';
+    updateCartBadges(0);
     updateCheckoutTotals();
     return;
   }
-  document.getElementById('cartCount').innerText = data.items.reduce((s,i)=>s+i.boxes,0);
+  updateCartBadges(data.items.reduce((s,i)=>s+i.boxes,0));
   cartContent.innerHTML = '';
   data.items.forEach(it => {
     const row = document.createElement('div');
@@ -399,6 +399,15 @@ function updateCheckoutTotals() {
   document.getElementById('remaining-balance-amount').innerText = formatPrice(remaining);
 }
 
+// Keep the header (#cart-badge) and floating (#floating-cart-badge) cart
+// counts in sync whenever the cart contents change.
+function updateCartBadges(count){
+  const headerBadge = document.getElementById('cart-badge');
+  const floatingBadge = document.getElementById('floating-cart-badge');
+  if(headerBadge) headerBadge.innerText = String(count);
+  if(floatingBadge) floatingBadge.innerText = String(count);
+}
+
 // UI / drawer handlers
 function openCart(){
   const panel = document.getElementById('drawerPanel');
@@ -417,6 +426,11 @@ function closeCart(){
   panel.setAttribute('aria-hidden','true');
   document.body.classList.remove('drawer-open');
   updateBackToTopButton();
+}
+
+// Alias used by the floating cart button's inline onclick handler.
+function openCartModal(){
+  openCart();
 }
 
 
@@ -472,6 +486,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('confirmOrderBtn').addEventListener('click', submitOrder);
   document.getElementById('closeModalBtn').addEventListener('click', closeOrderPendingModal);
   setupAuthModal();
+  setupCustomerOrdersModal();
   setupAboutModal();
   setupSecretAdminAccess();
 });
@@ -576,10 +591,7 @@ function setupAuthModal(){
   });
 
 
-  document.getElementById('logoutBtn').addEventListener('click', () => {
-    currentUser = null;
-    updateAuthUI();
-  });
+  document.getElementById('logoutBtn').addEventListener('click', logout);
 
     // Check if already logged in
   fetch(`${API_BASE}/me`, { credentials: 'include' })
@@ -594,6 +606,32 @@ function setupAuthModal(){
     }).catch(() => {});
 }
 
+// Sign the customer out: invalidate the server session, clear browser storage
+// and the checkout fields, then hard-reset the UI back to the guest state.
+async function logout(){
+  try {
+    await fetch(`${API_BASE}/logout`, {
+      method: 'POST',
+      credentials: 'include'
+    });
+  } catch (err) {
+    // Best-effort: still clear local state if the server is unreachable.
+  }
+
+  currentUser = null;
+  localStorage.clear();
+  sessionStorage.clear();
+
+  // Explicitly clear the checkout input values (name, email, address, phone).
+  document.getElementById('customerName').value = '';
+  document.getElementById('customerEmail').value = '';
+  document.getElementById('customerAddress').value = '';
+  document.getElementById('customerPhone').value = '';
+
+  // Hard-reset the UI back to the guest state.
+  window.location.reload();
+}
+
 function updateAuthUI(){
   const authBtn = document.getElementById('authBtn');
   const logoutBtn = document.getElementById('logoutBtn');
@@ -601,10 +639,49 @@ function updateAuthUI(){
     authBtn.textContent = currentUser.full_name;
     authBtn.disabled = true;
     logoutBtn.classList.remove('hidden');
+    wrapUsernameAsOrdersButton();
   } else {
     authBtn.textContent = 'Login / Register';
     authBtn.disabled = false;
     logoutBtn.classList.add('hidden');
+    unwrapUsernameAsOrdersButton();
+  }
+}
+
+function wrapUsernameAsOrdersButton(){
+  // Wrap the navbar username inside a clickable button that opens the
+  // customer orders modal, so customers can check order status.
+  const authBtn = document.getElementById('authBtn');
+  const parent = authBtn && authBtn.parentNode;
+  if(!authBtn || !parent) return;
+  if(parent.getAttribute && parent.getAttribute('data-orders-wrap') === 'true') return;
+
+  const nextSibling = authBtn.nextElementSibling;
+  const wrapper = document.createElement('button');
+  wrapper.type = 'button';
+  wrapper.className = 'hover:text-slate-900';
+  wrapper.setAttribute('data-orders-wrap', 'true');
+  wrapper.setAttribute('onclick', 'openCustomerOrders()');
+  wrapper.setAttribute('aria-label', `Check order status for ${currentUser.full_name}`);
+  wrapper.appendChild(authBtn);
+  if(nextSibling){
+    parent.insertBefore(wrapper, nextSibling);
+  } else {
+    parent.appendChild(wrapper);
+  }
+  // The disabled user button must not swallow clicks meant for the wrapper.
+  authBtn.style.pointerEvents = 'none';
+  authBtn.title = 'View order status';
+}
+
+function unwrapUsernameAsOrdersButton(){
+  const authBtn = document.getElementById('authBtn');
+  if(!authBtn) return;
+  authBtn.style.pointerEvents = '';
+  authBtn.removeAttribute('title');
+  const parent = authBtn.parentNode;
+  if(parent && parent.getAttribute && parent.getAttribute('data-orders-wrap') === 'true'){
+    parent.replaceWith(authBtn);
   }
 }
 
@@ -627,6 +704,139 @@ function fillCustomerData(){
 }
 
 
+
+function openCustomerOrders(){
+  const modal = document.getElementById('customer-orders-modal');
+  const list = document.getElementById('customer-orders-list');
+  if(!modal || !list) return;
+
+  if(!currentUser){
+    showCustomAlert('Please log in to view your orders.');
+    return;
+  }
+
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  document.body.classList.add('modal-open');
+
+  list.innerHTML = '';
+  const loading = document.createElement('p');
+  loading.className = 'text-sm text-slate-500';
+  loading.textContent = 'Loading your orders…';
+  list.appendChild(loading);
+
+  fetch(`${API_BASE}/user/orders`, { credentials: 'include' })
+    .then(res => res.json())
+    .then(data => {
+      if(data.orders === undefined){
+        list.innerHTML = '';
+        const msg = document.createElement('p');
+        msg.className = 'text-sm text-red-600';
+        msg.textContent = data.error || 'Could not load your orders.';
+        list.appendChild(msg);
+        return;
+      }
+      renderCustomerOrders(data.orders);
+    })
+    .catch(() => {
+      list.innerHTML = '';
+      const msg = document.createElement('p');
+      msg.className = 'text-sm text-red-600';
+      msg.textContent = 'Network error loading your orders. Please try again.';
+      list.appendChild(msg);
+    });
+}
+
+const CUSTOMER_ORDER_BADGES = {
+  Pending: 'bg-amber-100 text-amber-800',
+  Shipping: 'bg-indigo-100 text-indigo-700',
+  Completed: 'bg-emerald-100 text-emerald-800'
+};
+
+function orderStatusBadge(status){
+  const classes = CUSTOMER_ORDER_BADGES[status] || 'bg-slate-100 text-slate-600';
+  const label = status || 'Pending';
+  return `<span class="shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${classes}">${escapeHtml(label)}</span>`;
+}
+
+function orderItemsSummary(order){
+  const lines = [];
+  const cupBoxes = Number(order.cup_boxes || 0);
+  const lidBoxes = Number(order.lid_boxes || 0);
+  const microBoxes = Number(order.microwavable_boxes || 0);
+  if(cupBoxes > 0) lines.push(`Cups: ${escapeHtml(order.cup_size || 'Selected size')} — ${cupBoxes} box(es)`);
+  if(lidBoxes > 0) lines.push(`Lids: ${escapeHtml(order.lid_style || 'Selected style')} — ${lidBoxes} box(es)`);
+  if(microBoxes > 0) lines.push(`Containers: ${escapeHtml(order.microwavable_size || 'Selected size')} — ${microBoxes} box(es)`);
+  return lines.length > 0 ? lines.join('<br>') : '<span class="text-slate-400">No item details.</span>';
+}
+
+function formatOrderDate(value){
+  if(!value) return '';
+  const date = new Date(value);
+  if(isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function renderCustomerOrders(orders){
+  const list = document.getElementById('customer-orders-list');
+  if(!list) return;
+  list.innerHTML = '';
+
+  if(!orders || orders.length === 0){
+    const empty = document.createElement('p');
+    empty.className = 'text-sm text-slate-500';
+    empty.textContent = 'No orders found for your account yet.';
+    list.appendChild(empty);
+    return;
+  }
+
+  orders.forEach(order => {
+    const card = document.createElement('div');
+    card.className = 'rounded-lg border border-slate-200 bg-white p-4';
+    card.innerHTML = `
+      <div class="flex items-center justify-between gap-3">
+        <span class="font-semibold text-indigo-700">Order #${escapeHtml(order.id)}</span>
+        ${orderStatusBadge(order.status)}
+      </div>
+      <p class="mt-1 text-xs text-slate-500">${escapeHtml(formatOrderDate(order.created_at))}</p>
+      <div class="mt-1 text-sm leading-5 text-slate-600">${orderItemsSummary(order)}</div>
+      <div class="mt-1 flex items-end justify-between gap-3">
+        <span class="text-sm font-semibold text-slate-800">Total: ${formatPrice(order.total_amount)}</span>
+        <span class="text-xs text-slate-500">${escapeHtml(order.payment_status || '')}</span>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function setupCustomerOrdersModal(){
+  const modal = document.getElementById('customer-orders-modal');
+  const closeBtn = document.getElementById('closeCustomerOrders');
+  if(!modal || !closeBtn) return;
+
+  const close = () => {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.classList.remove('modal-open');
+  };
+
+  closeBtn.addEventListener('click', close);
+  modal.addEventListener('click', event => {
+    if(event.target === modal) close();
+  });
+  document.addEventListener('keydown', event => {
+    if(event.key === 'Escape' && !modal.classList.contains('hidden')) close();
+  });
+}
+
+function escapeHtml(value){
+  return String(value || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
 
 function debounce(fn, wait){
   let t;

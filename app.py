@@ -340,6 +340,44 @@ def current_user():
     return jsonify({'user': user_profile(user)})
 
 
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    """Sign the current user out by clearing the server-side session."""
+    session.clear()
+    return jsonify({'success': True, 'message': 'Logged out successfully.'}), 200
+
+
+@app.route('/api/user/orders', methods=['GET'])
+def user_orders():
+    """Return the current customer's orders, filtered by the logged-in user name.
+
+    Orders placed during a signed-in checkout are linked via user_id; they are
+    also matched by the full name stored on the order so customers only ever
+    see their own orders.
+    """
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Authentication required.'}), 401
+
+    conn = get_db()
+    user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+    if not user:
+        conn.close()
+        session.clear()
+        return jsonify({'error': 'Authentication required.'}), 401
+
+    orders = conn.execute(
+        '''SELECT *
+           FROM orders
+           WHERE user_id = ? OR customer_name = ?
+           ORDER BY id DESC''',
+        (user_id, user['full_name'])
+    ).fetchall()
+    conn.close()
+
+    return jsonify({'orders': [dict(order) for order in orders]})
+
+
 @app.route('/')
 def index():
     return send_from_directory('.', 'index.html')
