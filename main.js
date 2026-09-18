@@ -399,12 +399,11 @@ function updateCheckoutTotals() {
   document.getElementById('remaining-balance-amount').innerText = formatPrice(remaining);
 }
 
-// Keep the header (#cart-badge) and floating (#floating-cart-badge) cart
-// counts in sync whenever the cart contents change.
+// Keep the floating (#floating-cart-badge) cart count in sync whenever the
+// cart contents change. The header icon is now the Order History button
+// (#nav-orders-btn), so it no longer shows a cart count badge.
 function updateCartBadges(count){
-  const headerBadge = document.getElementById('cart-badge');
   const floatingBadge = document.getElementById('floating-cart-badge');
-  if(headerBadge) headerBadge.innerText = String(count);
   if(floatingBadge) floatingBadge.innerText = String(count);
 }
 
@@ -473,7 +472,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('clearSelection').addEventListener('click', resetConfigurator);
   document.getElementById('viewCart').addEventListener('click', openCart);
-  document.getElementById('cartBtn').addEventListener('click', openCart);
+  // The header cart icon was replaced by the Order History button
+  // (#nav-orders-btn), which uses an inline onclick routing to
+  // handleNavOrdersClick().
   document.getElementById('closeCart').addEventListener('click', closeCart);
   const checkoutForm = document.getElementById('checkoutForm');
   if(checkoutForm){
@@ -522,11 +523,13 @@ function setupAuthModal(){
   // Forgot password modal wiring
   const forgotPasswordBtn = document.getElementById('forgotPasswordBtn');
   const closeForgotPasswordBtn = document.getElementById('closeForgotPassword');
+  const backToAuthBtn = document.getElementById('backToAuthBtn');
   const forgotPasswordForm = document.getElementById('forgotPasswordForm');
   const forgotPasswordModal = document.getElementById('forgot-password-modal');
 
   if(forgotPasswordBtn) forgotPasswordBtn.addEventListener('click', showForgotPassword);
   if(closeForgotPasswordBtn) closeForgotPasswordBtn.addEventListener('click', closeForgotPassword);
+  if(backToAuthBtn) backToAuthBtn.addEventListener('click', backToAuthModal);
   if(forgotPasswordForm){
     forgotPasswordForm.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -629,6 +632,30 @@ function setupAuthModal(){
     }).catch(() => {});
 }
 
+// Opens the Login / Register modal. Used by the navbar Order History button's
+// inline onclick so guests are prompted to sign in before viewing orders.
+function openAuthModal(){
+  const authModal = document.getElementById('authModal');
+  if(!authModal) return;
+  authModal.classList.remove('hidden');
+  authModal.classList.add('flex');
+  document.body.classList.add('modal-open');
+
+  // Default to the Login tab so guests are prompted to sign in.
+  const tabLogin = document.getElementById('tabLogin');
+  const tabRegister = document.getElementById('tabRegister');
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  if(tabLogin && tabRegister && loginForm && registerForm){
+    tabLogin.classList.add('border-indigo-600', 'text-indigo-600');
+    tabLogin.classList.remove('border-transparent', 'text-slate-500');
+    tabRegister.classList.add('border-transparent', 'text-slate-500');
+    tabRegister.classList.remove('border-indigo-600', 'text-indigo-600');
+    loginForm.classList.remove('hidden');
+    registerForm.classList.add('hidden');
+  }
+}
+
 // Forgot password flow: the login tab links here to let a customer set a new
 // password for their own account from the reset modal.
 function showForgotPassword(){
@@ -672,6 +699,13 @@ function closeForgotPassword(){
 
   const form = document.getElementById('forgotPasswordForm');
   if(form) form.reset();
+}
+
+// Back button in the reset dialog: discard the reset form and return to the
+// Login / Register modal so customers can sign in instead.
+function backToAuthModal(){
+  closeForgotPassword();
+  openAuthModal();
 }
 
 async function handleResetPassword(){
@@ -831,6 +865,16 @@ function fillCustomerData(){
 }
 
 
+
+// Navbar Order History button: signed-in customers see their order history,
+// guests are prompted to log in (or register) first.
+function handleNavOrdersClick(){
+  if(currentUser){
+    openCustomerOrders();
+  } else {
+    openAuthModal();
+  }
+}
 
 function openCustomerOrders(){
   const modal = document.getElementById('customer-orders-modal');
