@@ -142,12 +142,12 @@ def init_db():
     cursor.execute('SELECT COUNT(*) FROM products')
     if cursor.fetchone()[0] == 0:
         initial_products = [
-            ('cup-12oz', 'cup', 'Cups — 12 oz (Box of 1,000)', '12oz', None, 1000, 45.0, 50, 'Durable 12oz disposable cups.'),
-            ('cup-16oz', 'cup', 'Cups — 16 oz (Box of 1,000)', '16oz', None, 1000, 45.0, 40, 'Classic 16oz disposable cups.'),
-            ('cup-22oz', 'cup', 'Cups — 22 oz (Box of 1,000)', '22oz', None, 1000, 45.0, 25, 'Large 22oz disposable cups.'),
-            ('lid-strawless', 'lid', 'Lids — Strawless (Box of 1,000)', None, 'Strawless', 1000, 25.0, 60, 'Strawless lids — universal fit.'),
-            ('lid-dome', 'lid', 'Lids — Dome (Box of 1,000)', None, 'Dome', 1000, 25.0, 30, 'Dome lids — universal fit.'),
-            ('lid-flat', 'lid', 'Lids — Flat (Box of 1,000)', None, 'Flat', 1000, 25.0, 15, 'Flat lids — universal fit.')
+            ('cup-12oz', 'cup', 'Cups — 12 oz (Box of 1,250)', '12oz', None, 1250, 45.0, 50, 'Durable 12oz disposable cups.'),
+            ('cup-16oz', 'cup', 'Cups — 16 oz (Box of 1,250)', '16oz', None, 1250, 45.0, 40, 'Classic 16oz disposable cups.'),
+            ('cup-22oz', 'cup', 'Cups — 22 oz (Box of 1,250)', '22oz', None, 1250, 45.0, 25, 'Large 22oz disposable cups.'),
+            ('lid-strawless', 'lid', 'Lids — Strawless (Box of 1,250)', None, 'Strawless', 1250, 25.0, 60, 'Strawless lids — universal fit.'),
+            ('lid-dome', 'lid', 'Lids — Dome (Box of 1,250)', None, 'Dome', 1250, 25.0, 30, 'Dome lids — universal fit.'),
+            ('lid-flat', 'lid', 'Lids — Flat (Box of 1,250)', None, 'Flat', 1250, 25.0, 15, 'Flat lids — universal fit.')
         ]
         cursor.executemany('''
             INSERT INTO products (id, type, name, size, style, quantity_per_box, price_per_box, stock_boxes, description)
@@ -171,6 +171,23 @@ def init_db():
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', microwavable_products)
     conn.commit()
+
+    # Cups and lids ship in 1,250-unit boxes (microwavable packs stay at 100).
+    # Existing databases were seeded with 1,000-unit boxes, so backfill the unit
+    # count and the product names; guarded so we only write when a legacy row is
+    # still present (fresh databases are already seeded with 1,250).
+    legacy_cup_lid_packs = cursor.execute(
+        "SELECT COUNT(*) FROM products WHERE type IN ('cup', 'lid') "
+        "AND (quantity_per_box <> 1250 OR name LIKE '%(Box of 1,000)%')"
+    ).fetchone()[0]
+    if legacy_cup_lid_packs > 0:
+        cursor.execute('''
+            UPDATE products
+            SET quantity_per_box = 1250,
+                name = REPLACE(name, '(Box of 1,000)', '(Box of 1,250)')
+            WHERE type IN ('cup', 'lid')
+        ''')
+        conn.commit()
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS orders (
