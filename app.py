@@ -1,9 +1,12 @@
 import sqlite3
 import os
+import io
+import html
 import datetime
 import threading
 from flask import Flask, jsonify, render_template, request, send_from_directory, session, render_template_string
 from werkzeug.utils import secure_filename
+from xhtml2pdf import pisa
 
 from flask_cors import CORS
 from flask_mail import Mail, Message
@@ -100,6 +103,228 @@ def order_items_text(order):
         container_label = 'box' if int(order['microwavable_boxes']) == 1 else 'boxes'
         lines.append(f"Containers: {order['microwavable_size'] or 'Selected size'} - {order['microwavable_boxes']} {container_label}")
     return '\n'.join(lines) or 'No item details available.'
+
+# Inline HTML/CSS template for the official B2B sales invoice PDF.
+# xhtml2pdf supports a limited CSS subset, so layout uses tables
+# (no flexbox / grid). Rounded corners are approximated with
+# bordered padded blocks which xhtml2pdf renders reliably.
+INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  body { font-family: Helvetica, Arial, sans-serif; color: #1e293b; font-size: 12px; }
+  .topbar { width: 100%; margin-bottom: 6px; }
+  .topbar td { vertical-align: top; }
+  .brand { font-size: 26px; font-weight: bold; color: #4f46e5; margin: 0; }
+  .brand-tag { font-size: 10px; font-weight: bold; color: #64748b; margin: 2px 0 0 0; letter-spacing: 1px; }
+  .invoice-title { font-size: 20px; font-weight: bold; color: #0f172a; margin: 0; text-align: right; }
+  .badge { display: inline-block; background-color: #fef08a; color: #854d0e; font-size: 10px; font-weight: bold; padding: 5px 14px; border: 1px solid #facc15; margin-top: 6px; }
+  .badge-wrap { text-align: right; }
+  .divider { background-color: #e0e7ff; height: 10px; width: 100%; margin: 10px 0 16px 0; }
+  .meta-box { width: 100%; background-color: #f8fafc; border: 1px solid #e2e8f0; margin-bottom: 16px; }
+  .meta-box td { vertical-align: top; padding: 12px 14px; width: 50%; }
+  .meta-box .col-right { border-left: 1px solid #e2e8f0; }
+  .section-label { font-size: 10px; font-weight: bold; color: #4f46e5; margin: 0 0 6px 0; letter-spacing: 1px; }
+  .meta-value { margin: 0 0 3px 0; font-size: 12px; }
+  .meta-name { margin: 0 0 3px 0; font-size: 13px; font-weight: bold; color: #0f172a; }
+  .items { width: 100%; margin: 0 0 14px 0; border: 1px solid #4f46e5; }
+  .items th { background-color: #4f46e5; color: #ffffff; text-align: left; padding: 9px 10px; font-size: 10px; font-weight: bold; }
+  .items td { padding: 8px 10px; font-size: 12px; }
+  .items .row-alt td { background-color: #f8fafc; }
+  .items .num { text-align: right; }
+  .desc-main { font-weight: bold; color: #0f172a; margin: 0; }
+  .desc-sub { color: #64748b; font-size: 11px; margin: 2px 0 0 0; }
+  .totals-wrap { width: 100%; margin-bottom: 14px; }
+  .totals-wrap td { vertical-align: top; }
+  .totals-spacer { width: 50%; }
+  .totals { width: 100%; }
+  .totals td { padding: 4px 8px; font-size: 12px; }
+  .totals .label { text-align: right; color: #475569; }
+  .totals .value { text-align: right; font-weight: bold; width: 130px; }
+  .total-due td { background-color: #eef2ff; border-top: 2px solid #4f46e5; border-bottom: 2px solid #4f46e5; font-size: 13px; font-weight: bold; color: #0f172a; padding: 8px; }
+  .pay-box { border: 1px dashed #4f46e5; background-color: #f8fafc; padding: 12px 14px; margin-bottom: 12px; }
+  .pay-title { font-size: 11px; font-weight: bold; color: #0f172a; margin: 0 0 8px 0; letter-spacing: 1px; }
+  .pay-cards { width: 100%; }
+  .pay-cards td { width: 33%; vertical-align: top; padding-right: 8px; }
+  .pay-cards .last { padding-right: 0; }
+  .pay-card { background-color: #ffffff; border: 1px solid #e2e8f0; padding: 9px 10px; }
+  .pay-card-title { font-size: 11px; font-weight: bold; color: #4f46e5; margin: 0 0 4px 0; }
+  .pay-card p { margin: 0; font-size: 11px; color: #334155; }
+  .footer { margin-top: 16px; border-top: 1px solid #cbd5e1; padding-top: 8px; font-size: 10px; color: #64748b; text-align: center; }
+</style>
+</head>
+<body>
+  <table class="topbar">
+    <tr>
+      <td>
+        <p class="brand">Pack &amp; Sip</p>
+        <p class="brand-tag">WHOLESALE CUPS, LIDS &amp; CONTAINERS</p>
+      </td>
+      <td>
+        <p class="invoice-title">SALES INVOICE</p>
+        <p class="badge-wrap"><span class="badge">PENDING PAYMENT</span></p>
+      </td>
+    </tr>
+  </table>
+  <div class="divider"></div>
+  <table class="meta-box">
+    <tr>
+      <td>
+        <p class="section-label">BILLED TO</p>
+        <p class="meta-name">{{ customer_name }}</p>
+        <p class="meta-value">{{ customer_email }}</p>
+        <p class="meta-value">{{ customer_phone }}</p>
+      </td>
+      <td class="col-right">
+        <p class="section-label">ORDER REFERENCE</p>
+        <p class="meta-value">Order Number: <strong>#{{ order_id }}</strong></p>
+        <p class="meta-value">Date: {{ order_date }}</p>
+        <p class="meta-value">Fulfillment Mode: Lalamove Local Courier</p>
+      </td>
+    </tr>
+  </table>
+  <table class="items">
+    <tr><th>ITEM DESCRIPTION</th><th>QUANTITY</th><th>UNIT PRICE</th><th>TOTAL AMOUNT</th></tr>
+    {% for item in items %}
+    <tr{% if loop.index0 % 2 == 1 %} class="row-alt"{% endif %}>
+      <td><p class="desc-main">{{ item.name }}</p><p class="desc-sub">{{ item.details }}</p></td>
+      <td class="num">{{ item.quantity }}</td>
+      <td class="num">P{{ "%.2f"|format(item.unit_price) }}</td>
+      <td class="num">P{{ "%.2f"|format(item.line_total) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <table class="totals-wrap">
+    <tr>
+      <td class="totals-spacer"></td>
+      <td>
+        <table class="totals">
+          <tr><td class="label">Subtotal</td><td class="value">P{{ "%.2f"|format(subtotal) }}</td></tr>
+          <tr><td class="label">Shipping</td><td class="value">P{{ "%.2f"|format(shipping_fee) }}</td></tr>
+          <tr><td class="label">Tax</td><td class="value">P{{ "%.2f"|format(tax_fee) }}</td></tr>
+          <tr class="total-due"><td class="label"><strong>Total Due</strong></td><td class="value">P{{ "%.2f"|format(total_due) }}</td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+  <div class="pay-box">
+    <p class="pay-title">PAYMENT INSTRUCTIONS</p>
+    <table class="pay-cards">
+      <tr>
+        <td><div class="pay-card"><p class="pay-card-title">GCash</p><p>Account: Pack &amp; Sip<br />0912 345 6789</p></div></td>
+        <td><div class="pay-card"><p class="pay-card-title">Maya</p><p>Account: Pack &amp; Sip<br />0912 345 6789</p></div></td>
+        <td class="last"><div class="pay-card"><p class="pay-card-title">BDO Bank Transfer</p><p>Account: Pack &amp; Sip<br />0012 3456 7890</p></div></td>
+      </tr>
+    </table>
+  </div>
+  <p class="footer">Thank you for ordering from Pack &amp; Sip. This is your official order receipt.</p>
+</body>
+</html>
+"""
+
+
+def _invoice_row(item, details, qty, unit_price, stripe=False):
+    line_total = round(float(unit_price or 0) * int(qty or 0), 2)
+    row_class = ' class="row-alt"' if stripe else ''
+    return (
+        f"<tr{row_class}>"
+        f"<td><p class=\"desc-main\">{html.escape(str(item))}</p>"
+        f"<p class=\"desc-sub\">{html.escape(str(details))}</p></td>"
+        f"<td class=\"num\">{int(qty or 0)}</td>"
+        f"<td class=\"num\">P{float(unit_price or 0):,.2f}</td>"
+        f"<td class=\"num\">P{line_total:,.2f}</td>"
+        "</tr>"
+    )
+
+
+def invoice_item_rows(order, unit_prices):
+    """Build the item table rows for the invoice PDF from dynamic order data."""
+    rows = []
+    if int(order['cup_boxes'] or 0) > 0:
+        rows.append(_invoice_row('Cups', order['cup_size'] or 'Selected size', order['cup_boxes'], unit_prices.get('cup', 0), stripe=len(rows) % 2 == 1))
+    if int(order['lid_boxes'] or 0) > 0:
+        rows.append(_invoice_row('Lids', order['lid_style'] or 'Selected style', order['lid_boxes'], unit_prices.get('lid', 0), stripe=len(rows) % 2 == 1))
+    if int(order['microwavable_boxes'] or 0) > 0:
+        rows.append(_invoice_row('Microwavable Containers', order['microwavable_size'] or 'Selected size', order['microwavable_boxes'], unit_prices.get('microwavable', MICROWAVABLE_PRICE_PER_BOX), stripe=len(rows) % 2 == 1))
+    if not rows:
+        rows.append('<tr><td colspan="4">No item details available.</td></tr>')
+    return "".join(rows)
+
+
+def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None, tax_fee=0.0):
+    """Render the inline invoice template using dynamic order data.
+
+    subtotal is strictly the sum of items (quantity * unit_price).
+    shipping_fee defaults to the checkout shipping rule (15.00 when the
+    order has items, otherwise 0.00); total_due = subtotal + shipping_fee.
+    The template itself uses Jinja variables (no hardcoded summary values).
+    """
+    raw_created = str(order['created_at'] or '')
+    try:
+        order_date = datetime.datetime.fromisoformat(raw_created).strftime('%Y-%m-%d')
+    except ValueError:
+        order_date = raw_created[:10] if len(raw_created) >= 10 else raw_created
+    items = []
+    if int(order['cup_boxes'] or 0) > 0:
+        unit_price = float(unit_prices.get('cup', 0) or 0)
+        quantity = int(order['cup_boxes'] or 0)
+        items.append({
+            'name': 'Cups',
+            'details': order['cup_size'] or 'Selected size',
+            'quantity': quantity,
+            'unit_price': unit_price,
+            'line_total': round(quantity * unit_price, 2),
+        })
+    if int(order['lid_boxes'] or 0) > 0:
+        unit_price = float(unit_prices.get('lid', 0) or 0)
+        quantity = int(order['lid_boxes'] or 0)
+        items.append({
+            'name': 'Lids',
+            'details': order['lid_style'] or 'Selected style',
+            'quantity': quantity,
+            'unit_price': unit_price,
+            'line_total': round(quantity * unit_price, 2),
+        })
+    if int(order['microwavable_boxes'] or 0) > 0:
+        unit_price = float(unit_prices.get('microwavable', MICROWAVABLE_PRICE_PER_BOX) or 0)
+        quantity = int(order['microwavable_boxes'] or 0)
+        items.append({
+            'name': 'Microwavable Containers',
+            'details': order['microwavable_size'] or 'Selected size',
+            'quantity': quantity,
+            'unit_price': unit_price,
+            'line_total': round(quantity * unit_price, 2),
+        })
+    subtotal = round(sum(item['line_total'] for item in items), 2)
+    if shipping_fee is None:
+        shipping_fee = 15.00 if subtotal > 0 else 0.00
+    shipping_fee = round(float(shipping_fee or 0), 2)
+    tax_fee = round(float(tax_fee or 0), 2)
+    total_due = round(subtotal + shipping_fee + tax_fee, 2)
+    with app.app_context():
+        return render_template_string(
+            INVOICE_HTML_TEMPLATE,
+            customer_name=order['customer_name'] or '',
+            customer_email=order['email'] or '',
+            customer_phone=order['customer_phone'] or '',
+            order_id=order['id'],
+            order_date=order_date,
+            items=items,
+            subtotal=subtotal,
+            shipping_fee=shipping_fee,
+            tax_fee=tax_fee,
+            total_due=total_due,
+        )
+
+
+def build_invoice_pdf(invoice_html):
+    """Convert the rendered invoice HTML string into a PDF byte stream."""
+    pdf_buffer = io.BytesIO()
+    result = pisa.CreatePDF(io.StringIO(invoice_html), dest=pdf_buffer)
+    if result.err:
+        raise RuntimeError('Unable to generate the invoice PDF.')
+    return pdf_buffer.getvalue()
 
 def get_db():
     """Establish and return a database connection with dict-like row access."""
@@ -720,11 +945,14 @@ def process_checkout():
 
     # Compute totals
     subtotal = 0.0
+    unit_prices = {'cup': 0.0, 'lid': 0.0, 'microwavable': MICROWAVABLE_PRICE_PER_BOX}
     if cup_id and cup_boxes > 0:
         cup = cursor.execute('SELECT price_per_box FROM products WHERE id = ?', (cup_id,)).fetchone()
+        unit_prices['cup'] = float(cup['price_per_box'] or 0)
         subtotal += cup['price_per_box'] * cup_boxes
     if lid_id and lid_boxes > 0:
         lid = cursor.execute('SELECT price_per_box FROM products WHERE id = ?', (lid_id,)).fetchone()
+        unit_prices['lid'] = float(lid['price_per_box'] or 0)
         subtotal += lid['price_per_box'] * lid_boxes
     subtotal += MICROWAVABLE_PRICE_PER_BOX * microwavable_boxes
 
@@ -772,40 +1000,18 @@ def process_checkout():
     base_url = request.host_url.rstrip('/')
     upload_link = f"{base_url}/upload-receipt?order_id={order_id}"
 
-    if payment_type == 'full':
-        email_body = (
-            f"Hello {order['customer_name']},\n\n"
-            "Thank you for ordering from Pack & Sip. We have received your order and its status is Pending.\n\n"
-            "Items:\n"
-            f"{order_items_text(order)}\n\n"
-            f"Total Amount: ₱{order['total_amount']:.2f}\n"
-            "Payment Required: Full payment of the total above is required to confirm your order.\n\n"
-            "Payment Instructions:\n"
-            f"Please send your full payment of ₱{order['total_amount']:.2f} to confirm your order:\n"
-            "• GCash: 0912 345 6789 (Pack & Sip)\n"
-            "• Maya: 0912 345 6789\n"
-            "• Bank Transfer (BDO): 0012 3456 7890\n\n"
-            f"Please reply directly to this email with your proof of payment/receipt, or upload your receipt screenshot here: {upload_link}\n\n"
-            "Once verified, your order will be prepared and dispatched via Lalamove."
-        )
-    else:
-        email_body = (
-            f"Hello {order['customer_name']},\n\n"
-            "Thank you for ordering from Pack & Sip. We have received your order and its status is Pending.\n\n"
-            "Items:\n"
-            f"{order_items_text(order)}\n\n"
-            f"Total Amount: ₱{order['total_amount']:.2f}\n"
-            f"Required 50% Downpayment: ₱{order['downpayment_amount']:.2f}\n"
-            f"Remaining Balance upon Delivery: ₱{order['remaining_balance']:.2f}\n\n"
-            "Payment Instructions:\n"
-            f"Please send your 50% downpayment of ₱{order['downpayment_amount']:.2f} to confirm your order:\n"
-            "• GCash: 0912 345 6789 (Pack & Sip)\n"
-            "• Maya: 0912 345 6789\n"
-            "• Bank Transfer (BDO): 0012 3456 7890\n\n"
-            f"Please reply directly to this email with your proof of payment/receipt, or upload your receipt screenshot here: {upload_link}\n\n"
-            "Once verified, your order will be prepared and dispatched via Lalamove. "
-            f"Pay the remaining balance of ₱{order['remaining_balance']:.2f} upon delivery."
-        )
+    # Render the official B2B invoice HTML from dynamic order data and
+    # convert it into a PDF byte stream for the email attachment.
+    # subtotal = sum(items); total_due = subtotal + shipping_fee.
+    invoice_filename = f"PackAndSip_Invoice_Order_{order_id}.pdf"
+    try:
+        invoice_html = render_invoice_html(dict(order), unit_prices, upload_link, shipping_fee=shipping)
+        invoice_pdf_bytes = build_invoice_pdf(invoice_html)
+    except Exception as e:
+        print(f"Invoice PDF Error: {e}")
+        invoice_pdf_bytes = None
+
+    email_body = "Thank you for ordering from Pack & Sip. Your official order receipt is attached below as a PDF."
 
     # Send the order confirmation email asynchronously in a background thread.
     # This keeps the checkout response snappy: the DB insert commits and the
@@ -821,6 +1027,8 @@ def process_checkout():
                     recipients=[order['email']],
                     body=email_body
                 )
+                if invoice_pdf_bytes:
+                    msg.attach(invoice_filename, 'application/pdf', invoice_pdf_bytes)
                 mail.send(msg)
             except Exception as e:
                 print(f"Mail Error: {e}")
@@ -895,7 +1103,9 @@ def delete_order(order_id):
     return jsonify({'success': True, 'message': 'Order deleted successfully'})
 
 
+
 @app.route('/api/admin/inventory', methods=['GET'])
+
 def admin_inventory():
     """Fetch all products and their stock levels for management."""
     conn = get_db()
