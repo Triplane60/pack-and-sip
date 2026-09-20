@@ -28,6 +28,226 @@ mail = Mail(app)
 
 DB_FILE = 'app.db'
 MICROWAVABLE_PRICE_PER_BOX = 1500.0
+# Automatic shipping tiers based on CUPS + LIDS box count + order composition.
+# Microwavables are EXCLUDED from vehicle/shipping-tier assignment (they do not
+# count toward total_boxes and never disqualify Motorcycle).
+# The FULL applicable fee is always charged upfront, even for 50% downpayment:
+#   Initial Amount Due = (Subtotal * 0.50) + Full Shipping Fee.
+# Tiers (cups + lids only):
+#   1-3 boxes (content-aware):
+#     Motorcycle P120 ONLY if (max 2 boxes of 12oz cups ONLY) OR
+#       (max 1 box of 16oz/22oz cups ONLY) OR (max 1 cup + 1 lid = 2 boxes
+#       total) OR (max 3 boxes of lids ONLY); otherwise Sedan P250.
+#   Sedan P250 upgrade if: 2+ boxes of 16oz/22oz, OR cups+lids > 3,
+#     OR overall (cups+lids) total 4-8 boxes.
+#   9-18 boxes:  P400 MPV / Small Van
+#   19-40 boxes: P600 L300 / Medium Truck
+#   41+ boxes:   P1200 Large Truck
+SHIPPING_TIERS = [
+    (120.0, 'Motorcycle'),
+    (250.0, 'Sedan'),
+    (400.0, 'MPV / Small Van'),
+    (600.0, 'L300 / Medium Truck'),
+    (1200.0, 'Large Truck'),
+]
+# Kept for backwards compatibility (motorcycle tier rate).
+MOTORCYCLE_SHIPPING_FEE = 120.0
+LARGE_CUP_SIZES = {'16oz', '22oz'}
+LARGE_CUP_IDS = {'cup-16oz', 'cup-22oz'}
+
+
+def _is_large_cup_size(cup_size):
+    """True when the cup size string denotes a bulky 16oz/22oz box."""
+    return str(cup_size or '').strip().lower() in LARGE_CUP_SIZES
+
+
+def _is_large_cup_id(cup_id):
+    """True when the cup product id denotes a bulky 16oz/22oz box."""
+    return str(cup_id or '').strip().lower() in LARGE_CUP_IDS
+
+
+def _normalize_has_large_cups(value):
+    """Normalize bool/str/int flag for 'order contains 16oz or 22oz cups'."""
+    if isinstance(value, str):
+        return value.strip().lower() in ('1', 'true', 'yes', 'y', 'on', '16oz', '22oz')
+    return bool(value)
+
+
+def _parse_box_count(value):
+    """Parse a box count defensively (form strings, ints, None)."""
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _parse_large_cup_boxes(value):
+    """Parse the 16oz/22oz cup box count defensively.
+
+    Returns None when the value is missing/blank (unknown — fall back to the
+    has_large_cups flag / cup size / cup id signals instead of assuming 0).
+    """
+    if value is None:
+        return None
+    if isinstance(value, str) and value.strip() == '':
+        return None
+    try:
+        return max(0, int(float(value)))
+    except (TypeError, ValueError):
+        return None
+
+
+def is_motorcycle_eligible(cup_boxes=0, lid_boxes=0, microwavable_boxes=0,
+                           small_cup_boxes=None, large_cup_boxes=None):
+    """Motorcycle (P120) is allowed ONLY for these small cup/lid-only orders.
+
+    - Max 2 boxes of 12oz cups ONLY (no lids, no 16oz/22oz).
+    - Max 1 box of 16oz or 22oz cups ONLY (>= 2 boxes auto-upgrades to Sedan).
+    - Max 1 cup box + 1 lid box combined (2 boxes total).
+    - Max 3 boxes of lids ONLY (no cups).
+    Microwavables are EXCLUDED from vehicle assignment: they are ignored here
+    (never disqualify Motorcycle, never count toward the box totals).
+    When the per-size split is known (small_cup_boxes / large_cup_boxes), the
+    cups-only branches use it strictly: pure 12oz <= 2, or pure 16oz/22oz <= 1.
+    When the split is unknown (legacy single-size orders), fall back to the
+    total cup count so 1-2 cup-only boxes still ride Motorcycle.
+    """
+    cup_boxes = _parse_box_count(cup_boxes)
+    lid_boxes = _parse_box_count(lid_boxes)
+    # Microwavables excluded from vehicle assignment — ignore entirely.
+    if cup_boxes == 0 and 1 <= lid_boxes <= 3:
+        return True
+    if cup_boxes == 1 and lid_boxes == 1:
+        return True
+    if lid_boxes == 0 and cup_boxes >= 1 and cup_boxes <= 2:
+        # Strict per-size check when the split is available.
+        if small_cup_boxes is not None or large_cup_boxes is not None:
+            small = _parse_box_count(small_cup_boxes)
+            large = _parse_box_count(large_cup_boxes)
+            # Pure 12oz, max 2 boxes.
+            if large == 0 and 1 <= small <= 2 and small == cup_boxes:
+                return True
+            # Pure 16oz/22oz, max 1 box.
+            if small == 0 and large == 1 and large == cup_boxes:
+                return True
+            return False
+        return True
+    return False
+
+
+def is_sedan_upgrade(total_boxes=0, cup_boxes=0, lid_boxes=0, has_large_cups=False,
+                     large_cup_boxes=None):
+    """Sedan (P250) upgrade triggers.
+
+    - 2 or more boxes of 16oz or 22oz cups are ordered.
+    - Combined cups + lids total exceeds 3 boxes.
+    - Overall box count is between 4 and 8 boxes (handled by volume tier,
+       but reported here for clarity).
+    """
+    try:
+        total_boxes = int(total_boxes or 0)
+    except (TypeError, ValueError):
+        total_boxes = 0
+    try:
+        cups_lids = int(cup_boxes or 0) + int(lid_boxes or 0)
+    except (TypeError, ValueError):
+        cups_lids = 0
+    large_count = _parse_large_cup_boxes(large_cup_boxes)
+    if large_count is None:
+        # Split unknown: any 16oz/22oz presence + 2+ cups implies 2+ large boxes.
+        try:
+            cup_total = int(cup_boxes or 0)
+        except (TypeError, ValueError):
+            cup_total = 0
+        if _normalize_has_large_cups(has_large_cups) and cup_total >= 2:
+            return True
+    elif large_count >= 2:
+        return True
+    if cups_lids > 3:
+        return True
+    if 4 <= total_boxes <= 8:
+        return True
+    return False
+
+
+def get_shipping_tier(total_boxes, cup_boxes=0, lid_boxes=0, microwavable_boxes=0,
+                      has_large_cups=False, cup_size=None, cup_id=None,
+                      small_cup_boxes=None, large_cup_boxes=None):
+    """Return (fee, vehicle_label, is_dynamic_cod) for an order.
+
+    Content-aware + volume tiers. The third element is always False (kept
+    only for backwards compatibility — 41+ boxes is now a P1200 Large Truck,
+    never a dynamic-COD flag).
+    """
+    try:
+        cup_boxes = int(cup_boxes or 0)
+    except (TypeError, ValueError):
+        cup_boxes = 0
+    try:
+        lid_boxes = int(lid_boxes or 0)
+    except (TypeError, ValueError):
+        lid_boxes = 0
+    try:
+        microwavable_boxes = int(microwavable_boxes or 0)
+    except (TypeError, ValueError):
+        microwavable_boxes = 0
+    try:
+        total_boxes = int(total_boxes or 0)
+    except (TypeError, ValueError):
+        total_boxes = 0
+    # Normalize the per-size split (None = unknown → size/id/flag fallback).
+    small_split = _parse_large_cup_boxes(small_cup_boxes)
+    large_split = _parse_large_cup_boxes(large_cup_boxes)
+    # Vehicle assignment uses CUPS + LIDS ONLY — microwavables excluded.
+    breakdown_total = cup_boxes + lid_boxes
+    # Prefer the authoritative per-category breakdown whenever provided.
+    total = breakdown_total if breakdown_total > 0 else total_boxes
+    # If the caller passed a combined total that includes microwavables,
+    # subtract them back out so tiers are computed on cups + lids only.
+    if breakdown_total <= 0 and microwavable_boxes > 0 and total_boxes > 0:
+        total = max(0, total_boxes - microwavable_boxes)
+    if total <= 0:
+        return 0.0, '—', False
+    large = (
+        _normalize_has_large_cups(has_large_cups)
+        or _is_large_cup_size(cup_size)
+        or _is_large_cup_id(cup_id)
+        or (large_split is not None and large_split > 0)
+    )
+    # Effective large-cup box count: explicit split wins; otherwise infer from
+    # the single-size signals (a 16oz/22oz cup row means ALL cup boxes are large).
+    effective_large = large_split
+    if effective_large is None:
+        if cup_boxes > 0 and (_is_large_cup_size(cup_size) or _is_large_cup_id(cup_id)):
+            effective_large = cup_boxes
+        elif _normalize_has_large_cups(has_large_cups):
+            effective_large = cup_boxes if cup_boxes > 0 else 1
+        else:
+            effective_large = 0
+    # Effective small-cup (12oz) box count: explicit split wins; otherwise the
+    # remainder of cup boxes not counted as large (so 2x12oz → small=2).
+    effective_small = small_split
+    if effective_small is None:
+        effective_small = max(0, cup_boxes - (effective_large or 0))
+    if total >= 41:
+        return 1200.0, 'Large Truck', False
+    if total >= 19:
+        return 600.0, 'L300 / Medium Truck', False
+    if total >= 9:
+        return 400.0, 'MPV / Small Van', False
+    if total >= 4:
+        return 250.0, 'Sedan', False
+    # 1-3 boxes: content-aware motorcycle vs sedan.
+    if is_sedan_upgrade(total, cup_boxes, lid_boxes, large, effective_large):
+        return 250.0, 'Sedan', False
+    if is_motorcycle_eligible(cup_boxes, lid_boxes, microwavable_boxes,
+                              small_cup_boxes=effective_small,
+                              large_cup_boxes=effective_large):
+        return 120.0, 'Motorcycle', False
+    # Fallback: any other small cups+lids order (e.g. 3x 12oz cups-only,
+    # 1 cup + 2 lids) rides Sedan — never Motorcycle, never free.
+    # (Microwavables are excluded from this decision entirely.)
+    return 250.0, 'Sedan', False
 
 
 def is_gmail_app_password(password):
@@ -143,6 +363,9 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
   .totals .label { text-align: right; color: #475569; }
   .totals .value { text-align: right; font-weight: bold; width: 130px; }
   .total-due td { background-color: #eef2ff; border-top: 2px solid #4f46e5; border-bottom: 2px solid #4f46e5; font-size: 13px; font-weight: bold; color: #0f172a; padding: 8px; }
+  .payment-row td { padding: 4px 8px; font-size: 12px; }
+  .payment-due td { background-color: #ecfdf5; border-top: 2px solid #059669; font-size: 13px; font-weight: bold; color: #065f46; padding: 8px; }
+  .payment-balance td { background-color: #fffbeb; border-bottom: 2px solid #d97706; font-size: 12px; font-weight: bold; color: #92400e; padding: 8px; }
   .pay-box { border: 1px dashed #4f46e5; background-color: #f8fafc; padding: 12px 14px; margin-bottom: 12px; }
   .pay-title { font-size: 11px; font-weight: bold; color: #0f172a; margin: 0 0 8px 0; letter-spacing: 1px; }
   .pay-cards { width: 100%; }
@@ -201,9 +424,20 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
       <td>
         <table class="totals">
           <tr><td class="label">Subtotal</td><td class="value">P{{ "%.2f"|format(subtotal) }}</td></tr>
-          <tr><td class="label">Shipping</td><td class="value">P{{ "%.2f"|format(shipping_fee) }}</td></tr>
+          <tr><td class="label">Shipping ({{ shipping_label }}) — {{ total_boxes }} box{{ 'es' if total_boxes != 1 else '' }} (cups + lids; microwavables excluded)</td><td class="value">{{ shipping_display }}</td></tr>
           <tr><td class="label">Tax</td><td class="value">P{{ "%.2f"|format(tax_fee) }}</td></tr>
-          <tr class="total-due"><td class="label"><strong>Total Due</strong></td><td class="value">P{{ "%.2f"|format(total_due) }}</td></tr>
+          <tr class="total-due"><td class="label"><strong>Grand Total (Subtotal + Shipping + Tax)</strong></td><td class="value">P{{ "%.2f"|format(total_due) }}</td></tr>
+          {% if payment_option == 'downpayment' %}
+          <tr class="payment-row"><td class="label">Downpayment (50% of Subtotal)</td><td class="value">P{{ "%.2f"|format(downpayment_base) }}</td></tr>
+          <tr class="payment-row"><td class="label">Shipping Fee ({{ shipping_label }} — paid 100% upfront)</td><td class="value">P{{ "%.2f"|format(shipping_fee) }}</td></tr>
+          <tr class="payment-due"><td class="label"><strong>Initial Amount Due Now (Downpayment + Full Shipping)</strong></td><td class="value">P{{ "%.2f"|format(amount_due_now) }}</td></tr>
+          <tr class="payment-balance"><td class="label"><strong>Remaining Balance (on delivery)</strong></td><td class="value">P{{ "%.2f"|format(remaining_balance) }}</td></tr>
+          {% else %}
+          <tr class="payment-row"><td class="label">Full Payment (Subtotal)</td><td class="value">P{{ "%.2f"|format(subtotal) }}</td></tr>
+          <tr class="payment-row"><td class="label">Shipping Fee ({{ shipping_label }} — paid 100% upfront)</td><td class="value">P{{ "%.2f"|format(shipping_fee) }}</td></tr>
+          <tr class="payment-due"><td class="label"><strong>Initial Amount Due Now (Full Payment)</strong></td><td class="value">P{{ "%.2f"|format(amount_due_now) }}</td></tr>
+          <tr class="payment-balance"><td class="label"><strong>Remaining Balance</strong></td><td class="value">P{{ "%.2f"|format(remaining_balance) }}</td></tr>
+          {% endif %}
         </table>
       </td>
     </tr>
@@ -252,12 +486,37 @@ def invoice_item_rows(order, unit_prices):
     return "".join(rows)
 
 
-def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None, tax_fee=0.0):
+def _order_field_static(order, key, default=''):
+    """Read order[key] safely for dicts and sqlite3.Row objects."""
+    try:
+        value = order[key]
+        return default if value is None else value
+    except Exception:
+        try:
+            getter = getattr(order, 'get', None)
+            if callable(getter):
+                value = getter(key, default)
+                return default if value is None else value
+        except Exception:
+            pass
+        return default
+
+
+def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None, tax_fee=0.0, shipping_label=None, is_dynamic_cod=False):
     """Render the inline invoice template using dynamic order data.
 
-    subtotal is strictly the sum of items (quantity * unit_price).
-    shipping_fee defaults to the checkout shipping rule (15.00 when the
-    order has items, otherwise 0.00); total_due = subtotal + shipping_fee.
+    subtotal is strictly the sum of items (quantity * unit_price, INCLUDING
+    microwavables). shipping_fee defaults to the content-aware tier computed
+    on CUPS + LIDS ONLY (microwavables excluded from vehicle assignment):
+    1-3 boxes: Motorcycle P120 only for 12oz<=2 / 16oz-22oz<=1 / 1cup+1lid /
+    lids-only<=3, else Sedan P250; 4-8: P250 Sedan; 9-18: P400 MPV/Small Van;
+    19-40: P600 L300/Medium Truck; 41+: P1200 Large Truck);
+    total_due = subtotal + shipping_fee + tax_fee.
+    Payment breakdown:
+      - Downpayment (50%): amount_due_now = (subtotal * 0.50) + FULL
+        shipping_fee, remaining_balance = subtotal * 0.50.
+      - Full payment: amount_due_now = subtotal + FULL shipping_fee (+ tax),
+        remaining_balance = 0.00.
     The template itself uses Jinja variables (no hardcoded summary values).
     """
     raw_created = str(order['created_at'] or '')
@@ -297,11 +556,78 @@ def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None,
             'line_total': round(quantity * unit_price, 2),
         })
     subtotal = round(sum(item['line_total'] for item in items), 2)
-    if shipping_fee is None:
-        shipping_fee = 15.00 if subtotal > 0 else 0.00
+    total_boxes = sum(item['quantity'] for item in items)
+    # Content-aware tier needs per-category boxes + cup sizeBulky signal.
+    # Re-derive from the order row so invoice regeneration matches checkout.
+    try:
+        inv_cup_boxes = int(_order_field_static(order, 'cup_boxes', 0) or 0)
+    except (TypeError, ValueError):
+        inv_cup_boxes = 0
+    try:
+        inv_lid_boxes = int(_order_field_static(order, 'lid_boxes', 0) or 0)
+    except (TypeError, ValueError):
+        inv_lid_boxes = 0
+    try:
+        inv_micro_boxes = int(_order_field_static(order, 'microwavable_boxes', 0) or 0)
+    except (TypeError, ValueError):
+        inv_micro_boxes = 0
+    inv_cup_size = _order_field_static(order, 'cup_size', '')
+    # Cups + lids drive the vehicle tier; microwavables are excluded from the
+    # tier decision (but still appear as invoice line items + in the subtotal).
+    vehicle_boxes = inv_cup_boxes + inv_lid_boxes
+    if shipping_fee is None or shipping_label is None:
+        tier_fee, tier_label, tier_dynamic = get_shipping_tier(
+            vehicle_boxes,
+            cup_boxes=inv_cup_boxes,
+            lid_boxes=inv_lid_boxes,
+            microwavable_boxes=inv_micro_boxes,
+            has_large_cups=_is_large_cup_size(inv_cup_size),
+        )
+        if shipping_fee is None:
+            shipping_fee = tier_fee
+        if shipping_label is None:
+            shipping_label = tier_label
+            is_dynamic_cod = tier_dynamic
     shipping_fee = round(float(shipping_fee or 0), 2)
+    if is_dynamic_cod:
+        # Legacy flag only — current tiers always prepay the full fee.
+        shipping_label = shipping_label or 'Large Truck'
+    else:
+        shipping_label = shipping_label or 'Motorcycle'
+    shipping_display = 'P%.2f' % shipping_fee
     tax_fee = round(float(tax_fee or 0), 2)
     total_due = round(subtotal + shipping_fee + tax_fee, 2)
+    # Payment breakdown — the FULL applicable tier shipping fee is always added
+    # in full to the initial payment requirement.
+    def _order_field(key, default=''):
+        try:
+            value = order[key]
+            return default if value is None else value
+        except Exception:
+            try:
+                getter = getattr(order, 'get', None)
+                if callable(getter):
+                    value = getter(key, default)
+                    return default if value is None else value
+            except Exception:
+                pass
+            return default
+    payment_method_label = str(_order_field('payment_method', ''))
+    try:
+        stored_remaining = float(_order_field('remaining_balance', 0) or 0)
+    except (TypeError, ValueError):
+        stored_remaining = 0.0
+    is_downpayment = 'downpayment' in payment_method_label.lower() or stored_remaining > 0
+    if is_downpayment:
+        payment_option = 'downpayment'
+        downpayment_base = round(subtotal * 0.50, 2)
+        amount_due_now = round(downpayment_base + shipping_fee + tax_fee, 2)
+        remaining_balance = round(subtotal * 0.50, 2)
+    else:
+        payment_option = 'full'
+        downpayment_base = round(subtotal, 2)
+        amount_due_now = round(subtotal + shipping_fee + tax_fee, 2)
+        remaining_balance = 0.0
     with app.app_context():
         return render_template_string(
             INVOICE_HTML_TEMPLATE,
@@ -313,8 +639,16 @@ def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None,
             items=items,
             subtotal=subtotal,
             shipping_fee=shipping_fee,
+            shipping_label=shipping_label,
+            shipping_display=shipping_display,
+            total_boxes=total_boxes,
+            is_dynamic_cod=is_dynamic_cod,
             tax_fee=tax_fee,
             total_due=total_due,
+            payment_option=payment_option,
+            downpayment_base=downpayment_base,
+            amount_due_now=amount_due_now,
+            remaining_balance=remaining_balance,
         )
 
 
@@ -820,6 +1154,11 @@ def calculate_cart():
     except Exception:
         lid_boxes = 0
 
+    try:
+        microwavable_boxes = int(data.get('microwavable_boxes', 0) or 0)
+    except Exception:
+        microwavable_boxes = 0
+
     conn = get_db()
     items = []
     subtotal = 0.0
@@ -855,13 +1194,56 @@ def calculate_cart():
     conn.close()
 
     subtotal = round(subtotal, 2)
-    shipping = 15.0 if subtotal > 0 else 0.0
+    # Content-aware tier: box breakdown + per-size 12oz vs 16oz/22oz split.
+    # Vehicle assignment uses CUPS + LIDS ONLY — microwavables excluded.
+    total_boxes = cup_boxes + lid_boxes + microwavable_boxes
+    vehicle_boxes = cup_boxes + lid_boxes
+    cup_row = None
+    if cup_id and cup_boxes > 0:
+        cup_row = conn.execute('SELECT size FROM products WHERE id = ?', (cup_id,)).fetchone()
+    cup_size_db = cup_row['size'] if cup_row and cup_row['size'] else None
+    has_large = (
+        _is_large_cup_id(cup_id) if (cup_id and cup_boxes > 0)
+        else False
+    ) or (
+        _is_large_cup_size(cup_size_db) if cup_size_db else False
+    )
+    if str(data.get('has_large_cups') or '').strip() != '':
+        has_large = has_large or _normalize_has_large_cups(data.get('has_large_cups'))
+    # Per-size split: explicit counts win; otherwise infer (a 16oz/22oz cup row
+    # means ALL cup boxes are large, a 12oz row means ALL are small).
+    small_split = _parse_large_cup_boxes(data.get('small_cup_boxes'))
+    large_split = _parse_large_cup_boxes(data.get('large_cup_boxes'))
+    if small_split is None and large_split is None and cup_boxes > 0:
+        if _is_large_cup_size(cup_size_db) or _is_large_cup_id(cup_id):
+            small_split, large_split = 0, cup_boxes
+        elif not has_large:
+            small_split, large_split = cup_boxes, 0
+    shipping, shipping_label, is_dynamic_cod = get_shipping_tier(
+        vehicle_boxes,
+        cup_boxes=cup_boxes,
+        lid_boxes=lid_boxes,
+        microwavable_boxes=microwavable_boxes,
+        has_large_cups=has_large,
+        cup_id=cup_id if cup_boxes > 0 else None,
+        cup_size=cup_size_db,
+        small_cup_boxes=small_split,
+        large_cup_boxes=large_split,
+    )
+    if subtotal <= 0:
+        shipping, shipping_label, is_dynamic_cod = 0.0, '—', False
+    shipping = round(shipping, 2)
+    shipping_display = 'P%.2f' % shipping
     total = round(subtotal + shipping, 2)
 
     return jsonify({
         "items": items,
         "subtotal": subtotal,
         "shipping": shipping,
+        "shipping_label": shipping_label,
+        "shipping_display": shipping_display,
+        "total_boxes": total_boxes,
+        "is_dynamic_cod": is_dynamic_cod,
         "total": total
     })
 
@@ -957,15 +1339,53 @@ def process_checkout():
     subtotal += MICROWAVABLE_PRICE_PER_BOX * microwavable_boxes
 
     subtotal = round(subtotal, 2)
-    shipping = 15.0 if subtotal > 0 else 0.0
+    # Content-aware shipping tier based on box breakdown + cup size.
+    # FULL tier fee is always charged upfront, even for 50% downpayment:
+    #   Initial Amount Due = (Subtotal * 0.50) + Full Shipping Fee.
+    # Vehicle assignment uses CUPS + LIDS ONLY — microwavables excluded
+    # (they still count in the order subtotal/total, just not the vehicle).
+    total_boxes = cup_boxes + lid_boxes + microwavable_boxes
+    vehicle_boxes = cup_boxes + lid_boxes
+    checkout_large = (
+        _is_large_cup_size(cup_size)
+        or (_is_large_cup_id(cup_id) if cup_boxes > 0 else False)
+        or _normalize_has_large_cups(data.get('has_large_cups'))
+    )
+    # Per-size split: explicit counts win; otherwise infer from the cup row
+    # (legacy single-size orders carry one cup_size for all cup boxes).
+    co_small = _parse_large_cup_boxes(data.get('small_cup_boxes'))
+    co_large = _parse_large_cup_boxes(data.get('large_cup_boxes'))
+    if co_small is None and co_large is None and cup_boxes > 0:
+        if _is_large_cup_size(cup_size) or (_is_large_cup_id(cup_id) if cup_boxes > 0 else False):
+            co_small, co_large = 0, cup_boxes
+        elif not checkout_large:
+            co_small, co_large = cup_boxes, 0
+    shipping, shipping_label, is_dynamic_cod = get_shipping_tier(
+        vehicle_boxes,
+        cup_boxes=cup_boxes,
+        lid_boxes=lid_boxes,
+        microwavable_boxes=microwavable_boxes,
+        has_large_cups=checkout_large,
+        cup_size=cup_size,
+        cup_id=cup_id if cup_boxes > 0 else None,
+        small_cup_boxes=co_small,
+        large_cup_boxes=co_large,
+    )
+    if subtotal <= 0:
+        shipping, shipping_label, is_dynamic_cod = 0.0, '—', False
+    shipping = round(shipping, 2)
     total = round(subtotal + shipping, 2)
     if payment_type == 'full':
+        # Full payment: everything (subtotal + FULL tier shipping) is due now.
         downpayment_amount = round(total, 2)
         remaining_balance = 0.0
         payment_status = 'Full Payment Pending'
     else:
-        downpayment_amount = round(total * 0.5, 2)
-        remaining_balance = round(total - downpayment_amount, 2)
+        # Downpayment (50%): initial due = (subtotal * 50%) + FULL tier shipping;
+        # remaining balance = subtotal * 50% (shipping already collected at 100%).
+        downpayment_base = round(subtotal * 0.5, 2)
+        downpayment_amount = round(downpayment_base + shipping, 2)
+        remaining_balance = round(subtotal * 0.5, 2)
         payment_status = 'Pending Downpayment'
 
     # Deduct stock and insert order within a transaction
@@ -1002,10 +1422,15 @@ def process_checkout():
 
     # Render the official B2B invoice HTML from dynamic order data and
     # convert it into a PDF byte stream for the email attachment.
-    # subtotal = sum(items); total_due = subtotal + shipping_fee.
+    # subtotal = sum(items); total_due = subtotal + tier shipping_fee.
     invoice_filename = f"PackAndSip_Invoice_Order_{order_id}.pdf"
     try:
-        invoice_html = render_invoice_html(dict(order), unit_prices, upload_link, shipping_fee=shipping)
+        invoice_html = render_invoice_html(
+            dict(order), unit_prices, upload_link,
+            shipping_fee=shipping,
+            shipping_label=shipping_label,
+            is_dynamic_cod=is_dynamic_cod,
+        )
         invoice_pdf_bytes = build_invoice_pdf(invoice_html)
     except Exception as e:
         print(f"Invoice PDF Error: {e}")

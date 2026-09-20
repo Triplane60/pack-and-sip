@@ -238,16 +238,24 @@ function getQtyById(id){
 function getCategoryTotals(){
   // Explicit per-SKU sums required by the spec. Any future/unknown SKUs of
   // the same type are folded in via the type fallback so totals never drift.
+  // The 12oz vs 16oz/22oz split drives the Motorcycle/Sedan rule, so track
+  // small (12oz) and large (16oz/22oz) cup boxes separately.
   let cupBoxes = getQtyById('cup-12oz') + getQtyById('cup-16oz') + getQtyById('cup-22oz');
+  let smallCupBoxes = getQtyById('cup-12oz');
+  let largeCupBoxes = getQtyById('cup-16oz') + getQtyById('cup-22oz');
   let lidBoxes = getQtyById('lid-strawless') + getQtyById('lid-dome') + getQtyById('lid-flat');
   let microwavableBoxes = 0;
   PRODUCTS.forEach(product => {
     const boxes = getQty(product);
-    if(product.type === 'cup' && !['cup-12oz', 'cup-16oz', 'cup-22oz'].includes(product.id)) cupBoxes += boxes;
+    if(product.type === 'cup' && !['cup-12oz', 'cup-16oz', 'cup-22oz'].includes(product.id)){
+      cupBoxes += boxes;
+      if(isLargeCupProduct(product)) largeCupBoxes += boxes;
+      else smallCupBoxes += boxes;
+    }
     else if(product.type === 'lid' && !['lid-strawless', 'lid-dome', 'lid-flat'].includes(product.id)) lidBoxes += boxes;
     else if(product.type === 'microwavable') microwavableBoxes += boxes;
   });
-  return { cupBoxes, lidBoxes, microwavableBoxes };
+  return { cupBoxes, smallCupBoxes, largeCupBoxes, lidBoxes, microwavableBoxes };
 }
 
 // 2. Quick Configurator Sync:
@@ -338,21 +346,121 @@ async function calculate(){
   });
   subtotal = Math.round(subtotal * 100) / 100;
 
-  // Flat base shipping fee when the cart is not empty.
-  const shipping = subtotal > 0 ? 15 : 0;
+  // Content-aware shipping tier (mirrors app.py get_shipping_tier).
+  // Vehicle assignment uses CUPS + LIDS ONLY — microwavables are EXCLUDED
+  // (they still add to the subtotal/total, just not the vehicle tier).
+  // Motorcycle P120 ONLY: max 2x 12oz cups ONLY, max 1x 16oz/22oz cups ONLY,
+  // max 1 cup + 1 lid (2 total), max 3x lids ONLY.
+  // Sedan P250 upgrade: 2+ boxes of 16oz/22oz, cups+lids > 3, or 4-8 boxes.
+  // 9-18: P400 MPV/Small Van; 19-40: P600 L300/Medium Truck; 41+: P1200 Large Truck.
+  // FULL tier fee always applies (even for 50% downpayment).
+  const tier = getShippingTier();
+  const shipping = subtotal > 0 ? tier.fee : 0;
   const total = Math.round((subtotal + shipping) * 100) / 100;
 
   updateSummary({
     subtotal,
     shipping,
+    shippingLabel: subtotal > 0 ? tier.label : '—',
     total,
     items
   });
 }
 
+function isLargeCupProduct(product){
+  if(!product || product.type !== 'cup') return false;
+  const size = String(product.size || '').trim().toLowerCase();
+  if(size === '16oz' || size === '22oz') return true;
+  const id = String(product.id || '').trim().toLowerCase();
+  return id === 'cup-16oz' || id === 'cup-22oz';
+}
+
+function largeCupBoxesInCart(){
+  const totals = getCategoryTotals();
+  return Math.max(0, parseInt(totals.largeCupBoxes || 0, 10) || 0);
+}
+
+function hasLargeCupsInCart(){
+  return largeCupBoxesInCart() > 0;
+}
+
+function isMotorcycleEligible(cupBoxes, lidBoxes, microBoxes, smallCupBoxes, largeCupBoxes){
+  cupBoxes = Math.max(0, parseInt(cupBoxes || 0, 10) || 0);
+  lidBoxes = Math.max(0, parseInt(lidBoxes || 0, 10) || 0);
+  // Microwavables are EXCLUDED from vehicle assignment — ignore entirely.
+  if(cupBoxes === 0 && lidBoxes >= 1 && lidBoxes <= 3) return true;
+  if(cupBoxes === 1 && lidBoxes === 1) return true;
+  if(lidBoxes === 0 && cupBoxes >= 1 && cupBoxes <= 2){
+    // Strict per-size check when the split is available:
+    // pure 12oz max 2, or pure 16oz/22oz max 1.
+    if(typeof smallCupBoxes !== 'undefined' || typeof largeCupBoxes !== 'undefined'){
+      const small = Math.max(0, parseInt(smallCupBoxes || 0, 10) || 0);
+      const large = Math.max(0, parseInt(largeCupBoxes || 0, 10) || 0);
+      if(large === 0 && small >= 1 && small <= 2 && small === cupBoxes) return true;
+      if(small === 0 && large === 1 && large === cupBoxes) return true;
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+function isSedanUpgrade(total, cupBoxes, lidBoxes, largeCupBoxes){
+  total = Math.max(0, parseInt(total || 0, 10) || 0);
+  cupBoxes = Math.max(0, parseInt(cupBoxes || 0, 10) || 0);
+  lidBoxes = Math.max(0, parseInt(lidBoxes || 0, 10) || 0);
+  largeCupBoxes = Math.max(0, parseInt(largeCupBoxes || 0, 10) || 0);
+  // 2+ boxes of 16oz/22oz → Sedan, even if the cart total is only 2-3 boxes.
+  if(largeCupBoxes >= 2) return true;
+  if((cupBoxes + lidBoxes) > 3) return true;
+  if(total >= 4 && total <= 8) return true;
+  return false;
+}
+
+function getShippingTier(cupBoxes, lidBoxes, microBoxes, hasLarge, smallCupBoxes, largeCupBoxes){
+  if(typeof cupBoxes === 'undefined'){
+    const totals = getCategoryTotals();
+    cupBoxes = totals.cupBoxes;
+    lidBoxes = totals.lidBoxes;
+    microBoxes = totals.microwavableBoxes;
+    smallCupBoxes = totals.smallCupBoxes;
+    largeCupBoxes = totals.largeCupBoxes;
+    hasLarge = (largeCupBoxes || 0) > 0;
+  }
+  cupBoxes = Math.max(0, parseInt(cupBoxes || 0, 10) || 0);
+  lidBoxes = Math.max(0, parseInt(lidBoxes || 0, 10) || 0);
+  microBoxes = Math.max(0, parseInt(microBoxes || 0, 10) || 0);
+  if(typeof smallCupBoxes === 'undefined' || typeof largeCupBoxes === 'undefined'){
+    // Fallback when only totals are passed (e.g. unit checks): treat a large
+    // flag as "all cups are large" so 2x 16oz/22oz still upgrades to Sedan.
+    const largeFlag = hasLarge === true || hasLarge === 1 || hasLarge === '1';
+    largeCupBoxes = largeFlag ? cupBoxes : 0;
+    smallCupBoxes = largeFlag ? 0 : cupBoxes;
+  }
+  smallCupBoxes = Math.max(0, parseInt(smallCupBoxes || 0, 10) || 0);
+  largeCupBoxes = Math.max(0, parseInt(largeCupBoxes || 0, 10) || 0);
+  // Vehicle assignment uses CUPS + LIDS ONLY — microwavables excluded.
+  const total = cupBoxes + lidBoxes;
+  if(total <= 0){
+    // Cups/lids empty (e.g. microwavables-only cart): no vehicle tier.
+    // Shipping stays P0 here; the backend mirrors this (vehicle_boxes = 0).
+    return { fee: 0, label: '—' };
+  }
+  if(total >= 41) return { fee: 1200, label: 'Large Truck' };
+  if(total >= 19) return { fee: 600, label: 'L300 / Medium Truck' };
+  if(total >= 9) return { fee: 400, label: 'MPV / Small Van' };
+  if(total >= 4) return { fee: 250, label: 'Sedan' };
+  // 1-3 boxes: sedan upgrade triggers first, then motorcycle eligibility.
+  if(isSedanUpgrade(total, cupBoxes, lidBoxes, largeCupBoxes)) return { fee: 250, label: 'Sedan' };
+  if(isMotorcycleEligible(cupBoxes, lidBoxes, microBoxes, smallCupBoxes, largeCupBoxes)) return { fee: 120, label: 'Motorcycle' };
+  return { fee: 250, label: 'Sedan' };
+}
+
 function updateSummary(data){
   document.getElementById('subtotal').innerText = formatPrice(data.subtotal);
+  const shippingLabel = data.shippingLabel || data.shipping_label || '—';
   document.getElementById('shipping').innerText = formatPrice(data.shipping);
+  document.getElementById('shipping').title = shippingLabel !== '—' ? `Delivery via ${shippingLabel}` : '';
   document.getElementById('total').innerText = formatPrice(data.total);
   const cartContent = document.getElementById('cartContent');
   if((data.items || []).length === 0){
@@ -372,29 +480,37 @@ function updateSummary(data){
   });
   const totals = document.createElement('div');
   totals.className = 'pt-3';
-  totals.innerHTML = `<div class="flex items-center justify-between"><div class="text-sm">Subtotal</div><div class="font-medium">${formatPrice(data.subtotal)}</div></div><div class="flex items-center justify-between mt-2"><div class="text-sm">Shipping</div><div class="font-medium">${formatPrice(data.shipping)}</div></div><div class="flex items-center justify-between mt-3 text-lg font-bold text-indigo-700"><div>Total</div><div>${formatPrice(data.total)}</div></div>`;
+  const shipLine = shippingLabel && shippingLabel !== '—' ? `Shipping (${shippingLabel})` : 'Shipping';
+  totals.innerHTML = `<div class="flex items-center justify-between"><div class="text-sm">Subtotal</div><div class="font-medium">${formatPrice(data.subtotal)}</div></div><div class="flex items-center justify-between mt-2"><div class="text-sm">${shipLine}</div><div class="font-medium">${formatPrice(data.shipping)}</div></div><div class="flex items-center justify-between mt-3 text-lg font-bold text-indigo-700"><div>Total</div><div>${formatPrice(data.total)}</div></div>`;
   cartContent.appendChild(totals);
   updateCheckoutTotals();
 }
 
 function updateCheckoutTotals() {
+  const subtotalStr = document.getElementById('subtotal').innerText.replace(/[^0-9.]/g, '');
+  const subtotal = parseFloat(subtotalStr) || 0;
+  const shippingStr = document.getElementById('shipping').innerText.replace(/[^0-9.]/g, '');
+  const shipping = parseFloat(shippingStr) || 0;
   const totalStr = document.getElementById('total').innerText.replace(/[^0-9.]/g, '');
   const total = parseFloat(totalStr) || 0;
   const paymentType = document.getElementById('payment-type-select').value;
-  
+
+  // FULL shipping fee is always charged upfront, even for 50% downpayment:
+  // Initial Due = (Subtotal * 50%) + Full Shipping; Balance = Subtotal * 50%.
   let dueNow = total;
   let remaining = 0;
-  
+
   if (paymentType === '50_percent') {
-    dueNow = total * 0.5;
-    remaining = total * 0.5;
+    const downBase = Math.round(subtotal * 0.5 * 100) / 100;
+    dueNow = Math.round((downBase + shipping) * 100) / 100;
+    remaining = downBase;
     document.getElementById('remaining-balance-row').classList.remove('is-hidden-row');
     document.getElementById('remaining-balance-row').classList.add('is-block-row');
   } else {
     document.getElementById('remaining-balance-row').classList.remove('is-block-row');
     document.getElementById('remaining-balance-row').classList.add('is-hidden-row');
   }
-  
+
   document.getElementById('due-now-amount').innerText = formatPrice(dueNow);
   document.getElementById('remaining-balance-amount').innerText = formatPrice(remaining);
 }
@@ -1123,8 +1239,10 @@ function populateCheckoutHiddenFields(){
   const shipping = parseFloat(document.getElementById('shipping').innerText.replace(/[^0-9.]/g, '') || 0);
   const total = parseFloat(document.getElementById('total').innerText.replace(/[^0-9.]/g, '') || 0);
   const paymentType = document.getElementById('payment-type-select').value;
-  const dueNow = paymentType === '50_percent' ? Math.round(total * 0.5 * 100) / 100 : total;
-  const remaining = paymentType === '50_percent' ? Math.round(total * 0.5 * 100) / 100 : 0;
+  // FULL shipping always upfront: Due = (Subtotal*50%) + Full Shipping.
+  const downBase = Math.round(subtotal * 0.5 * 100) / 100;
+  const dueNow = paymentType === '50_percent' ? Math.round((downBase + shipping) * 100) / 100 : total;
+  const remaining = paymentType === '50_percent' ? downBase : 0;
 
   setHidden('checkoutCupId', cup.product ? cup.product.id : '');
   setHidden('checkoutCupSize', cup.product?.size || '');
@@ -1135,6 +1253,9 @@ function populateCheckoutHiddenFields(){
   setHidden('checkoutMicrowavableId', micro.product ? micro.product.id : '');
   setHidden('checkoutMicrowavableSize', micro.product?.size || '');
   setHidden('checkoutMicrowavableBoxes', microBoxes);
+  setHidden('checkoutHasLargeCups', cupItems.some(i => isLargeCupProduct(i.product)) ? '1' : '0');
+  setHidden('checkoutSmallCupBoxes', cupItems.reduce((s, i) => s + (isLargeCupProduct(i.product) ? 0 : i.boxes), 0));
+  setHidden('checkoutLargeCupBoxes', cupItems.reduce((s, i) => s + (isLargeCupProduct(i.product) ? i.boxes : 0), 0));
   setHidden('checkoutSubtotal', Math.round(subtotal * 100) / 100);
   setHidden('checkoutShipping', Math.round(shipping * 100) / 100);
   setHidden('checkoutTotal', Math.round(total * 100) / 100);
@@ -1171,7 +1292,10 @@ async function openConfirmationModal(){
 
   document.getElementById('confirmOrderTotal').textContent = document.getElementById('total').textContent;
 
+  const subtotalAmount = Number(document.getElementById('subtotal').textContent.replace(/[^0-9.]/g, '') || 0);
+  const shippingAmount = Number(document.getElementById('shipping').textContent.replace(/[^0-9.]/g, '') || 0);
   const totalAmount = Number(document.getElementById('total').textContent.replace(/[^0-9.]/g, '') || 0);
+  const shippingLabel = (document.getElementById('shipping').title || '').replace(/^Delivery via /, '') || 'Standard';
   const paymentType = document.getElementById('payment-type-select').value;
   const fullRow = document.getElementById('confirmOrderFullRow');
   const downpaymentRow = document.getElementById('confirmOrderDownpaymentRow');
@@ -1184,16 +1308,18 @@ async function openConfirmationModal(){
     downpaymentRow.classList.remove('is-flex-row');
     downpaymentRow.classList.add('is-hidden-row');
     document.getElementById('confirmOrderRequiredPayment').textContent = formatPrice(totalAmount);
-    paymentNote.textContent = 'Full payment required via GCash/Maya.';
+    paymentNote.textContent = `Full payment (${formatPrice(subtotalAmount)} items + ${formatPrice(shippingAmount)} ${shippingLabel} shipping) required via GCash/Maya.`;
   } else {
-    // 50% Downpayment: show half of the total and the balance-on-delivery note.
+    // 50% Downpayment: Due = (Subtotal*50%) + FULL shipping; Balance = Subtotal*50%.
     fullRow.classList.remove('is-flex-row');
     fullRow.classList.add('is-hidden-row');
     downpaymentRow.classList.remove('is-hidden-row');
     downpaymentRow.classList.add('is-flex-row');
-    const confirmDownpayment = Math.round(totalAmount * 0.5 * 100) / 100;
+    const downBase = Math.round(subtotalAmount * 0.5 * 100) / 100;
+    const confirmDownpayment = Math.round((downBase + shippingAmount) * 100) / 100;
     document.getElementById('confirmOrderDownpayment').textContent = formatPrice(confirmDownpayment);
-    paymentNote.textContent = 'A 50% downpayment is required via GCash/Maya to process your order. The remaining balance will be paid upon Lalamove delivery.';
+    document.getElementById('confirmOrderDownpaymentRow').firstElementChild.textContent = `Required Initial (50% items + full ${shippingLabel} shipping)`;
+    paymentNote.textContent = `A ${formatPrice(downBase)} downpayment (50% of items) + ${formatPrice(shippingAmount)} full ${shippingLabel} shipping = ${formatPrice(confirmDownpayment)} is required via GCash/Maya. The remaining ${formatPrice(downBase)} balance will be paid upon delivery.`;
   }
 
   const modal = document.getElementById('confirmOrderModal');
