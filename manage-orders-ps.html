@@ -128,7 +128,9 @@
   </div>
 
   <script>
-    const statuses = ['Pending', 'Paid', 'Shipping', 'Completed'];
+    // 'Ready for Pick-up' is used by Customer Self-Booking / Warehouse Pick-up
+    // orders (no Pack & Sip courier is booked for them).
+    const statuses = ['Pending', 'Paid', 'Ready for Pick-up', 'Shipping', 'Completed'];
     const ADMIN_API_URL = '/api/admin/orders';
     const ADMIN_AUTH_KEY = 'adminAuthenticated';
     const ADMIN_PASSWORD = 'admin123';
@@ -204,6 +206,15 @@
       return order.shipping_address || '—';
     }
 
+    // Delivery Method badge: Pack & Sip courier vs Customer Self-Booking / Pick-up.
+    function formatDeliveryMethod(order) {
+      const method = String(order.delivery_method || 'standard').toLowerCase();
+      if (method === 'self_booking') {
+        return '<div class="mt-2 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Self-Booking / Pick-up</div>';
+      }
+      return '<div class="mt-2 inline-block rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-700">Standard Courier</div>';
+    }
+
         function formatItems(order) {
       const items = [];
       if (Number(order.cup_boxes || 0) > 0) {
@@ -233,7 +244,7 @@
           <td class="whitespace-nowrap px-5 py-4 font-bold text-indigo-700">#${order.id}</td>
           <td class="px-5 py-4"><div class="font-semibold text-slate-800">${order.full_name || '—'}</div></td>
                     <td class="px-5 py-4 text-slate-600"><div>${order.email || '—'}</div><div class="mt-1">${order.phone_number || '—'}</div></td>
-          <td class="max-w-[220px] whitespace-normal px-5 py-4 text-slate-600">${formatAddress(order)}</td>
+          <td class="max-w-[220px] whitespace-normal px-5 py-4 text-slate-600">${formatAddress(order)}${formatDeliveryMethod(order)}</td>
           <td class="whitespace-normal px-5 py-4 text-xs font-semibold leading-6 text-slate-600">${formatItems(order)}</td>
           <td class="whitespace-nowrap px-5 py-4 font-bold text-slate-800">
             <div>${currency.format(Number(order.total_amount || 0))}</div>

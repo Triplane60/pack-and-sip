@@ -180,6 +180,10 @@
         <span>Total</span>
         <span id="confirmOrderTotal">₱0.00</span>
       </div>
+      <div class="mt-2 flex items-center justify-between text-sm text-slate-600">
+        <span>Delivery Method</span>
+        <span id="confirmOrderDeliveryMethod" class="font-semibold text-slate-800">Standard Delivery</span>
+      </div>
       <div class="mt-2 flex items-center justify-between text-sm font-semibold text-amber-700" id="confirmOrderFullRow">
         <span>Required Payment</span>
         <span id="confirmOrderRequiredPayment">₱0.00</span>
@@ -348,6 +352,26 @@
               <label for="customerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
               <input type="tel" id="customerPhone" name="phone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '');" required title="Phone Number" class="w-full rounded-md border-gray-200 p-1.5" />
             </div>
+
+            <!-- Delivery Method: Option A = Pack & Sip courier (box-tier fee);
+                 Option B = Customer Self-Booking / Warehouse Pick-up (P0.00). -->
+            <fieldset class="payment-option-group delivery-method-group">
+              <legend class="payment-type-label">Delivery Method</legend>
+              <label class="delivery-method-option" for="deliveryMethodStandard">
+                <input type="radio" id="deliveryMethodStandard" name="delivery_method" value="standard" checked onchange="calculate()" title="Delivery Method: Standard Delivery (Ship via Pack &amp; Sip Courier)" />
+                <span class="delivery-method-text">
+                  <span class="delivery-method-title">Standard Delivery (Ship via Pack &amp; Sip Courier)</span>
+                  <span class="delivery-method-hint">Courier fee follows the box-tier rate (₱120 – ₱1,200) for your order volume.</span>
+                </span>
+              </label>
+              <label class="delivery-method-option" for="deliveryMethodSelfBooking">
+                <input type="radio" id="deliveryMethodSelfBooking" name="delivery_method" value="self_booking" onchange="calculate()" title="Delivery Method: Customer Self-Booking / Warehouse Pick-up" />
+                <span class="delivery-method-text">
+                  <span class="delivery-method-title">Customer Self-Booking / Warehouse Pick-up</span>
+                  <span class="delivery-method-hint">Note: You will book your own rider (Lalamove/Grab) once your order status is updated to 'Ready for Pick-up'.</span>
+                </span>
+              </label>
+            </fieldset>
 
             <div class="payment-option-group">
               <label for="payment-type-select" class="payment-type-label">Payment Option</label>

@@ -353,15 +353,25 @@ async function calculate(){
   // max 1 cup + 1 lid (2 total), max 3x lids ONLY.
   // Sedan P250 upgrade: 2+ boxes of 16oz/22oz, cups+lids > 3, or 4-8 boxes.
   // 9-18: P400 MPV/Small Van; 19-40: P600 L300/Medium Truck; 41+: P1200 Large Truck.
+  // Delivery Method (cart checkout flow):
+  //   Option A ('standard')     -> existing box-tier courier fee (P120-P1200).
+  //   Option B ('self_booking') -> Shipping Fee is always P0.00; the customer
+  //     books their own rider (Lalamove/Grab) once the order is ready.
   // FULL tier fee always applies (even for 50% downpayment).
+  const deliveryMethod = getSelectedDeliveryMethod();
+  const selfBooking = deliveryMethod === DELIVERY_METHOD_SELF_BOOKING;
   const tier = getShippingTier();
-  const shipping = subtotal > 0 ? tier.fee : 0;
+  const shipping = (subtotal > 0 && !selfBooking) ? tier.fee : 0;
+  const shippingLabel = subtotal <= 0
+    ? '—'
+    : (selfBooking ? SELF_BOOKING_SHIPPING_LABEL : tier.label);
   const total = Math.round((subtotal + shipping) * 100) / 100;
 
   updateSummary({
     subtotal,
     shipping,
-    shippingLabel: subtotal > 0 ? tier.label : '—',
+    shippingLabel,
+    deliveryMethod,
     total,
     items
   });
@@ -415,6 +425,43 @@ function isSedanUpgrade(total, cupBoxes, lidBoxes, largeCupBoxes){
   if((cupBoxes + lidBoxes) > 3) return true;
   if(total >= 4 && total <= 8) return true;
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// Delivery Method options for the cart checkout flow.
+//   standard     -> Standard Delivery (Ship via Pack & Sip Courier): the
+//                   existing content-aware box-tier fee (P120-P1200).
+//   self_booking -> Customer Self-Booking / Warehouse Pick-up: the Shipping
+//                   Fee is always P0.00; the customer books their own rider
+//                   (Lalamove/Grab) once the order is 'Ready for Pick-up'.
+const DELIVERY_METHOD_STANDARD = 'standard';
+const DELIVERY_METHOD_SELF_BOOKING = 'self_booking';
+const DELIVERY_METHOD_LABELS = {
+  [DELIVERY_METHOD_STANDARD]: 'Standard Delivery (Ship via Pack & Sip Courier)',
+  [DELIVERY_METHOD_SELF_BOOKING]: 'Customer Self-Booking / Warehouse Pick-up'
+};
+const SELF_BOOKING_SHIPPING_LABEL = 'Customer Self-Booking';
+const SELF_BOOKING_NOTE = "Note: You will book your own rider (Lalamove/Grab) once your order status is updated to 'Ready for Pick-up'.";
+
+// Read the currently selected Delivery Method radio (defaults to Standard).
+function getSelectedDeliveryMethod(){
+  const selected = document.querySelector('input[name="delivery_method"]:checked');
+  const value = selected ? String(selected.value) : DELIVERY_METHOD_STANDARD;
+  return value === DELIVERY_METHOD_SELF_BOOKING ? DELIVERY_METHOD_SELF_BOOKING : DELIVERY_METHOD_STANDARD;
+}
+
+function isSelfBookingSelected(){
+  return getSelectedDeliveryMethod() === DELIVERY_METHOD_SELF_BOOKING;
+}
+
+function deliveryMethodLabel(method){
+  return DELIVERY_METHOD_LABELS[method || DELIVERY_METHOD_STANDARD] || DELIVERY_METHOD_LABELS[DELIVERY_METHOD_STANDARD];
+}
+
+// Restore the default (Option A) selection after the cart is cleared.
+function resetDeliveryMethod(){
+  const standard = document.getElementById('deliveryMethodStandard');
+  if(standard) standard.checked = true;
 }
 
 function getShippingTier(cupBoxes, lidBoxes, microBoxes, hasLarge, smallCupBoxes, largeCupBoxes){
@@ -481,7 +528,12 @@ function updateSummary(data){
   const totals = document.createElement('div');
   totals.className = 'pt-3';
   const shipLine = shippingLabel && shippingLabel !== '—' ? `Shipping (${shippingLabel})` : 'Shipping';
-  totals.innerHTML = `<div class="flex items-center justify-between"><div class="text-sm">Subtotal</div><div class="font-medium">${formatPrice(data.subtotal)}</div></div><div class="flex items-center justify-between mt-2"><div class="text-sm">${shipLine}</div><div class="font-medium">${formatPrice(data.shipping)}</div></div><div class="flex items-center justify-between mt-3 text-lg font-bold text-indigo-700"><div>Total</div><div>${formatPrice(data.total)}</div></div>`;
+  // Customer Self-Booking / Warehouse Pick-up: spell out the rider booking note
+  // directly under the P0.00 shipping line of the Order Summary.
+  const shipNote = data.deliveryMethod === DELIVERY_METHOD_SELF_BOOKING
+    ? `<div class="mt-1 text-xs leading-5 text-slate-500">${SELF_BOOKING_NOTE}</div>`
+    : '';
+  totals.innerHTML = `<div class="flex items-center justify-between"><div class="text-sm">Subtotal</div><div class="font-medium">${formatPrice(data.subtotal)}</div></div><div class="flex items-center justify-between mt-2"><div class="text-sm">${shipLine}</div><div class="font-medium">${formatPrice(data.shipping)}</div></div>${shipNote}<div class="flex items-center justify-between mt-3 text-lg font-bold text-indigo-700"><div>Total</div><div>${formatPrice(data.total)}</div></div>`;
   cartContent.appendChild(totals);
   updateCheckoutTotals();
 }
@@ -1036,6 +1088,8 @@ function openCustomerOrders(){
 
 const CUSTOMER_ORDER_BADGES = {
   Pending: 'bg-amber-100 text-amber-800',
+  Paid: 'bg-sky-100 text-sky-700',
+  'Ready for Pick-up': 'bg-emerald-100 text-emerald-700',
   Shipping: 'bg-indigo-100 text-indigo-700',
   Completed: 'bg-emerald-100 text-emerald-800'
 };
@@ -1179,6 +1233,7 @@ function resetCheckoutState(){
   closeConfirmationModal();
   closeCart();
   resetConfigurator();
+  resetDeliveryMethod();
   document.getElementById('customerName').value = '';
   document.getElementById('customerEmail').value = '';
   document.getElementById('customerAddress').value = '';
@@ -1295,11 +1350,19 @@ async function openConfirmationModal(){
   const subtotalAmount = Number(document.getElementById('subtotal').textContent.replace(/[^0-9.]/g, '') || 0);
   const shippingAmount = Number(document.getElementById('shipping').textContent.replace(/[^0-9.]/g, '') || 0);
   const totalAmount = Number(document.getElementById('total').textContent.replace(/[^0-9.]/g, '') || 0);
-  const shippingLabel = (document.getElementById('shipping').title || '').replace(/^Delivery via /, '') || 'Standard';
+  // Delivery Method: Option B (self-booking) always shows a P0.00 shipping fee.
+  const deliveryMethod = getSelectedDeliveryMethod();
+  const selfBooking = deliveryMethod === DELIVERY_METHOD_SELF_BOOKING;
+  const tierShippingLabel = (document.getElementById('shipping').title || '').replace(/^Delivery via /, '') || 'Standard';
+  const shippingLabel = selfBooking ? SELF_BOOKING_SHIPPING_LABEL : tierShippingLabel;
   const paymentType = document.getElementById('payment-type-select').value;
   const fullRow = document.getElementById('confirmOrderFullRow');
   const downpaymentRow = document.getElementById('confirmOrderDownpaymentRow');
   const paymentNote = document.getElementById('confirmOrderPaymentNote');
+  const deliveryMethodField = document.getElementById('confirmOrderDeliveryMethod');
+  if (deliveryMethodField) {
+    deliveryMethodField.textContent = selfBooking ? 'Self-Booking / Warehouse Pick-up' : 'Standard Delivery (Courier)';
+  }
 
   if (paymentType === 'full') {
     // 100% Full Payment: show the full total as the required payment.
@@ -1308,7 +1371,9 @@ async function openConfirmationModal(){
     downpaymentRow.classList.remove('is-flex-row');
     downpaymentRow.classList.add('is-hidden-row');
     document.getElementById('confirmOrderRequiredPayment').textContent = formatPrice(totalAmount);
-    paymentNote.textContent = `Full payment (${formatPrice(subtotalAmount)} items + ${formatPrice(shippingAmount)} ${shippingLabel} shipping) required via GCash/Maya.`;
+    paymentNote.textContent = selfBooking
+      ? `Full payment (${formatPrice(subtotalAmount)} items) required via GCash/Maya. ${SELF_BOOKING_NOTE}`
+      : `Full payment (${formatPrice(subtotalAmount)} items + ${formatPrice(shippingAmount)} ${shippingLabel} shipping) required via GCash/Maya.`;
   } else {
     // 50% Downpayment: Due = (Subtotal*50%) + FULL shipping; Balance = Subtotal*50%.
     fullRow.classList.remove('is-flex-row');
@@ -1318,8 +1383,12 @@ async function openConfirmationModal(){
     const downBase = Math.round(subtotalAmount * 0.5 * 100) / 100;
     const confirmDownpayment = Math.round((downBase + shippingAmount) * 100) / 100;
     document.getElementById('confirmOrderDownpayment').textContent = formatPrice(confirmDownpayment);
-    document.getElementById('confirmOrderDownpaymentRow').firstElementChild.textContent = `Required Initial (50% items + full ${shippingLabel} shipping)`;
-    paymentNote.textContent = `A ${formatPrice(downBase)} downpayment (50% of items) + ${formatPrice(shippingAmount)} full ${shippingLabel} shipping = ${formatPrice(confirmDownpayment)} is required via GCash/Maya. The remaining ${formatPrice(downBase)} balance will be paid upon delivery.`;
+    document.getElementById('confirmOrderDownpaymentRow').firstElementChild.textContent = selfBooking
+      ? 'Required Initial (50% items + ₱0.00 shipping)'
+      : `Required Initial (50% items + full ${shippingLabel} shipping)`;
+    paymentNote.textContent = selfBooking
+      ? `A ${formatPrice(downBase)} downpayment (50% of items) = ${formatPrice(confirmDownpayment)} is required via GCash/Maya. The remaining ${formatPrice(downBase)} balance will be paid upon pick-up. ${SELF_BOOKING_NOTE}`
+      : `A ${formatPrice(downBase)} downpayment (50% of items) + ${formatPrice(shippingAmount)} full ${shippingLabel} shipping = ${formatPrice(confirmDownpayment)} is required via GCash/Maya. The remaining ${formatPrice(downBase)} balance will be paid upon delivery.`;
   }
 
   const modal = document.getElementById('confirmOrderModal');

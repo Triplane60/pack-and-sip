@@ -50,6 +50,53 @@ input[type="number"] {
   margin: 15px 0;
 }
 
+/* Delivery Method radio group (Option A: standard courier, Option B: self-booking) */
+.delivery-method-group {
+  border: 0;
+  padding: 0;
+}
+
+.delivery-method-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.delivery-method-option:last-child {
+  margin-bottom: 0;
+}
+
+.delivery-method-option input[type="radio"] {
+  margin-top: 3px;
+  accent-color: var(--brand-indigo);
+  cursor: pointer;
+}
+
+.delivery-method-text {
+  display: block;
+}
+
+.delivery-method-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e1e2f;
+}
+
+.delivery-method-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #64748b;
+}
+
 .payment-type-label {
   font-weight: bold;
   display: block;

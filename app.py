@@ -55,6 +55,62 @@ MOTORCYCLE_SHIPPING_FEE = 120.0
 LARGE_CUP_SIZES = {'16oz', '22oz'}
 LARGE_CUP_IDS = {'cup-16oz', 'cup-22oz'}
 
+# Delivery Method options for the cart checkout flow.
+#   standard     -> Standard Delivery (Ship via Pack & Sip Courier):
+#                   the existing content-aware box-tier logic (P120-P1200).
+#   self_booking -> Customer Self-Booking / Warehouse Pick-up:
+#                   Shipping Fee is always P0.00 (the customer books their own
+#                   rider, e.g. Lalamove/Grab, once the order is Ready for Pick-up).
+DELIVERY_METHOD_STANDARD = 'standard'
+DELIVERY_METHOD_SELF_BOOKING = 'self_booking'
+STANDARD_DELIVERY_LABEL = 'Standard Delivery (Ship via Pack & Sip Courier)'
+SELF_BOOKING_DELIVERY_LABEL = 'Customer Self-Booking / Warehouse Pick-up'
+SELF_BOOKING_SHIPPING_LABEL = 'Customer Self-Booking'
+SELF_BOOKING_STATUS = 'Ready for Pick-up'
+SELF_BOOKING_NOTE = (
+    "Note: You will book your own rider (Lalamove/Grab) once your order "
+    "status is updated to 'Ready for Pick-up'."
+)
+DELIVERY_METHOD_LABELS = {
+    DELIVERY_METHOD_STANDARD: STANDARD_DELIVERY_LABEL,
+    DELIVERY_METHOD_SELF_BOOKING: SELF_BOOKING_DELIVERY_LABEL,
+}
+# Accepted aliases for the Customer Self-Booking / Warehouse Pick-up option.
+SELF_BOOKING_ALIASES = {
+    'self_booking', 'self-booking', 'selfbooking', 'self booking', 'self_book',
+    'pickup', 'pick_up', 'pick-up', 'warehouse_pickup', 'warehouse pick-up',
+    'customer_pickup', 'customer_self_booking',
+}
+
+
+def normalize_delivery_method(value):
+    """Return the canonical Delivery Method key (defaults to Standard Delivery)."""
+    method = str(value or '').strip().lower()
+    return DELIVERY_METHOD_SELF_BOOKING if method in SELF_BOOKING_ALIASES else DELIVERY_METHOD_STANDARD
+
+
+def is_self_booking(value):
+    """True when the order uses Customer Self-Booking / Warehouse Pick-up."""
+    return normalize_delivery_method(value) == DELIVERY_METHOD_SELF_BOOKING
+
+
+def delivery_method_label(value):
+    """Human-readable label for the selected Delivery Method."""
+    return DELIVERY_METHOD_LABELS[normalize_delivery_method(value)]
+
+
+def apply_delivery_method(shipping_fee, shipping_label, is_dynamic_cod, delivery_method):
+    """Apply the selected Delivery Method to a computed courier fee.
+
+    Standard Delivery keeps the content-aware box-tier fee (P120-P1200), while
+    Customer Self-Booking / Warehouse Pick-up always ships at P0.00 because the
+    customer books their own rider (Lalamove/Grab) once the order is marked
+    'Ready for Pick-up'.
+    """
+    if is_self_booking(delivery_method):
+        return 0.0, SELF_BOOKING_SHIPPING_LABEL, False
+    return float(shipping_fee or 0), shipping_label, is_dynamic_cod
+
 
 def _is_large_cup_size(cup_size):
     """True when the cup size string denotes a bulky 16oz/22oz box."""
@@ -374,6 +430,7 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
   .pay-card { background-color: #ffffff; border: 1px solid #e2e8f0; padding: 9px 10px; }
   .pay-card-title { font-size: 11px; font-weight: bold; color: #4f46e5; margin: 0 0 4px 0; }
   .pay-card p { margin: 0; font-size: 11px; color: #334155; }
+  .delivery-note { font-size: 10px; color: #475569; margin: 0 0 12px 0; }
   .footer { margin-top: 16px; border-top: 1px solid #cbd5e1; padding-top: 8px; font-size: 10px; color: #64748b; text-align: center; }
 </style>
 </head>
@@ -403,7 +460,8 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
         <p class="section-label">ORDER REFERENCE</p>
         <p class="meta-value">Order Number: <strong>#{{ order_id }}</strong></p>
         <p class="meta-value">Date: {{ order_date }}</p>
-        <p class="meta-value">Fulfillment Mode: Lalamove Local Courier</p>
+        <p class="meta-value">Delivery Method: {{ delivery_method_display }}</p>
+        <p class="meta-value">Fulfillment Mode: {{ fulfillment_mode }}</p>
       </td>
     </tr>
   </table>
@@ -424,17 +482,29 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
       <td>
         <table class="totals">
           <tr><td class="label">Subtotal</td><td class="value">P{{ "%.2f"|format(subtotal) }}</td></tr>
+          {% if is_self_booking %}
+          <tr><td class="label">Shipping Fee</td><td class="value">{{ shipping_display }}</td></tr>
+          {% else %}
           <tr><td class="label">Shipping ({{ shipping_label }}) — {{ total_boxes }} box{{ 'es' if total_boxes != 1 else '' }} (cups + lids; microwavables excluded)</td><td class="value">{{ shipping_display }}</td></tr>
+          {% endif %}
           <tr><td class="label">Tax</td><td class="value">P{{ "%.2f"|format(tax_fee) }}</td></tr>
           <tr class="total-due"><td class="label"><strong>Grand Total (Subtotal + Shipping + Tax)</strong></td><td class="value">P{{ "%.2f"|format(total_due) }}</td></tr>
           {% if payment_option == 'downpayment' %}
           <tr class="payment-row"><td class="label">Downpayment (50% of Subtotal)</td><td class="value">P{{ "%.2f"|format(downpayment_base) }}</td></tr>
+          {% if is_self_booking %}
+          <tr class="payment-row"><td class="label">Shipping Fee (Customer Self-Booking — no courier fee)</td><td class="value">P0.00</td></tr>
+          {% else %}
           <tr class="payment-row"><td class="label">Shipping Fee ({{ shipping_label }} — paid 100% upfront)</td><td class="value">P{{ "%.2f"|format(shipping_fee) }}</td></tr>
+          {% endif %}
           <tr class="payment-due"><td class="label"><strong>Initial Amount Due Now (Downpayment + Full Shipping)</strong></td><td class="value">P{{ "%.2f"|format(amount_due_now) }}</td></tr>
           <tr class="payment-balance"><td class="label"><strong>Remaining Balance (on delivery)</strong></td><td class="value">P{{ "%.2f"|format(remaining_balance) }}</td></tr>
           {% else %}
           <tr class="payment-row"><td class="label">Full Payment (Subtotal)</td><td class="value">P{{ "%.2f"|format(subtotal) }}</td></tr>
+          {% if is_self_booking %}
+          <tr class="payment-row"><td class="label">Shipping Fee (Customer Self-Booking — no courier fee)</td><td class="value">P0.00</td></tr>
+          {% else %}
           <tr class="payment-row"><td class="label">Shipping Fee ({{ shipping_label }} — paid 100% upfront)</td><td class="value">P{{ "%.2f"|format(shipping_fee) }}</td></tr>
+          {% endif %}
           <tr class="payment-due"><td class="label"><strong>Initial Amount Due Now (Full Payment)</strong></td><td class="value">P{{ "%.2f"|format(amount_due_now) }}</td></tr>
           <tr class="payment-balance"><td class="label"><strong>Remaining Balance</strong></td><td class="value">P{{ "%.2f"|format(remaining_balance) }}</td></tr>
           {% endif %}
@@ -442,6 +512,9 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
       </td>
     </tr>
   </table>
+  {% if is_self_booking %}
+  <p class="delivery-note">{{ delivery_note }}</p>
+  {% endif %}
   <div class="pay-box">
     <p class="pay-title">PAYMENT INSTRUCTIONS</p>
     <table class="pay-cards">
@@ -502,7 +575,7 @@ def _order_field_static(order, key, default=''):
         return default
 
 
-def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None, tax_fee=0.0, shipping_label=None, is_dynamic_cod=False):
+def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None, tax_fee=0.0, shipping_label=None, is_dynamic_cod=False, delivery_method=None):
     """Render the inline invoice template using dynamic order data.
 
     subtotal is strictly the sum of items (quantity * unit_price, INCLUDING
@@ -517,6 +590,12 @@ def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None,
         shipping_fee, remaining_balance = subtotal * 0.50.
       - Full payment: amount_due_now = subtotal + FULL shipping_fee (+ tax),
         remaining_balance = 0.00.
+    Delivery Method (cart checkout flow):
+      - 'standard'     -> Standard Delivery (Ship via Pack & Sip Courier): the
+        content-aware box-tier shipping fee above applies.
+      - 'self_booking' -> Customer Self-Booking / Warehouse Pick-up: the
+        Shipping Fee is forced to P0.00 and the invoice renders
+        'Shipping Fee | P0.00 (Customer Self-Booking)'.
     The template itself uses Jinja variables (no hardcoded summary values).
     """
     raw_created = str(order['created_at'] or '')
@@ -575,6 +654,12 @@ def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None,
     # Cups + lids drive the vehicle tier; microwavables are excluded from the
     # tier decision (but still appear as invoice line items + in the subtotal).
     vehicle_boxes = inv_cup_boxes + inv_lid_boxes
+    # Delivery Method for this invoice: an explicit argument (checkout flow) wins,
+    # otherwise fall back to the value stored on the order row.
+    if delivery_method is None:
+        delivery_method = _order_field_static(order, 'delivery_method', '')
+    delivery_method = normalize_delivery_method(delivery_method)
+    self_booking = is_self_booking(delivery_method)
     if shipping_fee is None or shipping_label is None:
         tier_fee, tier_label, tier_dynamic = get_shipping_tier(
             vehicle_boxes,
@@ -588,13 +673,24 @@ def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None,
         if shipping_label is None:
             shipping_label = tier_label
             is_dynamic_cod = tier_dynamic
+    # Customer Self-Booking / Warehouse Pick-up always ships at P0.00: the
+    # customer books their own rider (Lalamove/Grab) once the order status is
+    # updated to 'Ready for Pick-up'.
+    shipping_fee, shipping_label, is_dynamic_cod = apply_delivery_method(
+        shipping_fee, shipping_label, is_dynamic_cod, delivery_method
+    )
     shipping_fee = round(float(shipping_fee or 0), 2)
     if is_dynamic_cod:
         # Legacy flag only — current tiers always prepay the full fee.
         shipping_label = shipping_label or 'Large Truck'
     else:
         shipping_label = shipping_label or 'Motorcycle'
-    shipping_display = 'P%.2f' % shipping_fee
+    if self_booking:
+        shipping_label = SELF_BOOKING_SHIPPING_LABEL
+        is_dynamic_cod = False
+        shipping_display = 'P0.00 (Customer Self-Booking)'
+    else:
+        shipping_display = 'P%.2f' % shipping_fee
     tax_fee = round(float(tax_fee or 0), 2)
     total_due = round(subtotal + shipping_fee + tax_fee, 2)
     # Payment breakdown — the FULL applicable tier shipping fee is always added
@@ -643,6 +739,11 @@ def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None,
             shipping_display=shipping_display,
             total_boxes=total_boxes,
             is_dynamic_cod=is_dynamic_cod,
+            delivery_method=delivery_method,
+            delivery_method_display=delivery_method_label(delivery_method),
+            is_self_booking=self_booking,
+            fulfillment_mode=(SELF_BOOKING_DELIVERY_LABEL if self_booking else 'Lalamove Local Courier'),
+            delivery_note=(SELF_BOOKING_NOTE if self_booking else ''),
             tax_fee=tax_fee,
             total_due=total_due,
             payment_option=payment_option,
@@ -757,6 +858,7 @@ def init_db():
             customer_address TEXT NOT NULL,
             customer_phone TEXT NOT NULL,
             payment_method TEXT NOT NULL DEFAULT 'Cash on Delivery',
+            delivery_method TEXT NOT NULL DEFAULT 'standard',
             status TEXT NOT NULL DEFAULT 'Pending',
             cup_id TEXT,
             cup_size TEXT,
@@ -791,6 +893,10 @@ def init_db():
         cursor.execute("ALTER TABLE orders ADD COLUMN remaining_balance REAL NOT NULL DEFAULT 0")
     if 'payment_status' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'Pending Downpayment'")
+    if 'delivery_method' not in order_columns:
+        # Delivery Method: 'standard' (Pack & Sip courier, box-tier fee) or
+        # 'self_booking' (Customer Self-Booking / Warehouse Pick-up, P0.00).
+        cursor.execute("ALTER TABLE orders ADD COLUMN delivery_method TEXT NOT NULL DEFAULT 'standard'")
     if 'user_id' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES users(id)")
     if 'total_amount' not in order_columns:
@@ -1043,7 +1149,8 @@ def get_admin_orders():
             microwavable_size,
             total_amount,
             status,
-            payment_status
+            payment_status,
+            COALESCE(delivery_method, 'standard') AS delivery_method
         FROM orders
         ORDER BY created_at DESC, id DESC
     ''').fetchall()
@@ -1055,13 +1162,13 @@ def get_admin_orders():
 @app.route('/api/orders/<int:order_id>/status', methods=['PUT', 'PATCH'])
 def update_order_status(order_id):
     """Update an order's fulfillment status."""
-    allowed_statuses = {'Pending', 'Paid', 'Shipping', 'Shipped', 'Completed'}
+    allowed_statuses = {'Pending', 'Paid', SELF_BOOKING_STATUS, 'Shipping', 'Shipped', 'Completed'}
     data = request.get_json(force=True, silent=True) or {}
     status = data.get('status')
 
     if status not in allowed_statuses:
         return jsonify({
-            "error": "Status must be Pending, Paid, Shipped, or Completed."
+            "error": "Status must be Pending, Paid, Ready for Pick-up, Shipped, or Completed."
         }), 400
 
     conn = get_db()
@@ -1088,50 +1195,88 @@ def update_order_status(order_id):
             f"Shipping address:\n{order['customer_address']}\n\n"
             "Thank you for choosing Pack & Sip."
         )
+    elif status == SELF_BOOKING_STATUS and previous_order['status'] != SELF_BOOKING_STATUS:
+        # Customer Self-Booking / Warehouse Pick-up: no Pack & Sip courier is
+        # booked, so the customer arranges their own rider (Lalamove/Grab).
+        send_order_email(
+            order['email'],
+            f"Your Pack & Sip Order #{order_id} is {SELF_BOOKING_STATUS}!",
+            f"Hello {order['customer_name']},\n\n"
+            f"Pack & Sip order #{order_id} is now marked '{SELF_BOOKING_STATUS}'.\n\n"
+            f"{SELF_BOOKING_NOTE}\n\n"
+            f"Order Details:\n{order_items_text(order)}\n\n"
+            f"Total Amount: ₱{float(order['total_amount'] or 0):.2f}\n\n"
+            "Thank you for choosing Pack & Sip."
+        )
 
     return jsonify({"order": dict(order)})
 
 
 @app.route('/admin/ship-order/<int:order_id>', methods=['POST'])
 def admin_ship_order(order_id):
-    """Verify payment receipt and mark order as Shipping."""
+    """Verify payment receipt and mark the order ready for fulfillment.
+
+    Standard Delivery orders are marked 'Shipping'; Customer Self-Booking /
+    Warehouse Pick-up orders are marked 'Ready for Pick-up' instead (no Pack &
+    Sip courier is booked — the customer arranges their own rider).
+    """
     conn = get_db()
     order = conn.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
     if not order:
         conn.close()
         return jsonify({"error": "Order not found."}), 404
 
+    self_booking = is_self_booking(_order_field_static(order, 'delivery_method', ''))
+    new_status = SELF_BOOKING_STATUS if self_booking else 'Shipping'
+
     conn.execute(
         'UPDATE orders SET status = ?, payment_status = ? WHERE id = ?',
-        ('Shipping', 'Verified', order_id)
+        (new_status, 'Verified', order_id)
     )
     conn.commit()
     order = conn.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
     conn.close()
 
-    email_subject = f"Payment Received & Order Shipped! - Pack & Sip (Order #{order_id})"
-    email_body = (
-        f"Hello {order['customer_name']},\n\n"
-        f"We have verified your payment proof for Pack & Sip order #{order_id}.\n"
-        f"Your payment status is now Verified, and your order status is updated to Shipping.\n\n"
-        f"Your package has been prepared and dispatched to your shipping address via a Lalamove driver delivery.\n\n"
-        f"Shipping address:\n{order['customer_address']}\n\n"
-        f"Order Details:\n"
-        f"{order_items_text(order)}\n\n"
-        f"Total Amount: ₱{order['total_amount']:.2f}\n"
-        f"Remaining Balance upon Delivery: ₱{order['remaining_balance']:.2f}\n\n"
-        "Thank you for choosing Pack & Sip."
-    )
+    if self_booking:
+        email_subject = f"Payment Verified - Pack & Sip Order #{order_id} is {SELF_BOOKING_STATUS}"
+        email_body = (
+            f"Hello {order['customer_name']},\n\n"
+            f"We have verified your payment proof for Pack & Sip order #{order_id}.\n"
+            f"Your payment status is now Verified, and your order status is updated to {SELF_BOOKING_STATUS}.\n\n"
+            f"{SELF_BOOKING_NOTE}\n\n"
+            f"Order Details:\n"
+            f"{order_items_text(order)}\n\n"
+            f"Total Amount: ₱{order['total_amount']:.2f}\n"
+            f"Shipping Fee: ₱0.00 (Customer Self-Booking)\n"
+            f"Remaining Balance upon Pick-up: ₱{order['remaining_balance']:.2f}\n\n"
+            "Thank you for choosing Pack & Sip."
+        )
+    else:
+        email_subject = f"Payment Received & Order Shipped! - Pack & Sip (Order #{order_id})"
+        email_body = (
+            f"Hello {order['customer_name']},\n\n"
+            f"We have verified your payment proof for Pack & Sip order #{order_id}.\n"
+            f"Your payment status is now Verified, and your order status is updated to Shipping.\n\n"
+            f"Your package has been prepared and dispatched to your shipping address via a Lalamove driver delivery.\n\n"
+            f"Shipping address:\n{order['customer_address']}\n\n"
+            f"Order Details:\n"
+            f"{order_items_text(order)}\n\n"
+            f"Total Amount: ₱{order['total_amount']:.2f}\n"
+            f"Remaining Balance upon Delivery: ₱{order['remaining_balance']:.2f}\n\n"
+            "Thank you for choosing Pack & Sip."
+        )
 
-    threading.Thread(
-        target=send_order_email,
-        args=(order['email'], email_subject, email_body),
-        daemon=True
-    ).start()
+    # Flask-Mail's mail.send() needs the Flask application context, which is not
+    # available in a background thread by default.
+    def send_fulfillment_email():
+        with app.app_context():
+            send_order_email(order['email'], email_subject, email_body)
+
+    threading.Thread(target=send_fulfillment_email, daemon=True).start()
 
     return jsonify({
         "success": True,
-        "message": f"Order #{order_id} verified and shipped successfully.",
+        "message": f"Order #{order_id} verified. Status updated to {new_status}.",
         "order": dict(order)
     })
 
@@ -1158,6 +1303,10 @@ def calculate_cart():
         microwavable_boxes = int(data.get('microwavable_boxes', 0) or 0)
     except Exception:
         microwavable_boxes = 0
+
+    # Delivery Method: 'standard' keeps the box tier (P120-P1200);
+    # 'self_booking' ships at P0.00 (customer books their own rider).
+    delivery_method = normalize_delivery_method(data.get('delivery_method'))
 
     conn = get_db()
     items = []
@@ -1190,8 +1339,6 @@ def calculate_cart():
                 "line_total": round(line_total, 2)
             })
             subtotal += line_total
-
-    conn.close()
 
     subtotal = round(subtotal, 2)
     # Content-aware tier: box breakdown + per-size 12oz vs 16oz/22oz split.
@@ -1232,9 +1379,19 @@ def calculate_cart():
     )
     if subtotal <= 0:
         shipping, shipping_label, is_dynamic_cod = 0.0, '—', False
+    # Delivery Method: Standard Delivery keeps the content-aware box tier;
+    # Customer Self-Booking / Warehouse Pick-up always ships at P0.00.
+    shipping, shipping_label, is_dynamic_cod = apply_delivery_method(
+        shipping, shipping_label, is_dynamic_cod, delivery_method
+    )
     shipping = round(shipping, 2)
     shipping_display = 'P%.2f' % shipping
+    if is_self_booking(delivery_method):
+        shipping_display = 'P0.00 (Customer Self-Booking)'
     total = round(subtotal + shipping, 2)
+
+    # Close the read-only connection only after the per-size cup lookup above.
+    conn.close()
 
     return jsonify({
         "items": items,
@@ -1244,6 +1401,8 @@ def calculate_cart():
         "shipping_display": shipping_display,
         "total_boxes": total_boxes,
         "is_dynamic_cod": is_dynamic_cod,
+        "delivery_method": delivery_method,
+        "delivery_method_label": delivery_method_label(delivery_method),
         "total": total
     })
 
@@ -1268,6 +1427,8 @@ def process_checkout():
     payment_method = (data.get('payment_method') or '').strip()
     if not payment_method:
         payment_method = 'GCash (50% Downpayment)' if payment_type == '50_percent' else 'GCash (Full Payment)'
+    # Delivery Method radio group (defaults to Standard Delivery when absent).
+    delivery_method = normalize_delivery_method(data.get('delivery_method'))
     user_id = session.get('user_id')
     cup_id = data.get('cup_id') or None
     lid_id = data.get('lid_id') or None
@@ -1373,6 +1534,12 @@ def process_checkout():
     )
     if subtotal <= 0:
         shipping, shipping_label, is_dynamic_cod = 0.0, '—', False
+    # Delivery Method: Standard Delivery (Ship via Pack & Sip Courier) keeps the
+    # content-aware box-tier fee; Customer Self-Booking / Warehouse Pick-up
+    # always ships at P0.00 (no Pack & Sip courier is booked).
+    shipping, shipping_label, is_dynamic_cod = apply_delivery_method(
+        shipping, shipping_label, is_dynamic_cod, delivery_method
+    )
     shipping = round(shipping, 2)
     total = round(subtotal + shipping, 2)
     if payment_type == 'full':
@@ -1400,9 +1567,9 @@ def process_checkout():
         created_at = datetime.datetime.utcnow().isoformat()
 
         cursor.execute('''
-            INSERT INTO orders (user_id, customer_name, email, customer_address, customer_phone, payment_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total_amount, downpayment_amount, remaining_balance, payment_status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, name, email, address, phone, payment_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total, downpayment_amount, remaining_balance, payment_status, created_at))
+            INSERT INTO orders (user_id, customer_name, email, customer_address, customer_phone, payment_method, delivery_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total_amount, downpayment_amount, remaining_balance, payment_status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, name, email, address, phone, payment_method, delivery_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total, downpayment_amount, remaining_balance, payment_status, created_at))
 
 
         order_id = cursor.lastrowid
@@ -1430,6 +1597,7 @@ def process_checkout():
             shipping_fee=shipping,
             shipping_label=shipping_label,
             is_dynamic_cod=is_dynamic_cod,
+            delivery_method=delivery_method,
         )
         invoice_pdf_bytes = build_invoice_pdf(invoice_html)
     except Exception as e:
@@ -1465,6 +1633,9 @@ def process_checkout():
         "order_id": order_id,
         "message": "Order processed successfully!",
         "payment_method": payment_method,
+        "delivery_method": delivery_method,
+        "delivery_method_label": delivery_method_label(delivery_method),
+        "shipping": shipping,
         "total": total,
         "downpayment_amount": downpayment_amount,
         "remaining_balance": remaining_balance,
