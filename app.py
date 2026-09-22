@@ -952,12 +952,12 @@ def init_db():
     cursor.execute('SELECT COUNT(*) FROM products')
     if cursor.fetchone()[0] == 0:
         initial_products = [
-            ('cup-12oz', 'cup', 'Cups — 12 oz (Box of 1,250)', '12oz', None, 1250, 45.0, 50, 'Durable 12oz disposable cups.'),
-            ('cup-16oz', 'cup', 'Cups — 16 oz (Box of 1,250)', '16oz', None, 1250, 45.0, 40, 'Classic 16oz disposable cups.'),
-            ('cup-22oz', 'cup', 'Cups — 22 oz (Box of 1,250)', '22oz', None, 1250, 45.0, 25, 'Large 22oz disposable cups.'),
-            ('lid-strawless', 'lid', 'Lids — Strawless (Box of 1,250)', None, 'Strawless', 1250, 25.0, 60, 'Strawless lids — universal fit.'),
-            ('lid-dome', 'lid', 'Lids — Dome (Box of 1,250)', None, 'Dome', 1250, 25.0, 30, 'Dome lids — universal fit.'),
-            ('lid-flat', 'lid', 'Lids — Flat (Box of 1,250)', None, 'Flat', 1250, 25.0, 15, 'Flat lids — universal fit.')
+            ('cup-12oz', 'cup', 'Cups — 12 oz (Box of 1,250)', '12oz', None, 1250, 2860.0, 50, 'Durable 12oz disposable cups.'),
+            ('cup-16oz', 'cup', 'Cups — 16 oz (Box of 1,250)', '16oz', None, 1250, 2960.0, 40, 'Classic 16oz disposable cups.'),
+            ('cup-22oz', 'cup', 'Cups — 22 oz (Box of 1,250)', '22oz', None, 1250, 3840.0, 25, 'Large 22oz disposable cups.'),
+            ('lid-strawless', 'lid', 'Lids — Strawless (Box of 1,250)', None, 'Strawless', 1250, 1150.0, 60, 'Strawless lids — universal fit.'),
+            ('lid-dome', 'lid', 'Lids — Dome (Box of 1,250)', None, 'Dome', 1250, 1300.0, 30, 'Dome lids — universal fit.'),
+            ('lid-flat', 'lid', 'Lids — Flat (Box of 1,250)', None, 'Flat', 1250, 1150.0, 15, 'Flat lids — universal fit.')
         ]
         cursor.executemany('''
             INSERT INTO products (id, type, name, size, style, quantity_per_box, price_per_box, stock_boxes, description)
