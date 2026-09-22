@@ -126,9 +126,6 @@ function resetConfigurator(){
   selectedLidId = null;
   selectedMicrowavableId = null;
   Object.keys(qtys).forEach(id => delete qtys[id]);
-  document.getElementById('cupBoxesInput').value = '0';
-  document.getElementById('lidBoxesInput').value = '0';
-  document.getElementById('microwavableBoxesInput').value = '0';
   updateConfiguratorActionState();
   // Clearing the cart also clears the City / Location selection, so the next
   // order starts from an explicit location choice again.
@@ -146,10 +143,9 @@ function resetConfigurator(){
 }
 
 function updateConfiguratorActionState(){
-  const viewCart = document.getElementById('viewCart');
-  if(!viewCart) return;
-  const hasItems = PRODUCTS.some(product => getQty(product) > 0);
-  viewCart.disabled = !hasItems;
+  // The floating cart FAB remains the entry point to the cart; the hero card
+  // no longer includes its own View Cart button.
+  return;
 }
 
 function applyCatalogQty(product, value){
@@ -164,9 +160,9 @@ function applyCatalogQty(product, value){
 }
 
 function refreshCatalogQuantityInputs(){
-  // Mirror the Quick Configurator quantities back onto the matching catalog
-  // card inputs AND update each card's dynamic price display so everything
-  // stays in sync. Card price = unit price × quantity (total) when qty > 1;
+  // Mirror the shared quantities back onto the matching catalog card inputs
+  // AND update each card's dynamic price display so everything stays in sync.
+  // Card price = unit price × quantity (total) when qty > 1;
   // otherwise the base unit price is shown.
   const cards = document.querySelectorAll('[data-qty-id]');
   cards.forEach(card => {
@@ -263,53 +259,20 @@ function getCategoryTotals(){
   return { cupBoxes, smallCupBoxes, largeCupBoxes, lidBoxes, microwavableBoxes };
 }
 
-// 2. Quick Configurator Sync:
-//    Mirror the summed category totals onto the configurator inputs/readouts so
-//    catalog card edits are reflected live in the Quick Configurator.
+// Category totals now stay in the shared `qtys` map. They are displayed
+// through calculation/order-summary updates; no hero readouts remain.
 function syncCategoryTotals(){
-  const totals = getCategoryTotals();
-  const cupInput = document.getElementById('cupBoxesInput');
-  const lidInput = document.getElementById('lidBoxesInput');
-  const microInput = document.getElementById('microwavableBoxesInput');
-  if(cupInput && document.activeElement !== cupInput) cupInput.value = String(totals.cupBoxes);
-  if(lidInput && document.activeElement !== lidInput) lidInput.value = String(totals.lidBoxes);
-  if(microInput && document.activeElement !== microInput) microInput.value = String(totals.microwavableBoxes);
-
-  const cupBoxesEl = document.getElementById('config-cup-boxes');
-  const lidBoxesEl = document.getElementById('config-lid-boxes');
-  const microBoxesEl = document.getElementById('config-micro-boxes');
-  if(cupBoxesEl) cupBoxesEl.textContent = String(totals.cupBoxes);
-  if(lidBoxesEl) lidBoxesEl.textContent = String(totals.lidBoxes);
-  if(microBoxesEl) microBoxesEl.textContent = String(totals.microwavableBoxes);
-  return totals;
+  return getCategoryTotals();
 }
 
-// Distribute a Quick Configurator category total back across that category's
-// catalog cards. The typed value is split evenly (front-loaded remainder) and
-// each share is clamped to that product's available stock. Remainders that do
-// not fit are left unallocated and reported via the configurator input.
+// Type-in quantities from the removed Quick Configurator inputs are no longer
+// supported; catalog cards remain the only quantity entry point.
 function distributeCategoryQty(type, total){
-  const items = PRODUCTS.filter(p => p.type === type);
-  if(items.length === 0) return;
-  const wanted = Math.max(0, parseInt(total, 10) || 0);
-  const perItem = Math.floor(wanted / items.length);
-  let remainder = wanted - perItem * items.length;
-  items.forEach(product => {
-    const stock = Number(product.stock_boxes || 0);
-    let share = perItem + (remainder > 0 ? 1 : 0);
-    if(remainder > 0) remainder -= 1;
-    share = Math.max(0, Math.min(share, stock));
-    qtys[product.id] = share;
-    if(product.type === 'cup') selectedCupId = product.id;
-    else if(product.type === 'lid') selectedLidId = product.id;
-    else selectedMicrowavableId = product.id;
-  });
+  return;
 }
 
 function productConfiguratorId(product){
-  if(product.type === 'cup') return 'cupBoxesInput';
-  if(product.type === 'lid') return 'lidBoxesInput';
-  return 'microwavableBoxesInput';
+  return null;
 }
 
 function getQty(product){
@@ -327,9 +290,9 @@ function setQty(product, value){
 async function calculate(){
   // 3. Live Subtotal & Total Updates:
   //    Multiply every selected item's unit price by its box quantity, then
-  //    update Subtotal / Shipping / Final Total in real-time on both the Quick
-  //    Configurator and the Cart modal. Re-sync the summed category totals
-  //    first so the configurator inputs/readouts match the catalog cards.
+  //    update Subtotal / Shipping / Final Total in the cart Order Summary.
+  //    Re-sync the summed category totals first so catalog card edits are
+  //    included in the current calculation.
   syncCategoryTotals();
   // Delivery-radios can be changed programmatically (for example by a reset),
   // so keep hidden/required address fields aligned before totals are calculated.
@@ -687,30 +650,6 @@ function openCartModal(){
 document.addEventListener('DOMContentLoaded', () => {
   resetConfigurator();
   fetchProducts();
-  document.getElementById('cupBoxesInput').addEventListener('input', debounce(() => {
-    // Quick Configurator Sync: distribute the typed Cup Boxes total across
-    // 12oz/16oz/22oz cards, then refresh quantities + live totals.
-    distributeCategoryQty('cup', document.getElementById('cupBoxesInput').value);
-    updateConfiguratorActionState();
-    refreshCatalogQuantityInputs();
-    calculate();
-  }, 300));
-  document.getElementById('lidBoxesInput').addEventListener('input', debounce(() => {
-    // Quick Configurator Sync: distribute the typed Lid Boxes total across
-    // Strawless/Dome/Flat cards, then refresh quantities + live totals.
-    distributeCategoryQty('lid', document.getElementById('lidBoxesInput').value);
-    updateConfiguratorActionState();
-    refreshCatalogQuantityInputs();
-    calculate();
-  }, 300));
-  document.getElementById('microwavableBoxesInput').addEventListener('input', debounce(() => {
-    // Quick Configurator Sync: distribute the typed Microwavable Boxes total
-    // across all microwavable container cards, then refresh + live totals.
-    distributeCategoryQty('microwavable', document.getElementById('microwavableBoxesInput').value);
-    updateConfiguratorActionState();
-    refreshCatalogQuantityInputs();
-    calculate();
-  }, 300));
   document.getElementById('customerPhone').addEventListener('input', function(){
     this.value = this.value.replace(/[^0-9]/g, '');
     if(this.value.length > 0 && !this.value.startsWith('09')){
@@ -720,12 +659,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     this.value = this.value.slice(0, 11);
   });
-  document.getElementById('clearSelection').addEventListener('click', resetConfigurator);
-  document.getElementById('viewCart').addEventListener('click', openCart);
-  // The header cart icon was replaced by the Order History button
-  // (#nav-orders-btn), which uses an inline onclick routing to
-  // handleNavOrdersClick().
-  document.getElementById('closeCart').addEventListener('click', closeCart);
   const checkoutForm = document.getElementById('checkoutForm');
   if(checkoutForm){
     checkoutForm.addEventListener('submit', (e) => {
@@ -733,6 +666,10 @@ document.addEventListener('DOMContentLoaded', () => {
       openConfirmationModal();
     });
   }
+  // The header cart icon was replaced by the Order History button
+  // (#nav-orders-btn), which uses an inline onclick routing to
+  // handleNavOrdersClick(). The floating cart FAB remains the cart entry point.
+  document.getElementById('closeCart').addEventListener('click', closeCart);
   document.getElementById('addMoreItemsBtn').addEventListener('click', closeConfirmationModal);
   document.getElementById('confirmOrderBtn').addEventListener('click', submitOrder);
   document.getElementById('closeModalBtn').addEventListener('click', closeOrderPendingModal);
@@ -1331,6 +1268,14 @@ function escapeHtml(value){
 function debounce(fn, wait){
   let t;
   return (...args) => { clearTimeout(t); t = setTimeout(()=>fn(...args), wait); };
+}
+
+function scrollToCatalog(event){
+  if(event) event.preventDefault();
+  const catalog = document.getElementById('catalog');
+  if(catalog){
+    catalog.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 function scrollToTop(event){

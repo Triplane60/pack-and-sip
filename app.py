@@ -22,15 +22,28 @@ CORS(app, supports_credentials=True)
 # PythonAnywhere instead of the internal http://127.0.0.1 address.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-# Flask-Mail configuration for Gmail SMTP.
+# Flask-Mail configuration for Gmail SMTP. Credentials stay out of source
+# control: the admin inbox used as the sender and the Google App Password are
+# injected through environment variables (e.g. Render dashboard > Environment).
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'jambyletesa@gmail.com'  # Replace with your real sender email
-app.config['MAIL_PASSWORD'] = 'hzwmquliysbajowt'  # Google App Password
-app.config['MAIL_DEFAULT_SENDER'] = 'jambyletesa@gmail.com'
+app.config['MAIL_USERNAME'] = os.getenv('legolandcreator@gmail.com')
+app.config['MAIL_PASSWORD'] = os.getenv('edci nmxcxpxknrnv')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('legolandcreator@gmail.com')
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 mail = Mail(app)
+
+
+def get_admin_email_recipients():
+    """Return the admin inboxes that receive new-order alerts.
+
+    Both addresses come from environment variables so a second recipient can
+    be added/rotated without touching the code. Blank values are dropped, so
+    a single-recipient setup (only legolandcreator@gmail.com) keeps working.
+    """
+    recipients = [os.getenv('legolandcreator@gmail.com'), os.getenv('ADMIN_EMAIL_2')]
+    return [address.strip() for address in recipients if address and address.strip()]
 
 DB_FILE = 'app.db'
 MICROWAVABLE_PRICE_PER_BOX = 1500.0
@@ -324,17 +337,21 @@ def log_email_fallback(recipient, subject, body, reason):
     print('=' * 72 + '\n')
 
 
-def send_order_email(recipient, subject, body):
+def send_order_email(recipient, subject, body, html_body=None):
     """Send an order notification when SMTP credentials are configured.
 
-    Email delivery is best-effort: failures (network errors, Gmail rejecting a
-    normal account password, missing credentials, ...) never crash the request.
-    The full email content is printed to the console as a fallback so testing
-    can continue uninterrupted.
+    ``recipient`` accepts a single address or a list (admin alerts fan out to
+    every configured inbox). Email delivery is best-effort: failures (network
+    errors, Gmail rejecting a normal account password, missing credentials,
+    ...) never crash the request. The full email content is printed to the
+    console as a fallback so testing can continue uninterrupted.
     """
-    if not recipient or not app.config.get('MAIL_USERNAME') or not app.config.get('MAIL_PASSWORD'):
-        app.logger.warning('Order email skipped: MAIL_USERNAME/MAIL_PASSWORD is not configured.')
-        log_email_fallback(recipient, subject, body, 'MAIL_USERNAME/MAIL_PASSWORD is not configured')
+    recipients = [recipient] if isinstance(recipient, str) else list(recipient or [])
+    recipients = [str(address).strip() for address in recipients if address and str(address).strip()]
+    recipient_display = ', '.join(recipients)
+    if not recipients or not app.config.get('MAIL_USERNAME') or not app.config.get('MAIL_PASSWORD'):
+        app.logger.warning('Order email skipped: recipients or MAIL_USERNAME/MAIL_PASSWORD is not configured.')
+        log_email_fallback(recipient_display, subject, body, 'recipients or MAIL_USERNAME/MAIL_PASSWORD is not configured')
         return
 
     # Gmail only accepts SMTP logins using a Google App Password. A normal Gmail
@@ -345,14 +362,17 @@ def send_order_email(recipient, subject, body):
             'Create a 16-character App Password at https://myaccount.google.com/apppasswords '
             'so real SMTP delivery works. Falling back to console output for this email.'
         )
-        log_email_fallback(recipient, subject, body, 'MAIL_PASSWORD does not look like a Google App Password')
+        log_email_fallback(recipient_display, subject, body, 'MAIL_PASSWORD does not look like a Google App Password')
         return
 
     try:
-        mail.send(Message(subject=subject, recipients=[recipient], body=body))
+        message = Message(subject=subject, recipients=recipients, body=body)
+        if html_body:
+            message.html = html_body
+        mail.send(message)
     except Exception:
-        app.logger.exception('Unable to send order email to %s', recipient)
-        log_email_fallback(recipient, subject, body, 'SMTP send failed (see exception logged above)')
+        app.logger.exception('Unable to send order email to %s', recipient_display)
+        log_email_fallback(recipient_display, subject, body, 'SMTP send failed (see exception logged above)')
 
 
 def order_items_text(order):
@@ -368,6 +388,144 @@ def order_items_text(order):
         container_label = 'box' if int(order['microwavable_boxes']) == 1 else 'boxes'
         lines.append(f"Containers: {order['microwavable_size'] or 'Selected size'} - {order['microwavable_boxes']} {container_label}")
     return '\n'.join(lines) or 'No item details available.'
+
+
+def build_admin_order_alert(order, shipping_fee=None, shipping_label=None,
+                            delivery_zone=None):
+    """Return (subject, text_body, html_body) for the new-order admin alert.
+
+    The alert summarizes everything staff need to start fulfillment: who ordered
+    (name/email/phone), where it goes (address + City / Location), how it ships
+    (Lalamove Delivery vs Self-Booking), what was ordered (box breakdown) and
+    the money terms (total, payment method/terms, remaining balance).
+    """
+    order_id = order['id']
+    customer_name = order['customer_name'] or '(not provided)'
+    customer_email = order['email'] or '(not provided)'
+    customer_phone = order['customer_phone'] or '(not provided)'
+    customer_address = order['customer_address'] or '(not provided)'
+    if delivery_zone is None:
+        delivery_zone = _order_field_static(order, 'delivery_zone', '')
+    zone_label = delivery_zone_label(delivery_zone)
+    delivery_method_value = _order_field_static(order, 'delivery_method', '')
+    method_label = delivery_method_label(delivery_method_value)
+    shipping_display = 'P%.2f' % float(shipping_fee if shipping_fee is not None else 0)
+    if is_self_booking(delivery_method_value):
+        shipping_display = 'P0.00 (Customer Self-Booking)'
+    elif shipping_label:
+        shipping_display = f"{shipping_display} ({shipping_label})"
+    item_lines = order_items_text(order).split('\n')
+
+    total_amount = float(order['total_amount'] or 0)
+    downpayment_amount = float(order['downpayment_amount'] or 0)
+    remaining_balance = float(order['remaining_balance'] or 0)
+    payment_method = order['payment_method'] or '(not specified)'
+    payment_status = order['payment_status'] or '(not specified)'
+    if remaining_balance > 0:
+        payment_terms = (
+            f"50% Downpayment: ₱{downpayment_amount:,.2f} due now (downpayment + full "
+            f"shipping); ₱{remaining_balance:,.2f} balance upon delivery/pick-up."
+        )
+    else:
+        payment_terms = f"Full Payment: ₱{total_amount:,.2f} due in full."
+    placed_at = order['created_at'] or '(unknown time)'
+
+    subject = f"New Order Received - #{order_id}"
+
+    text_body = f"""NEW ORDER RECEIVED - Order #{order_id}
+
+CUSTOMER
+Name  : {customer_name}
+Email : {customer_email}
+Phone : {customer_phone}
+
+DELIVERY
+Method         : {method_label}
+City / Location: {zone_label}
+Address        : {customer_address}
+Shipping Fee   : {shipping_display}
+
+ITEMS
+{order_items_text(order)}
+
+TOTAL & PAYMENT
+Total Amount   : ₱{total_amount:,.2f}
+Payment Method : {payment_method}
+Payment Terms  : {payment_terms}
+Payment Status : {payment_status}
+Placed At      : {placed_at}
+
+--
+Pack & Sip automated new-order alert."""
+
+    item_rows_html = ''.join(
+        f'<li style="margin:2px 0;">{html.escape(line)}</li>' for line in item_lines
+    )
+
+    html_body = _admin_order_alert_html(
+        order_id=order_id,
+        customer_name=customer_name,
+        customer_email=customer_email,
+        customer_phone=customer_phone,
+        method_label=method_label,
+        zone_label=zone_label,
+        customer_address=customer_address,
+        shipping_display=shipping_display,
+        item_rows_html=item_rows_html,
+        total_amount=total_amount,
+        payment_method=payment_method,
+        payment_terms=payment_terms,
+        payment_status=payment_status,
+        placed_at=placed_at,
+    )
+
+    return subject, text_body, html_body
+
+
+def _admin_order_alert_html(order_id, customer_name, customer_email, customer_phone,
+                            method_label, zone_label, customer_address,
+                            shipping_display, item_rows_html, total_amount,
+                            payment_method, payment_terms, payment_status, placed_at):
+    """Render the HTML variant of the new-order admin alert email."""
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:24px;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#1e293b;">
+  <div style="max-width:560px;margin:0 auto;background-color:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;">
+    <div style="background-color:#4f46e5;padding:18px 24px;">
+      <p style="margin:0;color:#ffffff;font-size:20px;font-weight:bold;">🛒 New Order Received - #{order_id}</p>
+      <p style="margin:4px 0 0;color:#c7d2fe;font-size:12px;">Pack &amp; Sip automated order alert</p>
+    </div>
+    <div style="padding:20px 24px;">
+      <p style="margin:0 0 6px;font-size:12px;font-weight:bold;color:#4f46e5;letter-spacing:1px;">CUSTOMER</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr><td style="padding:4px 0;width:130px;color:#64748b;">Name</td><td style="padding:4px 0;font-weight:bold;">{html.escape(customer_name)}</td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">Email</td><td style="padding:4px 0;">{html.escape(customer_email)}</td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">Phone</td><td style="padding:4px 0;">{html.escape(customer_phone)}</td></tr>
+      </table>
+
+      <p style="margin:18px 0 6px;font-size:12px;font-weight:bold;color:#4f46e5;letter-spacing:1px;">DELIVERY</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr><td style="padding:4px 0;width:130px;color:#64748b;">Method</td><td style="padding:4px 0;font-weight:bold;">{html.escape(method_label)}</td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">City / Location</td><td style="padding:4px 0;">{html.escape(zone_label)}</td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">Address</td><td style="padding:4px 0;">{html.escape(customer_address)}</td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">Shipping Fee</td><td style="padding:4px 0;">{html.escape(shipping_display)}</td></tr>
+      </table>
+
+      <p style="margin:18px 0 6px;font-size:12px;font-weight:bold;color:#4f46e5;letter-spacing:1px;">ITEMS</p>
+      <ul style="margin:0;padding-left:18px;font-size:14px;">{item_rows_html}</ul>
+
+      <div style="margin-top:18px;padding:14px 16px;background-color:#eef2ff;border-radius:8px;font-size:14px;">
+        <p style="margin:0 0 6px;"><strong>Total Amount:</strong> ₱{total_amount:,.2f}</p>
+        <p style="margin:0 0 6px;"><strong>Payment Method:</strong> {html.escape(payment_method)}</p>
+        <p style="margin:0 0 6px;"><strong>Payment Terms:</strong> {html.escape(payment_terms)}</p>
+        <p style="margin:0;"><strong>Payment Status:</strong> {html.escape(payment_status)}</p>
+      </div>
+      <p style="margin:16px 0 0;font-size:11px;color:#94a3b8;">Placed at {html.escape(placed_at)} · Pack &amp; Sip automated new-order alert.</p>
+    </div>
+  </div>
+</body>
+</html>"""
 
 # Inline HTML/CSS template for the official B2B sales invoice PDF.
 # xhtml2pdf supports a limited CSS subset, so layout uses tables
@@ -1718,6 +1876,30 @@ def process_checkout():
                 print(f"Mail Error: {e}")
 
     threading.Thread(target=send_confirmation_email, daemon=True).start()
+
+    # Admin new-order alert: notify EVERY configured admin inbox (ADMIN_EMAIL_1
+    # and ADMIN_EMAIL_2) whenever a new order lands. Sending runs in a background
+    # thread and is fully wrapped in try/except — the order is already saved for
+    # the customer, so a mail-server failure must not fail the checkout response.
+    def send_admin_order_alert():
+        with app.app_context():
+            try:
+                admin_recipients = get_admin_email_recipients()
+                if not admin_recipients:
+                    print('Admin order alert skipped: no legolandcreator@gmail.com/ADMIN_EMAIL_2 configured.')
+                    return
+                subject, text_body, html_body = build_admin_order_alert(
+                    order,
+                    shipping_fee=shipping,
+                    shipping_label=shipping_label,
+                    delivery_zone=delivery_zone,
+                )
+                send_order_email(admin_recipients, subject, text_body, html_body=html_body)
+            except Exception as e:
+                # Never let the alert block the saved order.
+                print(f"Admin Order Alert Error: {e}")
+
+    threading.Thread(target=send_admin_order_alert, daemon=True).start()
 
     return jsonify({
         "success": True,
