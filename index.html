@@ -110,6 +110,13 @@
               <span class="text-slate-600">Direct warehouse pricing</span>
             </span>
           </li>
+          <li class="flex items-start gap-3 rounded-md bg-slate-50 p-3">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>
+            <span>
+              <strong class="block text-slate-900">Flexible Booking Options</strong>
+              <span class="text-slate-600">Need full delivery control? You can choose Customer Self-Booking during checkout to send your own Lalamove/Grab rider or pick up directly from our Taguig warehouse!</span>
+            </span>
+          </li>
         </ul>
         <button type="button" onclick="scrollToCatalog(event)" class="mt-5 w-full rounded-md bg-indigo-600 py-2 font-semibold text-white transition hover:bg-indigo-700">Browse Catalog Below</button>
       </div>
@@ -387,10 +394,9 @@
                 </span>
               </label>
               <label class="delivery-method-option" for="deliveryMethodSelfBooking">
-                <input type="radio" id="deliveryMethodSelfBooking" name="delivery_method" value="self_booking" onchange="handleDeliveryMethodChange()" title="Delivery Method: Customer Self-Booking / Warehouse Pick-up" />
+                <input type="radio" id="deliveryMethodSelfBooking" name="delivery_method" value="self_booking" onchange="handleDeliveryMethodChange()" />
                 <span class="delivery-method-text">
                   <span class="delivery-method-title">Customer Self-Booking / Warehouse Pick-up</span>
-                  <span class="delivery-method-hint">Note: You will book your own rider (Lalamove/Grab) once your order status is updated to 'Ready for Pick-up'.</span>
                 </span>
               </label>
             </fieldset>
