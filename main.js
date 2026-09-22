@@ -56,7 +56,7 @@ function renderCatalog(){
     const card = document.createElement('article');
     const stock = Number(product.stock_boxes || 0);
     const stockLabel = stock > 0 ? 'In Stock' : 'Out of Stock';
-    const stockClasses = stock > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600';
+    const stockClasses = stock > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700';
     card.className = 'flex flex-col justify-between overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm';
     card.innerHTML = `
       <div>
@@ -66,13 +66,13 @@ function renderCatalog(){
         </div>
         <img src="${getProductImage(product)}" alt="${product.name} preview" class="h-40 w-full object-cover" />
         <div class="p-5 pt-4">
-          <p class="text-sm text-slate-600">${product.description}</p>
+          <p class="text-sm font-medium text-slate-700">${product.description}</p>
           <div class="mt-4 flex items-end justify-between gap-3">
             <div>
               <span class="cardPrice text-2xl font-bold text-indigo-700">${formatPrice(product.price_per_box)}</span>
-              <span class="cardPriceUnit text-xs text-slate-500"> / box</span>
+              <span class="cardPriceUnit text-xs font-medium text-slate-700"> / box</span>
             </div>
-            <span class="text-xs text-slate-500">${stock} box(es)</span>
+            <span class="text-xs font-medium text-slate-700">${stock} box(es)</span>
           </div>
         </div>
       </div>
@@ -549,7 +549,7 @@ function updateSummary(data){
   document.getElementById('total').innerText = formatPrice(data.total);
   const cartContent = document.getElementById('cartContent');
   if((data.items || []).length === 0){
-    cartContent.innerHTML = `<p class="text-sm text-slate-600">No items in cart.</p>`;
+    cartContent.innerHTML = `<p class="text-sm font-medium text-slate-700">No items in cart.</p>`;
     updateCartBadges(0);
     updateCheckoutTotals();
     return;
@@ -560,7 +560,7 @@ function updateSummary(data){
     const row = document.createElement('div');
     row.className = 'flex items-center justify-between py-2 border-b';
     const boxLabel = Number(it.boxes) === 1 ? 'box' : 'boxes';
-    row.innerHTML = `<div><div class="font-medium">${it.name}</div><div class="text-sm text-slate-600">${it.boxes} ${boxLabel} - ${it.quantity_per_box} units/box</div></div><div class="text-right">${formatPrice(it.line_total)}</div>`;
+    row.innerHTML = `<div><div class="font-medium">${it.name}</div><div class="text-sm font-medium text-slate-700">${it.boxes} ${boxLabel} - ${it.quantity_per_box} units/box</div></div><div class="text-right">${formatPrice(it.line_total)}</div>`;
     cartContent.appendChild(row);
   });
   const totals = document.createElement('div');
@@ -572,11 +572,11 @@ function updateSummary(data){
   //  - Lalamove with a location: show the computed base rate + surcharges.
   let shipNote = '';
   if(data.deliveryMethod === DELIVERY_METHOD_SELF_BOOKING){
-    shipNote = `<div class="mt-1 text-xs leading-5 text-slate-500">${SELF_BOOKING_NOTE}</div>`;
+    shipNote = `<div class="mt-1 text-xs font-medium leading-5 text-slate-700">${SELF_BOOKING_NOTE}</div>`;
   }else if(data.needsZone){
-    shipNote = '<div class="mt-1 text-xs leading-5 text-slate-500">Select your City / Location to estimate the Lalamove delivery fee.</div>';
+    shipNote = '<div class="mt-1 text-xs font-medium leading-5 text-slate-700">Select your City / Location to estimate the Lalamove delivery fee.</div>';
   }else if(data.shippingBreakdown){
-    shipNote = `<div class="mt-1 text-xs leading-5 text-slate-500">Lalamove fee: ${data.shippingBreakdown}</div>`;
+    shipNote = `<div class="mt-1 text-xs font-medium leading-5 text-slate-700">Lalamove fee: ${data.shippingBreakdown}</div>`;
   }
   totals.innerHTML = `<div class="flex items-center justify-between"><div class="text-sm">Subtotal</div><div class="font-medium">${formatPrice(data.subtotal)}</div></div><div class="flex items-center justify-between mt-2"><div class="text-sm">${shipLine}</div><div class="font-medium">${formatPrice(data.shipping)}</div></div>${shipNote}<div class="flex items-center justify-between mt-3 text-lg font-bold text-indigo-700"><div>Total</div><div>${formatPrice(data.total)}</div></div>`;
   cartContent.appendChild(totals);
@@ -1146,7 +1146,7 @@ function openCustomerOrders(){
 
   list.innerHTML = '';
   const loading = document.createElement('p');
-  loading.className = 'text-sm text-slate-500';
+  loading.className = 'text-sm font-medium text-slate-700';
   loading.textContent = 'Loading your orders…';
   list.appendChild(loading);
 
@@ -1181,7 +1181,7 @@ const CUSTOMER_ORDER_BADGES = {
 };
 
 function orderStatusBadge(status){
-  const classes = CUSTOMER_ORDER_BADGES[status] || 'bg-slate-100 text-slate-600';
+  const classes = CUSTOMER_ORDER_BADGES[status] || 'bg-slate-100 text-slate-700';
   const label = status || 'Pending';
   return `<span class="shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${classes}">${escapeHtml(label)}</span>`;
 }
@@ -1194,7 +1194,7 @@ function orderItemsSummary(order){
   if(cupBoxes > 0) lines.push(`Cups: ${escapeHtml(order.cup_size || 'Selected size')} — ${cupBoxes} box(es)`);
   if(lidBoxes > 0) lines.push(`Lids: ${escapeHtml(order.lid_style || 'Selected style')} — ${lidBoxes} box(es)`);
   if(microBoxes > 0) lines.push(`Containers: ${escapeHtml(order.microwavable_size || 'Selected size')} — ${microBoxes} box(es)`);
-  return lines.length > 0 ? lines.join('<br>') : '<span class="text-slate-400">No item details.</span>';
+  return lines.length > 0 ? lines.join('<br>') : '<span class="font-medium text-slate-600">No item details.</span>';
 }
 
 function formatOrderDate(value){
@@ -1211,7 +1211,7 @@ function renderCustomerOrders(orders){
 
   if(!orders || orders.length === 0){
     const empty = document.createElement('p');
-    empty.className = 'text-sm text-slate-500';
+    empty.className = 'text-sm font-medium text-slate-700';
     empty.textContent = 'No orders found for your account yet.';
     list.appendChild(empty);
     return;
@@ -1225,11 +1225,11 @@ function renderCustomerOrders(orders){
         <span class="font-semibold text-indigo-700">Order #${escapeHtml(order.id)}</span>
         ${orderStatusBadge(order.status)}
       </div>
-      <p class="mt-1 text-xs text-slate-500">${escapeHtml(formatOrderDate(order.created_at))}</p>
-      <div class="mt-1 text-sm leading-5 text-slate-600">${orderItemsSummary(order)}</div>
+      <p class="mt-1 text-xs font-medium text-slate-700">${escapeHtml(formatOrderDate(order.created_at))}</p>
+      <div class="mt-1 text-sm font-medium leading-5 text-slate-700">${orderItemsSummary(order)}</div>
       <div class="mt-1 flex items-end justify-between gap-3">
         <span class="text-sm font-semibold text-slate-800">Total: ${formatPrice(order.total_amount)}</span>
-        <span class="text-xs text-slate-500">${escapeHtml(order.payment_status || '')}</span>
+        <span class="text-xs font-medium text-slate-700">${escapeHtml(order.payment_status || '')}</span>
       </div>
     `;
     list.appendChild(card);
@@ -1444,7 +1444,7 @@ async function openConfirmationModal(){
   });
 
   if(selectedItems.length === 0){
-    items.innerHTML = '<p class="text-slate-500">No items selected.</p>';
+    items.innerHTML = '<p class="font-medium text-slate-700">No items selected.</p>';
   }else{
     selectedItems.forEach(item => {
       const line = document.createElement('div');

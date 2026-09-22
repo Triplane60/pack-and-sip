@@ -108,7 +108,8 @@ input[type="number"] {
   margin-top: 2px;
   font-size: 12px;
   line-height: 1.4;
-  color: #64748b;
+  font-weight: 500;
+  color: #374151;
 }
 
 .payment-type-label {
@@ -141,7 +142,8 @@ input[type="number"] {
 
 .breakdown-row-secondary {
   margin: 4px 0;
-  color: #666;
+  font-weight: 500;
+  color: #374151;
 }
 
 .due-now-amount {
@@ -178,7 +180,8 @@ input[type="number"] {
 }
 
 .custom-alert-message {
-  color: #555;
+  font-weight: 500;
+  color: #374151;
   margin: 16px 0 24px;
 }
 
