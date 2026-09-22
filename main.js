@@ -133,6 +133,8 @@ function resetConfigurator(){
   // Clearing the cart also clears the City / Location selection, so the next
   // order starts from an explicit location choice again.
   resetDeliveryZone();
+  resetDeliveryMethod();
+  updateDeliveryAddressVisibility(false);
   syncCategoryTotals();
   document.getElementById('subtotal').innerText = '₱0.00';
   document.getElementById('shipping').innerText = '₱0.00';
@@ -329,6 +331,9 @@ async function calculate(){
   //    Configurator and the Cart modal. Re-sync the summed category totals
   //    first so the configurator inputs/readouts match the catalog cards.
   syncCategoryTotals();
+  // Delivery-radios can be changed programmatically (for example by a reset),
+  // so keep hidden/required address fields aligned before totals are calculated.
+  updateDeliveryAddressVisibility(getSelectedDeliveryMethod() === DELIVERY_METHOD_SELF_BOOKING);
 
   // Aggregate every independently-ordered catalog item (12oz/16oz/22oz cups,
   // lid styles, microwavable containers) by its own price per box.
@@ -534,10 +539,43 @@ function deliveryMethodLabel(method){
   return DELIVERY_METHOD_LABELS[method || DELIVERY_METHOD_STANDARD] || DELIVERY_METHOD_LABELS[DELIVERY_METHOD_STANDARD];
 }
 
+// Keep delivery address, location and fee UI in sync with the chosen method.
+//   - Self-Booking / Warehouse Pick-up: hides the Shipping Address and City /
+//     Location fields, keeps shipping at P0.00 and relaxes address validation.
+//   - Lalamove Delivery: restores the address fields, validation, and the
+//     location + box surcharge fee.
+function getDeliveryAddressFields(){
+  return document.getElementById('deliveryAddressFields');
+}
+
+function updateDeliveryAddressVisibility(selfBooking){
+  const fields = getDeliveryAddressFields();
+  const address = document.getElementById('customerAddress');
+  const zone = getDeliveryZoneSelect();
+  if(selfBooking && fields){
+    fields.classList.add('hidden');
+    fields.setAttribute('aria-hidden', 'true');
+    if(address) address.removeAttribute('required');
+    if(zone) zone.removeAttribute('required');
+  }else if(fields){
+    fields.classList.remove('hidden');
+    fields.removeAttribute('aria-hidden');
+    if(address) address.setAttribute('required', '');
+  }
+}
+
+// Delivery Method radio change: refresh fee totals first, then show or hide
+// the Lalamove-specific address inputs for that same selection.
+function handleDeliveryMethodChange(){
+  updateDeliveryAddressVisibility(isSelfBookingSelected());
+  calculate();
+}
+
 // Restore the default (Option A) selection after the cart is cleared.
 function resetDeliveryMethod(){
   const standard = document.getElementById('deliveryMethodStandard');
   if(standard) standard.checked = true;
+  updateDeliveryAddressVisibility(false);
 }
 
 function updateSummary(data){
@@ -699,6 +737,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('confirmOrderBtn').addEventListener('click', submitOrder);
   document.getElementById('closeModalBtn').addEventListener('click', closeOrderPendingModal);
   setupAuthModal();
+  setupAccountNudgeModal();
   setupCustomerOrdersModal();
   setupAboutModal();
   setupSecretAdminAccess();
@@ -1078,14 +1117,80 @@ function fillCustomerData(){
 
 
 
-// Navbar Order History button: signed-in customers see their order history,
-// guests are prompted to log in (or register) first.
+// Navbar Order History button: signed-in customers see their order history;
+// guests see an account recommendation instead of being blocked silently.
 function handleNavOrdersClick(){
   if(currentUser){
     openCustomerOrders();
   } else {
-    openAuthModal();
+    openAccountNudgeModal();
   }
+}
+
+// Guest account recommendation: explain the benefits, offer login/register,
+// or let the visitor continue as a guest. Returns focus behavior consistent
+// with the auth and orders modals.
+function openAccountNudgeModal(){
+  const modal = document.getElementById('accountNudgeModal');
+  if(!modal) return;
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  document.body.classList.add('modal-open');
+}
+
+function closeAccountNudgeModal(){
+  const modal = document.getElementById('accountNudgeModal');
+  if(!modal || modal.classList.contains('hidden')) return;
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+  if(document.getElementById('authModal').classList.contains('hidden')
+    && document.getElementById('customer-orders-modal').classList.contains('hidden')
+    && document.getElementById('orderPendingModal').classList.contains('hidden')
+    && document.getElementById('confirmOrderModal').classList.contains('hidden')){
+    document.body.classList.remove('modal-open');
+  }
+}
+
+function openAuthModalWithTab(tab){
+  openAuthModal();
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  const tabLogin = document.getElementById('tabLogin');
+  const tabRegister = document.getElementById('tabRegister');
+  if(!loginForm || !registerForm || !tabLogin || !tabRegister) return;
+  const showRegister = tab === 'register';
+  loginForm.classList.toggle('hidden', showRegister);
+  registerForm.classList.toggle('hidden', !showRegister);
+  tabLogin.classList.toggle('border-indigo-600', !showRegister);
+  tabLogin.classList.toggle('text-indigo-600', !showRegister);
+  tabLogin.classList.toggle('border-transparent', showRegister);
+  tabLogin.classList.toggle('text-slate-500', showRegister);
+  tabRegister.classList.toggle('border-indigo-600', showRegister);
+  tabRegister.classList.toggle('text-indigo-600', showRegister);
+  tabRegister.classList.toggle('border-transparent', !showRegister);
+  tabRegister.classList.toggle('text-slate-500', !showRegister);
+}
+
+function setupAccountNudgeModal(){
+  const modal = document.getElementById('accountNudgeModal');
+  const loginBtn = document.getElementById('accountNudgeLoginBtn');
+  const registerBtn = document.getElementById('accountNudgeRegisterBtn');
+  const dismissBtn = document.getElementById('accountNudgeDismissBtn');
+  if(!modal || !loginBtn || !registerBtn || !dismissBtn) return;
+
+  const openAuthTab = (tab) => {
+    closeAccountNudgeModal();
+    openAuthModalWithTab(tab);
+  };
+  loginBtn.addEventListener('click', () => openAuthTab('login'));
+  registerBtn.addEventListener('click', () => openAuthTab('register'));
+  dismissBtn.addEventListener('click', closeAccountNudgeModal);
+  modal.addEventListener('click', event => {
+    if(event.target === modal) closeAccountNudgeModal();
+  });
+  document.addEventListener('keydown', event => {
+    if(event.key === 'Escape' && !modal.classList.contains('hidden')) closeAccountNudgeModal();
+  });
 }
 
 function openCustomerOrders(){
@@ -1094,7 +1199,7 @@ function openCustomerOrders(){
   if(!modal || !list) return;
 
   if(!currentUser){
-    showCustomAlert('Please log in to view your orders.');
+    openAccountNudgeModal();
     return;
   }
 
@@ -1245,9 +1350,13 @@ window.addEventListener('scroll', updateBackToTopButton);
 function closeOrderPendingModal(){
   const modal = document.getElementById('orderPendingModal');
   modal.classList.add('opacity-0');
+  const wasGuestCheckout = !currentUser;
   setTimeout(() => {
     modal.classList.add('hidden');
     modal.classList.remove('flex');
+    // Guests finishing checkout see the account recommendation after the
+    // pending confirmation closes, so tracking/faster checkout is discoverable.
+    if(wasGuestCheckout) openAccountNudgeModal();
   }, 300);
   closeCart();
   resetConfigurator();
@@ -1290,9 +1399,12 @@ function validateCheckoutFields(){
   const email = document.getElementById('customerEmail').value.trim();
   const address = document.getElementById('customerAddress').value.trim();
   const phone = document.getElementById('customerPhone').value.trim();
+  const selfBooking = isSelfBookingSelected();
 
-  if(!name || !email || !address || !phone){
-    showCustomAlert('Please enter your name, email, address, and phone number.');
+  if(!name || !email || !phone || (!selfBooking && !address)){
+    showCustomAlert(selfBooking
+      ? 'Please enter your name, email, and phone number.'
+      : 'Please enter your name, email, address, and phone number.');
     return false;
   }
 

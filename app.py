@@ -1556,8 +1556,12 @@ def process_checkout():
     except Exception:
         return jsonify({"error": "Invalid quantities provided"}), 400
 
-    if not name or not email or not address or not phone:
-        return jsonify({"error": "Customer name, email, address and phone are required."}), 400
+    if not name or not email or not phone:
+        return jsonify({"error": "Customer name, email and phone are required."}), 400
+
+    self_booking = is_self_booking(delivery_method)
+    if not address and not self_booking:
+        return jsonify({"error": "Shipping address is required for Lalamove Delivery."}), 400
 
     if cup_boxes < 0 or lid_boxes < 0 or microwavable_boxes < 0:
         return jsonify({"error": "Quantities cannot be negative"}), 400
