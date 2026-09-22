@@ -206,13 +206,23 @@
       return order.shipping_address || '—';
     }
 
-    // Delivery Method badge: Pack & Sip courier vs Customer Self-Booking / Pick-up.
+    // Delivery Method badge: Lalamove local courier (with its destination zone)
+    // vs Customer Self-Booking / Warehouse Pick-up.
     function formatDeliveryMethod(order) {
       const method = String(order.delivery_method || 'standard').toLowerCase();
       if (method === 'self_booking') {
         return '<div class="mt-2 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Self-Booking / Pick-up</div>';
       }
-      return '<div class="mt-2 inline-block rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-700">Standard Courier</div>';
+      const zoneLabels = {
+        taguig_city: 'Taguig City',
+        neighboring_cities: 'Neighboring Cities',
+        metro_manila: 'Rest of Metro Manila',
+        nearby_provinces: 'Nearby Provinces',
+        outer_provincial: 'Outer Provincial'
+      };
+      const zone = String(order.delivery_zone || 'taguig_city').toLowerCase();
+      const zoneLabel = zoneLabels[zone] || zoneLabels.taguig_city;
+      return `<div class="mt-2 inline-block rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-700">Lalamove &mdash; ${zoneLabel}</div>`;
     }
 
         function formatItems(order) {

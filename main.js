@@ -130,6 +130,9 @@ function resetConfigurator(){
   document.getElementById('lidBoxesInput').value = '0';
   document.getElementById('microwavableBoxesInput').value = '0';
   updateConfiguratorActionState();
+  // Clearing the cart also clears the City / Location selection, so the next
+  // order starts from an explicit location choice again.
+  resetDeliveryZone();
   syncCategoryTotals();
   document.getElementById('subtotal').innerText = '₱0.00';
   document.getElementById('shipping').innerText = '₱0.00';
@@ -238,8 +241,8 @@ function getQtyById(id){
 function getCategoryTotals(){
   // Explicit per-SKU sums required by the spec. Any future/unknown SKUs of
   // the same type are folded in via the type fallback so totals never drift.
-  // The 12oz vs 16oz/22oz split drives the Motorcycle/Sedan rule, so track
-  // small (12oz) and large (16oz/22oz) cup boxes separately.
+  // Track small (12oz) and large (16oz/22oz) cup boxes separately so the
+  // per-category totals stay accurate for the checkout payload.
   let cupBoxes = getQtyById('cup-12oz') + getQtyById('cup-16oz') + getQtyById('cup-22oz');
   let smallCupBoxes = getQtyById('cup-12oz');
   let largeCupBoxes = getQtyById('cup-16oz') + getQtyById('cup-22oz');
@@ -346,32 +349,36 @@ async function calculate(){
   });
   subtotal = Math.round(subtotal * 100) / 100;
 
-  // Content-aware shipping tier (mirrors app.py get_shipping_tier).
-  // Vehicle assignment uses CUPS + LIDS ONLY — microwavables are EXCLUDED
-  // (they still add to the subtotal/total, just not the vehicle tier).
-  // Motorcycle P120 ONLY: max 2x 12oz cups ONLY, max 1x 16oz/22oz cups ONLY,
-  // max 1 cup + 1 lid (2 total), max 3x lids ONLY.
-  // Sedan P250 upgrade: 2+ boxes of 16oz/22oz, cups+lids > 3, or 4-8 boxes.
-  // 9-18: P400 MPV/Small Van; 19-40: P600 L300/Medium Truck; 41+: P1200 Large Truck.
+  // Lalamove Delivery (origin: Taguig) = destination base rate + cup/lid box
+  // surcharges; the FULL fee always applies (even for 50% downpayment).
+  // Microwavables add neither a base rate nor a surcharge.
   // Delivery Method (cart checkout flow):
-  //   Option A ('standard')     -> existing box-tier courier fee (P120-P1200).
+  //   Option A ('standard')     -> Lalamove local courier fee from the selected
+  //     City / Location (#deliveryZone) + cup/lid box surcharges.
   //   Option B ('self_booking') -> Shipping Fee is always P0.00; the customer
   //     books their own rider (Lalamove/Grab) once the order is ready.
-  // FULL tier fee always applies (even for 50% downpayment).
   const deliveryMethod = getSelectedDeliveryMethod();
   const selfBooking = deliveryMethod === DELIVERY_METHOD_SELF_BOOKING;
-  const tier = getShippingTier();
-  const shipping = (subtotal > 0 && !selfBooking) ? tier.fee : 0;
+  const totals = getCategoryTotals();
+  const deliveryZone = getSelectedDeliveryZone();
+  const hasZone = deliveryZone !== '';
+  const quote = getLalamoveShipping(totals.cupBoxes, totals.lidBoxes);
+  const shipping = (subtotal > 0 && !selfBooking && hasZone) ? quote.fee : 0;
   const shippingLabel = subtotal <= 0
     ? '—'
-    : (selfBooking ? SELF_BOOKING_SHIPPING_LABEL : tier.label);
+    : (selfBooking ? SELF_BOOKING_SHIPPING_LABEL : quote.label);
   const total = Math.round((subtotal + shipping) * 100) / 100;
 
   updateSummary({
     subtotal,
     shipping,
     shippingLabel,
+    // Breakdown note only applies to the Lalamove option with a chosen area.
+    shippingBreakdown: (!selfBooking && hasZone && subtotal > 0) ? lalamoveBreakdownText(quote) : '',
+    needsZone: (!selfBooking && !hasZone && subtotal > 0),
     deliveryMethod,
+    deliveryZone,
+    deliveryZoneLabel: hasZone ? quote.zoneLabel : '',
     total,
     items
   });
@@ -394,54 +401,123 @@ function hasLargeCupsInCart(){
   return largeCupBoxesInCart() > 0;
 }
 
-function isMotorcycleEligible(cupBoxes, lidBoxes, microBoxes, smallCupBoxes, largeCupBoxes){
-  cupBoxes = Math.max(0, parseInt(cupBoxes || 0, 10) || 0);
-  lidBoxes = Math.max(0, parseInt(lidBoxes || 0, 10) || 0);
-  // Microwavables are EXCLUDED from vehicle assignment — ignore entirely.
-  if(cupBoxes === 0 && lidBoxes >= 1 && lidBoxes <= 3) return true;
-  if(cupBoxes === 1 && lidBoxes === 1) return true;
-  if(lidBoxes === 0 && cupBoxes >= 1 && cupBoxes <= 2){
-    // Strict per-size check when the split is available:
-    // pure 12oz max 2, or pure 16oz/22oz max 1.
-    if(typeof smallCupBoxes !== 'undefined' || typeof largeCupBoxes !== 'undefined'){
-      const small = Math.max(0, parseInt(smallCupBoxes || 0, 10) || 0);
-      const large = Math.max(0, parseInt(largeCupBoxes || 0, 10) || 0);
-      if(large === 0 && small >= 1 && small <= 2 && small === cupBoxes) return true;
-      if(small === 0 && large === 1 && large === cupBoxes) return true;
-      return false;
-    }
-    return true;
-  }
-  return false;
-}
-
-function isSedanUpgrade(total, cupBoxes, lidBoxes, largeCupBoxes){
-  total = Math.max(0, parseInt(total || 0, 10) || 0);
-  cupBoxes = Math.max(0, parseInt(cupBoxes || 0, 10) || 0);
-  lidBoxes = Math.max(0, parseInt(lidBoxes || 0, 10) || 0);
-  largeCupBoxes = Math.max(0, parseInt(largeCupBoxes || 0, 10) || 0);
-  // 2+ boxes of 16oz/22oz → Sedan, even if the cart total is only 2-3 boxes.
-  if(largeCupBoxes >= 2) return true;
-  if((cupBoxes + lidBoxes) > 3) return true;
-  if(total >= 4 && total <= 8) return true;
-  return false;
-}
-
 // ---------------------------------------------------------------------------
 // Delivery Method options for the cart checkout flow.
-//   standard     -> Standard Delivery (Ship via Pack & Sip Courier): the
-//                   existing content-aware box-tier fee (P120-P1200).
+//   standard     -> Lalamove Delivery (Local Courier Rates): destination base
+//                   rate from Taguig + cup/lid box surcharges (mirrors
+//                   app.py get_lalamove_shipping_fee).
 //   self_booking -> Customer Self-Booking / Warehouse Pick-up: the Shipping
 //                   Fee is always P0.00; the customer books their own rider
 //                   (Lalamove/Grab) once the order is 'Ready for Pick-up'.
 const DELIVERY_METHOD_STANDARD = 'standard';
 const DELIVERY_METHOD_SELF_BOOKING = 'self_booking';
 const DELIVERY_METHOD_LABELS = {
-  [DELIVERY_METHOD_STANDARD]: 'Standard Delivery (Ship via Pack & Sip Courier)',
+  [DELIVERY_METHOD_STANDARD]: 'Lalamove Delivery (Local Courier Rates)',
   [DELIVERY_METHOD_SELF_BOOKING]: 'Customer Self-Booking / Warehouse Pick-up'
 };
 const SELF_BOOKING_SHIPPING_LABEL = 'Customer Self-Booking';
 const SELF_BOOKING_NOTE = "Note: You will book your own rider (Lalamove/Grab) once your order status is updated to 'Ready for Pick-up'.";
+
+// ---------------------------------------------------------------------------
+// Lalamove local courier shipping (origin: Taguig City). The destination base
+// rate is read from the selected #deliveryZone option, which app.py renders
+// from LALAMOVE_ZONE_OPTIONS so the estimate can never drift from the API.
+//   Total Shipping Fee = Base Location Rate + Cup Surcharge + Lid Surcharge
+//   Cups: 5 + (cupBoxes - 1) * 2      Lids: 3 + (lidBoxes - 1) * 2
+// Microwavables add neither a base rate nor a surcharge.
+// ---------------------------------------------------------------------------
+const LALAMOVE_SHIPPING_LABEL = 'Lalamove';
+const CUP_BOX_SURCHARGE_FIRST = 5;
+const CUP_BOX_SURCHARGE_ADDITIONAL = 2;
+const LID_BOX_SURCHARGE_FIRST = 3;
+const LID_BOX_SURCHARGE_ADDITIONAL = 2;
+
+function getDeliveryZoneSelect(){
+  return document.getElementById('deliveryZone');
+}
+
+// Selected zone id ('' while the customer has not picked a city yet).
+function getSelectedDeliveryZone(){
+  const select = getDeliveryZoneSelect();
+  return select ? String(select.value || '') : '';
+}
+
+// Compact zone label of the selected option: prefers the option's data-short
+// (e.g. 'Neighboring Cities') so fee lines stay short, mirroring app.py
+// delivery_zone_short_label().
+function deliveryZoneLabel(){
+  const select = getDeliveryZoneSelect();
+  if(!select || !select.selectedOptions || select.selectedOptions.length === 0) return '';
+  const option = select.selectedOptions[0];
+  const short = String(option.dataset.short || '').trim();
+  if(short) return short;
+  return String(option.textContent || '').split(' — ')[0].trim();
+}
+
+// Destination base rate comes straight from the rendered <option data-rate>.
+function deliveryZoneRate(){
+  const select = getDeliveryZoneSelect();
+  if(!select || !select.selectedOptions || select.selectedOptions.length === 0) return 0;
+  const rate = parseFloat(select.selectedOptions[0].dataset.rate || '');
+  return Number.isFinite(rate) ? rate : 0;
+}
+
+function cupBoxSurcharge(cupBoxes){
+  const cups = Math.max(0, parseInt(cupBoxes || 0, 10) || 0);
+  if(cups <= 0) return 0;
+  return CUP_BOX_SURCHARGE_FIRST + (cups - 1) * CUP_BOX_SURCHARGE_ADDITIONAL;
+}
+
+function lidBoxSurcharge(lidBoxes){
+  const lids = Math.max(0, parseInt(lidBoxes || 0, 10) || 0);
+  if(lids <= 0) return 0;
+  return LID_BOX_SURCHARGE_FIRST + (lids - 1) * LID_BOX_SURCHARGE_ADDITIONAL;
+}
+
+// Return the full Lalamove quote for the currently selected City / Location:
+// base location rate + cup surcharge + lid surcharge.
+function getLalamoveShipping(cupBoxes, lidBoxes){
+  if(typeof cupBoxes === 'undefined'){
+    const totals = getCategoryTotals();
+    cupBoxes = totals.cupBoxes;
+    lidBoxes = totals.lidBoxes;
+  }
+  cupBoxes = Math.max(0, parseInt(cupBoxes || 0, 10) || 0);
+  lidBoxes = Math.max(0, parseInt(lidBoxes || 0, 10) || 0);
+  const baseRate = deliveryZoneRate();
+  const zoneLabel = deliveryZoneLabel();
+  const cupSurcharge = cupBoxSurcharge(cupBoxes);
+  const lidSurcharge = lidBoxSurcharge(lidBoxes);
+  return {
+    fee: Math.round((baseRate + cupSurcharge + lidSurcharge) * 100) / 100,
+    label: zoneLabel ? `${LALAMOVE_SHIPPING_LABEL} (${zoneLabel})` : LALAMOVE_SHIPPING_LABEL,
+    zoneLabel,
+    baseRate,
+    cupBoxes,
+    cupSurcharge,
+    lidBoxes,
+    lidSurcharge
+  };
+}
+
+// Order Summary note spelling out how the Lalamove fee was computed.
+function lalamoveBreakdownText(shipping){
+  if(!shipping) return '';
+  const parts = [`${shipping.zoneLabel || 'Location'} base ${formatPrice(shipping.baseRate)}`];
+  if(shipping.cupBoxes > 0){
+    parts.push(`cups ${shipping.cupBoxes} box${shipping.cupBoxes === 1 ? '' : 'es'} ${formatPrice(shipping.cupSurcharge)}`);
+  }
+  if(shipping.lidBoxes > 0){
+    parts.push(`lids ${shipping.lidBoxes} box${shipping.lidBoxes === 1 ? '' : 'es'} ${formatPrice(shipping.lidSurcharge)}`);
+  }
+  return parts.join(' + ');
+}
+
+// Clear the City / Location selector (used when the cart is cleared/reset).
+function resetDeliveryZone(){
+  const select = getDeliveryZoneSelect();
+  if(select) select.value = '';
+}
 
 // Read the currently selected Delivery Method radio (defaults to Standard).
 function getSelectedDeliveryMethod(){
@@ -462,45 +538,6 @@ function deliveryMethodLabel(method){
 function resetDeliveryMethod(){
   const standard = document.getElementById('deliveryMethodStandard');
   if(standard) standard.checked = true;
-}
-
-function getShippingTier(cupBoxes, lidBoxes, microBoxes, hasLarge, smallCupBoxes, largeCupBoxes){
-  if(typeof cupBoxes === 'undefined'){
-    const totals = getCategoryTotals();
-    cupBoxes = totals.cupBoxes;
-    lidBoxes = totals.lidBoxes;
-    microBoxes = totals.microwavableBoxes;
-    smallCupBoxes = totals.smallCupBoxes;
-    largeCupBoxes = totals.largeCupBoxes;
-    hasLarge = (largeCupBoxes || 0) > 0;
-  }
-  cupBoxes = Math.max(0, parseInt(cupBoxes || 0, 10) || 0);
-  lidBoxes = Math.max(0, parseInt(lidBoxes || 0, 10) || 0);
-  microBoxes = Math.max(0, parseInt(microBoxes || 0, 10) || 0);
-  if(typeof smallCupBoxes === 'undefined' || typeof largeCupBoxes === 'undefined'){
-    // Fallback when only totals are passed (e.g. unit checks): treat a large
-    // flag as "all cups are large" so 2x 16oz/22oz still upgrades to Sedan.
-    const largeFlag = hasLarge === true || hasLarge === 1 || hasLarge === '1';
-    largeCupBoxes = largeFlag ? cupBoxes : 0;
-    smallCupBoxes = largeFlag ? 0 : cupBoxes;
-  }
-  smallCupBoxes = Math.max(0, parseInt(smallCupBoxes || 0, 10) || 0);
-  largeCupBoxes = Math.max(0, parseInt(largeCupBoxes || 0, 10) || 0);
-  // Vehicle assignment uses CUPS + LIDS ONLY — microwavables excluded.
-  const total = cupBoxes + lidBoxes;
-  if(total <= 0){
-    // Cups/lids empty (e.g. microwavables-only cart): no vehicle tier.
-    // Shipping stays P0 here; the backend mirrors this (vehicle_boxes = 0).
-    return { fee: 0, label: '—' };
-  }
-  if(total >= 41) return { fee: 1200, label: 'Large Truck' };
-  if(total >= 19) return { fee: 600, label: 'L300 / Medium Truck' };
-  if(total >= 9) return { fee: 400, label: 'MPV / Small Van' };
-  if(total >= 4) return { fee: 250, label: 'Sedan' };
-  // 1-3 boxes: sedan upgrade triggers first, then motorcycle eligibility.
-  if(isSedanUpgrade(total, cupBoxes, lidBoxes, largeCupBoxes)) return { fee: 250, label: 'Sedan' };
-  if(isMotorcycleEligible(cupBoxes, lidBoxes, microBoxes, smallCupBoxes, largeCupBoxes)) return { fee: 120, label: 'Motorcycle' };
-  return { fee: 250, label: 'Sedan' };
 }
 
 function updateSummary(data){
@@ -528,11 +565,18 @@ function updateSummary(data){
   const totals = document.createElement('div');
   totals.className = 'pt-3';
   const shipLine = shippingLabel && shippingLabel !== '—' ? `Shipping (${shippingLabel})` : 'Shipping';
-  // Customer Self-Booking / Warehouse Pick-up: spell out the rider booking note
-  // directly under the P0.00 shipping line of the Order Summary.
-  const shipNote = data.deliveryMethod === DELIVERY_METHOD_SELF_BOOKING
-    ? `<div class="mt-1 text-xs leading-5 text-slate-500">${SELF_BOOKING_NOTE}</div>`
-    : '';
+  // Note under the shipping line of the Order Summary:
+  //  - Self-Booking / Pick-up: spell out the rider booking instructions.
+  //  - Lalamove with no City / Location yet: prompt for the location.
+  //  - Lalamove with a location: show the computed base rate + surcharges.
+  let shipNote = '';
+  if(data.deliveryMethod === DELIVERY_METHOD_SELF_BOOKING){
+    shipNote = `<div class="mt-1 text-xs leading-5 text-slate-500">${SELF_BOOKING_NOTE}</div>`;
+  }else if(data.needsZone){
+    shipNote = '<div class="mt-1 text-xs leading-5 text-slate-500">Select your City / Location to estimate the Lalamove delivery fee.</div>';
+  }else if(data.shippingBreakdown){
+    shipNote = `<div class="mt-1 text-xs leading-5 text-slate-500">Lalamove fee: ${data.shippingBreakdown}</div>`;
+  }
   totals.innerHTML = `<div class="flex items-center justify-between"><div class="text-sm">Subtotal</div><div class="font-medium">${formatPrice(data.subtotal)}</div></div><div class="flex items-center justify-between mt-2"><div class="text-sm">${shipLine}</div><div class="font-medium">${formatPrice(data.shipping)}</div></div>${shipNote}<div class="flex items-center justify-between mt-3 text-lg font-bold text-indigo-700"><div>Total</div><div>${formatPrice(data.total)}</div></div>`;
   cartContent.appendChild(totals);
   updateCheckoutTotals();
@@ -1257,6 +1301,13 @@ function validateCheckoutFields(){
     return false;
   }
 
+  // Lalamove Delivery needs the City / Location so the destination base rate
+  // can be computed; Self-Booking / Pick-up orders carry no courier fee.
+  if(!isSelfBookingSelected() && !getSelectedDeliveryZone()){
+    showCustomAlert('Please select your City / Location so we can compute the Lalamove delivery fee.');
+    return false;
+  }
+
   return true;
 }
 
@@ -1350,18 +1401,28 @@ async function openConfirmationModal(){
   const subtotalAmount = Number(document.getElementById('subtotal').textContent.replace(/[^0-9.]/g, '') || 0);
   const shippingAmount = Number(document.getElementById('shipping').textContent.replace(/[^0-9.]/g, '') || 0);
   const totalAmount = Number(document.getElementById('total').textContent.replace(/[^0-9.]/g, '') || 0);
-  // Delivery Method: Option B (self-booking) always shows a P0.00 shipping fee.
+  // Delivery Method: Option B (self-booking) always shows a P0.00 shipping fee;
+  // Option A shows the Lalamove zone fee (base rate + cup/lid surcharges).
   const deliveryMethod = getSelectedDeliveryMethod();
   const selfBooking = deliveryMethod === DELIVERY_METHOD_SELF_BOOKING;
-  const tierShippingLabel = (document.getElementById('shipping').title || '').replace(/^Delivery via /, '') || 'Standard';
-  const shippingLabel = selfBooking ? SELF_BOOKING_SHIPPING_LABEL : tierShippingLabel;
+  const shippingLabel = selfBooking
+    ? SELF_BOOKING_SHIPPING_LABEL
+    : ((document.getElementById('shipping').title || '').replace(/^Delivery via /, '') || LALAMOVE_SHIPPING_LABEL);
   const paymentType = document.getElementById('payment-type-select').value;
   const fullRow = document.getElementById('confirmOrderFullRow');
   const downpaymentRow = document.getElementById('confirmOrderDownpaymentRow');
   const paymentNote = document.getElementById('confirmOrderPaymentNote');
   const deliveryMethodField = document.getElementById('confirmOrderDeliveryMethod');
   if (deliveryMethodField) {
-    deliveryMethodField.textContent = selfBooking ? 'Self-Booking / Warehouse Pick-up' : 'Standard Delivery (Courier)';
+    deliveryMethodField.textContent = selfBooking
+      ? 'Self-Booking / Warehouse Pick-up'
+      : DELIVERY_METHOD_LABELS[DELIVERY_METHOD_STANDARD];
+  }
+  const deliveryZoneField = document.getElementById('confirmOrderDeliveryZone');
+  if (deliveryZoneField) {
+    deliveryZoneField.textContent = selfBooking
+      ? '—'
+      : (deliveryZoneLabel() || 'Not selected');
   }
 
   if (paymentType === 'full') {

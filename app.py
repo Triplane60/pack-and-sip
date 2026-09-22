@@ -34,42 +34,131 @@ mail = Mail(app)
 
 DB_FILE = 'app.db'
 MICROWAVABLE_PRICE_PER_BOX = 1500.0
-# Automatic shipping tiers based on CUPS + LIDS box count + order composition.
-# Microwavables are EXCLUDED from vehicle/shipping-tier assignment (they do not
-# count toward total_boxes and never disqualify Motorcycle).
+
+# ---------------------------------------------------------------------------
+# Lalamove local courier shipping (origin: Taguig City).
+#
+# The delivery fee is a flat destination base rate (what a Lalamove booking
+# costs from our Taguig warehouse to the customer's area) PLUS a per-box item
+# surcharge for the boxes that consume rider space:
+#
+#   Base rates by destination                 Item surcharges (cups + lids only)
+#     Taguig City                     P60       Cups: 5 + (cup_boxes - 1) * 2
+#     Neighboring Cities              P90       Lids: 3 + (lid_boxes - 1) * 2
+#       (Makati, Pasig, Pateros)
+#     Rest of Metro Manila           P150
+#     Nearby Provinces               P280
+#       (Rizal, Cavite, Laguna, Bulacan)
+#     Outer Provincial               P450
+#
+#   Total Shipping Fee = Base Location Rate + Cup Surcharge + Lid Surcharge.
+#
+# Microwavables are EXCLUDED from both the base-rate zone and the surcharges
+# (they are billed through the subtotal only).
 # The FULL applicable fee is always charged upfront, even for 50% downpayment:
 #   Initial Amount Due = (Subtotal * 0.50) + Full Shipping Fee.
-# Tiers (cups + lids only):
-#   1-3 boxes (content-aware):
-#     Motorcycle P120 ONLY if (max 2 boxes of 12oz cups ONLY) OR
-#       (max 1 box of 16oz/22oz cups ONLY) OR (max 1 cup + 1 lid = 2 boxes
-#       total) OR (max 3 boxes of lids ONLY); otherwise Sedan P250.
-#   Sedan P250 upgrade if: 2+ boxes of 16oz/22oz, OR cups+lids > 3,
-#     OR overall (cups+lids) total 4-8 boxes.
-#   9-18 boxes:  P400 MPV / Small Van
-#   19-40 boxes: P600 L300 / Medium Truck
-#   41+ boxes:   P1200 Large Truck
-SHIPPING_TIERS = [
-    (120.0, 'Motorcycle'),
-    (250.0, 'Sedan'),
-    (400.0, 'MPV / Small Van'),
-    (600.0, 'L300 / Medium Truck'),
-    (1200.0, 'Large Truck'),
+# ---------------------------------------------------------------------------
+LALAMOVE_ORIGIN = 'Taguig'
+LALAMOVE_DELIVERY_LABEL = 'Lalamove Delivery (Local Courier Rates)'
+LALAMOVE_DELIVERY_NOTE = (
+    'Estimated shipping rate calculated based on your location from Taguig '
+    '+ box quantity.'
+)
+LALAMOVE_SHIPPING_LABEL = 'Lalamove'
+# Zone ids are the stable keys spoken by the storefront <select>, the calculate
+# API and the orders table; the labels stay presentational only.
+LALAMOVE_ZONE_TAGUIG = 'taguig_city'
+LALAMOVE_ZONE_NEIGHBORING = 'neighboring_cities'
+LALAMOVE_ZONE_METRO_MANILA = 'metro_manila'
+LALAMOVE_ZONE_NEARBY_PROVINCES = 'nearby_provinces'
+LALAMOVE_ZONE_OUTER_PROVINCIAL = 'outer_provincial'
+LALAMOVE_DEFAULT_ZONE = LALAMOVE_ZONE_TAGUIG
+LALAMOVE_ZONE_OPTIONS = [
+    {'id': LALAMOVE_ZONE_TAGUIG, 'label': 'Taguig City', 'short': 'Taguig City', 'rate': 60.0},
+    {
+        'id': LALAMOVE_ZONE_NEIGHBORING,
+        'label': 'Neighboring Cities (Makati, Pasig, Pateros)',
+        'short': 'Neighboring Cities',
+        'rate': 90.0,
+    },
+    {
+        'id': LALAMOVE_ZONE_METRO_MANILA,
+        'label': 'Rest of Metro Manila',
+        'short': 'Rest of Metro Manila',
+        'rate': 150.0,
+    },
+    {
+        'id': LALAMOVE_ZONE_NEARBY_PROVINCES,
+        'label': 'Nearby Provinces (Rizal, Cavite, Laguna, Bulacan)',
+        'short': 'Nearby Provinces',
+        'rate': 280.0,
+    },
+    {
+        'id': LALAMOVE_ZONE_OUTER_PROVINCIAL,
+        'label': 'Outer Provincial',
+        'short': 'Outer Provincial',
+        'rate': 450.0,
+    },
 ]
-# Kept for backwards compatibility (motorcycle tier rate).
-MOTORCYCLE_SHIPPING_FEE = 120.0
-LARGE_CUP_SIZES = {'16oz', '22oz'}
-LARGE_CUP_IDS = {'cup-16oz', 'cup-22oz'}
+LALAMOVE_ZONE_RATES = {zone['id']: zone['rate'] for zone in LALAMOVE_ZONE_OPTIONS}
+LALAMOVE_ZONE_LABELS = {zone['id']: zone['label'] for zone in LALAMOVE_ZONE_OPTIONS}
+# Compact labels used in fee/summary lines (e.g. 'Lalamove (Neighboring Cities)').
+LALAMOVE_ZONE_SHORT_LABELS = {zone['id']: zone['short'] for zone in LALAMOVE_ZONE_OPTIONS}
+# Free-text city/area fallbacks so a typed location still lands in the right
+# zone (legacy orders stored the address only, without a zone id).
+LALAMOVE_ZONE_ALIASES = {
+    'taguig': LALAMOVE_ZONE_TAGUIG,
+    LALAMOVE_ZONE_TAGUIG: LALAMOVE_ZONE_TAGUIG,
+    'makati': LALAMOVE_ZONE_NEIGHBORING,
+    'pasig': LALAMOVE_ZONE_NEIGHBORING,
+    'pateros': LALAMOVE_ZONE_NEIGHBORING,
+    'neighboring': LALAMOVE_ZONE_NEIGHBORING,
+    LALAMOVE_ZONE_NEIGHBORING: LALAMOVE_ZONE_NEIGHBORING,
+    'manila': LALAMOVE_ZONE_METRO_MANILA,
+    'metro_manila': LALAMOVE_ZONE_METRO_MANILA,
+    'ncr': LALAMOVE_ZONE_METRO_MANILA,
+    'caloocan': LALAMOVE_ZONE_METRO_MANILA,
+    'las_pinas': LALAMOVE_ZONE_METRO_MANILA,
+    'malabon': LALAMOVE_ZONE_METRO_MANILA,
+    'mandaluyong': LALAMOVE_ZONE_METRO_MANILA,
+    'marikina': LALAMOVE_ZONE_METRO_MANILA,
+    'muntinlupa': LALAMOVE_ZONE_METRO_MANILA,
+    'navotas': LALAMOVE_ZONE_METRO_MANILA,
+    'paranaque': LALAMOVE_ZONE_METRO_MANILA,
+    'pasay': LALAMOVE_ZONE_METRO_MANILA,
+    'quezon_city': LALAMOVE_ZONE_METRO_MANILA,
+    'san_juan': LALAMOVE_ZONE_METRO_MANILA,
+    'valenzuela': LALAMOVE_ZONE_METRO_MANILA,
+    LALAMOVE_ZONE_METRO_MANILA: LALAMOVE_ZONE_METRO_MANILA,
+    'rizal': LALAMOVE_ZONE_NEARBY_PROVINCES,
+    'antipolo': LALAMOVE_ZONE_NEARBY_PROVINCES,
+    'cainta': LALAMOVE_ZONE_NEARBY_PROVINCES,
+    'cavite': LALAMOVE_ZONE_NEARBY_PROVINCES,
+    'laguna': LALAMOVE_ZONE_NEARBY_PROVINCES,
+    'bulacan': LALAMOVE_ZONE_NEARBY_PROVINCES,
+    LALAMOVE_ZONE_NEARBY_PROVINCES: LALAMOVE_ZONE_NEARBY_PROVINCES,
+    'provincial': LALAMOVE_ZONE_OUTER_PROVINCIAL,
+    'outer': LALAMOVE_ZONE_OUTER_PROVINCIAL,
+    LALAMOVE_ZONE_OUTER_PROVINCIAL: LALAMOVE_ZONE_OUTER_PROVINCIAL,
+}
+# Per-box item surcharges: the first box rides at a fixed rate, every
+# succeeding box adds P2 (cups: 5 + (n-1) * 2, lids: 3 + (n-1) * 2).
+CUP_BOX_SURCHARGE_FIRST = 5.0
+CUP_BOX_SURCHARGE_ADDITIONAL = 2.0
+LID_BOX_SURCHARGE_FIRST = 3.0
+LID_BOX_SURCHARGE_ADDITIONAL = 2.0
 
 # Delivery Method options for the cart checkout flow.
-#   standard     -> Standard Delivery (Ship via Pack & Sip Courier):
-#                   the existing content-aware box-tier logic (P120-P1200).
+#   standard     -> Lalamove Delivery (Local Courier Rates):
+#                   base location rate from Taguig + cup/lid box surcharges.
+#                   The stored key stays 'standard' so existing orders keep
+#                   resolving; only the customer-facing label changed.
 #   self_booking -> Customer Self-Booking / Warehouse Pick-up:
 #                   Shipping Fee is always P0.00 (the customer books their own
 #                   rider, e.g. Lalamove/Grab, once the order is Ready for Pick-up).
 DELIVERY_METHOD_STANDARD = 'standard'
 DELIVERY_METHOD_SELF_BOOKING = 'self_booking'
-STANDARD_DELIVERY_LABEL = 'Standard Delivery (Ship via Pack & Sip Courier)'
+STANDARD_DELIVERY_LABEL = LALAMOVE_DELIVERY_LABEL
 SELF_BOOKING_DELIVERY_LABEL = 'Customer Self-Booking / Warehouse Pick-up'
 SELF_BOOKING_SHIPPING_LABEL = 'Customer Self-Booking'
 SELF_BOOKING_STATUS = 'Ready for Pick-up'
@@ -90,7 +179,7 @@ SELF_BOOKING_ALIASES = {
 
 
 def normalize_delivery_method(value):
-    """Return the canonical Delivery Method key (defaults to Standard Delivery)."""
+    """Return the canonical Delivery Method key (defaults to Lalamove Delivery)."""
     method = str(value or '').strip().lower()
     return DELIVERY_METHOD_SELF_BOOKING if method in SELF_BOOKING_ALIASES else DELIVERY_METHOD_STANDARD
 
@@ -108,31 +197,14 @@ def delivery_method_label(value):
 def apply_delivery_method(shipping_fee, shipping_label, is_dynamic_cod, delivery_method):
     """Apply the selected Delivery Method to a computed courier fee.
 
-    Standard Delivery keeps the content-aware box-tier fee (P120-P1200), while
-    Customer Self-Booking / Warehouse Pick-up always ships at P0.00 because the
-    customer books their own rider (Lalamove/Grab) once the order is marked
-    'Ready for Pick-up'.
+    Lalamove Delivery (Local Courier Rates) keeps the zone-based fee (Taguig
+    base rate + cup/lid box surcharges), while Customer Self-Booking /
+    Warehouse Pick-up always ships at P0.00 because the customer books their own
+    rider (Lalamove/Grab) once the order is marked 'Ready for Pick-up'.
     """
     if is_self_booking(delivery_method):
         return 0.0, SELF_BOOKING_SHIPPING_LABEL, False
     return float(shipping_fee or 0), shipping_label, is_dynamic_cod
-
-
-def _is_large_cup_size(cup_size):
-    """True when the cup size string denotes a bulky 16oz/22oz box."""
-    return str(cup_size or '').strip().lower() in LARGE_CUP_SIZES
-
-
-def _is_large_cup_id(cup_id):
-    """True when the cup product id denotes a bulky 16oz/22oz box."""
-    return str(cup_id or '').strip().lower() in LARGE_CUP_IDS
-
-
-def _normalize_has_large_cups(value):
-    """Normalize bool/str/int flag for 'order contains 16oz or 22oz cups'."""
-    if isinstance(value, str):
-        return value.strip().lower() in ('1', 'true', 'yes', 'y', 'on', '16oz', '22oz')
-    return bool(value)
 
 
 def _parse_box_count(value):
@@ -143,173 +215,84 @@ def _parse_box_count(value):
         return 0
 
 
-def _parse_large_cup_boxes(value):
-    """Parse the 16oz/22oz cup box count defensively.
+def normalize_delivery_zone(value):
+    """Return the canonical Lalamove shipping zone id (defaults to Taguig)."""
+    zone = str(value or '').strip().lower().replace('-', '_').replace(' ', '_')
+    if zone in LALAMOVE_ZONE_RATES:
+        return zone
+    return LALAMOVE_ZONE_ALIASES.get(zone, LALAMOVE_DEFAULT_ZONE)
 
-    Returns None when the value is missing/blank (unknown — fall back to the
-    has_large_cups flag / cup size / cup id signals instead of assuming 0).
+
+def delivery_zone_label(value):
+    """Human-readable label for a Lalamove shipping zone."""
+    return LALAMOVE_ZONE_LABELS[normalize_delivery_zone(value)]
+
+
+def delivery_zone_short_label(value):
+    """Compact zone label used in fee/summary lines."""
+    return LALAMOVE_ZONE_SHORT_LABELS[normalize_delivery_zone(value)]
+
+
+def cup_box_surcharge(cup_boxes):
+    """Cup box surcharge: first box P5.00, every succeeding box +P2.00."""
+    cups = _parse_box_count(cup_boxes)
+    if cups <= 0:
+        return 0.0
+    return CUP_BOX_SURCHARGE_FIRST + (cups - 1) * CUP_BOX_SURCHARGE_ADDITIONAL
+
+
+def lid_box_surcharge(lid_boxes):
+    """Lid box surcharge: first box P3.00, every succeeding box +P2.00."""
+    lids = _parse_box_count(lid_boxes)
+    if lids <= 0:
+        return 0.0
+    return LID_BOX_SURCHARGE_FIRST + (lids - 1) * LID_BOX_SURCHARGE_ADDITIONAL
+
+
+def get_lalamove_shipping_fee(zone, cup_boxes=0, lid_boxes=0):
+    """Return (fee, label, breakdown) for a Lalamove delivery from Taguig.
+
+    Total Shipping Fee = Base Location Rate + Cup Surcharge + Lid Surcharge.
+    Microwavables never add a base rate or a surcharge (subtotal only).
     """
-    if value is None:
-        return None
-    if isinstance(value, str) and value.strip() == '':
-        return None
-    try:
-        return max(0, int(float(value)))
-    except (TypeError, ValueError):
-        return None
+    zone_key = normalize_delivery_zone(zone)
+    base_rate = LALAMOVE_ZONE_RATES[zone_key]
+    cup_fee = cup_box_surcharge(cup_boxes)
+    lid_fee = lid_box_surcharge(lid_boxes)
+    fee = round(base_rate + cup_fee + lid_fee, 2)
+    zone_short = delivery_zone_short_label(zone_key)
+    label = '%s (%s)' % (LALAMOVE_SHIPPING_LABEL, zone_short)
+    breakdown = {
+        'zone': zone_key,
+        'zone_label': zone_short,
+        'base_rate': base_rate,
+        'cup_boxes': _parse_box_count(cup_boxes),
+        'cup_surcharge': cup_fee,
+        'lid_boxes': _parse_box_count(lid_boxes),
+        'lid_surcharge': lid_fee,
+        'fee': fee,
+    }
+    return fee, label, breakdown
 
 
-def is_motorcycle_eligible(cup_boxes=0, lid_boxes=0, microwavable_boxes=0,
-                           small_cup_boxes=None, large_cup_boxes=None):
-    """Motorcycle (P120) is allowed ONLY for these small cup/lid-only orders.
-
-    - Max 2 boxes of 12oz cups ONLY (no lids, no 16oz/22oz).
-    - Max 1 box of 16oz or 22oz cups ONLY (>= 2 boxes auto-upgrades to Sedan).
-    - Max 1 cup box + 1 lid box combined (2 boxes total).
-    - Max 3 boxes of lids ONLY (no cups).
-    Microwavables are EXCLUDED from vehicle assignment: they are ignored here
-    (never disqualify Motorcycle, never count toward the box totals).
-    When the per-size split is known (small_cup_boxes / large_cup_boxes), the
-    cups-only branches use it strictly: pure 12oz <= 2, or pure 16oz/22oz <= 1.
-    When the split is unknown (legacy single-size orders), fall back to the
-    total cup count so 1-2 cup-only boxes still ride Motorcycle.
-    """
-    cup_boxes = _parse_box_count(cup_boxes)
-    lid_boxes = _parse_box_count(lid_boxes)
-    # Microwavables excluded from vehicle assignment — ignore entirely.
-    if cup_boxes == 0 and 1 <= lid_boxes <= 3:
-        return True
-    if cup_boxes == 1 and lid_boxes == 1:
-        return True
-    if lid_boxes == 0 and cup_boxes >= 1 and cup_boxes <= 2:
-        # Strict per-size check when the split is available.
-        if small_cup_boxes is not None or large_cup_boxes is not None:
-            small = _parse_box_count(small_cup_boxes)
-            large = _parse_box_count(large_cup_boxes)
-            # Pure 12oz, max 2 boxes.
-            if large == 0 and 1 <= small <= 2 and small == cup_boxes:
-                return True
-            # Pure 16oz/22oz, max 1 box.
-            if small == 0 and large == 1 and large == cup_boxes:
-                return True
-            return False
-        return True
-    return False
-
-
-def is_sedan_upgrade(total_boxes=0, cup_boxes=0, lid_boxes=0, has_large_cups=False,
-                     large_cup_boxes=None):
-    """Sedan (P250) upgrade triggers.
-
-    - 2 or more boxes of 16oz or 22oz cups are ordered.
-    - Combined cups + lids total exceeds 3 boxes.
-    - Overall box count is between 4 and 8 boxes (handled by volume tier,
-       but reported here for clarity).
-    """
-    try:
-        total_boxes = int(total_boxes or 0)
-    except (TypeError, ValueError):
-        total_boxes = 0
-    try:
-        cups_lids = int(cup_boxes or 0) + int(lid_boxes or 0)
-    except (TypeError, ValueError):
-        cups_lids = 0
-    large_count = _parse_large_cup_boxes(large_cup_boxes)
-    if large_count is None:
-        # Split unknown: any 16oz/22oz presence + 2+ cups implies 2+ large boxes.
-        try:
-            cup_total = int(cup_boxes or 0)
-        except (TypeError, ValueError):
-            cup_total = 0
-        if _normalize_has_large_cups(has_large_cups) and cup_total >= 2:
-            return True
-    elif large_count >= 2:
-        return True
-    if cups_lids > 3:
-        return True
-    if 4 <= total_boxes <= 8:
-        return True
-    return False
-
-
-def get_shipping_tier(total_boxes, cup_boxes=0, lid_boxes=0, microwavable_boxes=0,
-                      has_large_cups=False, cup_size=None, cup_id=None,
-                      small_cup_boxes=None, large_cup_boxes=None):
-    """Return (fee, vehicle_label, is_dynamic_cod) for an order.
-
-    Content-aware + volume tiers. The third element is always False (kept
-    only for backwards compatibility — 41+ boxes is now a P1200 Large Truck,
-    never a dynamic-COD flag).
-    """
-    try:
-        cup_boxes = int(cup_boxes or 0)
-    except (TypeError, ValueError):
-        cup_boxes = 0
-    try:
-        lid_boxes = int(lid_boxes or 0)
-    except (TypeError, ValueError):
-        lid_boxes = 0
-    try:
-        microwavable_boxes = int(microwavable_boxes or 0)
-    except (TypeError, ValueError):
-        microwavable_boxes = 0
-    try:
-        total_boxes = int(total_boxes or 0)
-    except (TypeError, ValueError):
-        total_boxes = 0
-    # Normalize the per-size split (None = unknown → size/id/flag fallback).
-    small_split = _parse_large_cup_boxes(small_cup_boxes)
-    large_split = _parse_large_cup_boxes(large_cup_boxes)
-    # Vehicle assignment uses CUPS + LIDS ONLY — microwavables excluded.
-    breakdown_total = cup_boxes + lid_boxes
-    # Prefer the authoritative per-category breakdown whenever provided.
-    total = breakdown_total if breakdown_total > 0 else total_boxes
-    # If the caller passed a combined total that includes microwavables,
-    # subtract them back out so tiers are computed on cups + lids only.
-    if breakdown_total <= 0 and microwavable_boxes > 0 and total_boxes > 0:
-        total = max(0, total_boxes - microwavable_boxes)
-    if total <= 0:
-        return 0.0, '—', False
-    large = (
-        _normalize_has_large_cups(has_large_cups)
-        or _is_large_cup_size(cup_size)
-        or _is_large_cup_id(cup_id)
-        or (large_split is not None and large_split > 0)
-    )
-    # Effective large-cup box count: explicit split wins; otherwise infer from
-    # the single-size signals (a 16oz/22oz cup row means ALL cup boxes are large).
-    effective_large = large_split
-    if effective_large is None:
-        if cup_boxes > 0 and (_is_large_cup_size(cup_size) or _is_large_cup_id(cup_id)):
-            effective_large = cup_boxes
-        elif _normalize_has_large_cups(has_large_cups):
-            effective_large = cup_boxes if cup_boxes > 0 else 1
-        else:
-            effective_large = 0
-    # Effective small-cup (12oz) box count: explicit split wins; otherwise the
-    # remainder of cup boxes not counted as large (so 2x12oz → small=2).
-    effective_small = small_split
-    if effective_small is None:
-        effective_small = max(0, cup_boxes - (effective_large or 0))
-    if total >= 41:
-        return 1200.0, 'Large Truck', False
-    if total >= 19:
-        return 600.0, 'L300 / Medium Truck', False
-    if total >= 9:
-        return 400.0, 'MPV / Small Van', False
-    if total >= 4:
-        return 250.0, 'Sedan', False
-    # 1-3 boxes: content-aware motorcycle vs sedan.
-    if is_sedan_upgrade(total, cup_boxes, lid_boxes, large, effective_large):
-        return 250.0, 'Sedan', False
-    if is_motorcycle_eligible(cup_boxes, lid_boxes, microwavable_boxes,
-                              small_cup_boxes=effective_small,
-                              large_cup_boxes=effective_large):
-        return 120.0, 'Motorcycle', False
-    # Fallback: any other small cups+lids order (e.g. 3x 12oz cups-only,
-    # 1 cup + 2 lids) rides Sedan — never Motorcycle, never free.
-    # (Microwavables are excluded from this decision entirely.)
-    return 250.0, 'Sedan', False
+def shipping_breakdown_text(breakdown):
+    """Invoice-friendly Lalamove breakdown: base location rate + item surcharges."""
+    if not breakdown:
+        return ''
+    parts = ['%s base P%.2f' % (breakdown['zone_label'], breakdown['base_rate'])]
+    if breakdown['cup_boxes'] > 0:
+        parts.append('cups %d box%s P%.2f' % (
+            breakdown['cup_boxes'],
+            '' if breakdown['cup_boxes'] == 1 else 'es',
+            breakdown['cup_surcharge'],
+        ))
+    if breakdown['lid_boxes'] > 0:
+        parts.append('lids %d box%s P%.2f' % (
+            breakdown['lid_boxes'],
+            '' if breakdown['lid_boxes'] == 1 else 'es',
+            breakdown['lid_surcharge'],
+        ))
+    return ' + '.join(parts)
 
 
 def is_gmail_app_password(password):
@@ -468,6 +451,9 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
         <p class="meta-value">Date: {{ order_date }}</p>
         <p class="meta-value">Delivery Method: {{ delivery_method_display }}</p>
         <p class="meta-value">Fulfillment Mode: {{ fulfillment_mode }}</p>
+        {% if not is_self_booking %}
+        <p class="meta-value">Lalamove Delivery Area: {{ delivery_zone_label }}</p>
+        {% endif %}
       </td>
     </tr>
   </table>
@@ -491,7 +477,7 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
           {% if is_self_booking %}
           <tr><td class="label">Shipping Fee</td><td class="value">{{ shipping_display }}</td></tr>
           {% else %}
-          <tr><td class="label">Shipping ({{ shipping_label }}) — {{ total_boxes }} box{{ 'es' if total_boxes != 1 else '' }} (cups + lids; microwavables excluded)</td><td class="value">{{ shipping_display }}</td></tr>
+          <tr><td class="label">Shipping Fee — {{ shipping_detail }}</td><td class="value">{{ shipping_display }}</td></tr>
           {% endif %}
           <tr><td class="label">Tax</td><td class="value">P{{ "%.2f"|format(tax_fee) }}</td></tr>
           <tr class="total-due"><td class="label"><strong>Grand Total (Subtotal + Shipping + Tax)</strong></td><td class="value">P{{ "%.2f"|format(total_due) }}</td></tr>
@@ -500,7 +486,7 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
           {% if is_self_booking %}
           <tr class="payment-row"><td class="label">Shipping Fee (Customer Self-Booking — no courier fee)</td><td class="value">P0.00</td></tr>
           {% else %}
-          <tr class="payment-row"><td class="label">Shipping Fee ({{ shipping_label }} — paid 100% upfront)</td><td class="value">P{{ "%.2f"|format(shipping_fee) }}</td></tr>
+          <tr class="payment-row"><td class="label">Shipping Fee ({{ shipping_detail }} — paid 100% upfront)</td><td class="value">P{{ "%.2f"|format(shipping_fee) }}</td></tr>
           {% endif %}
           <tr class="payment-due"><td class="label"><strong>Initial Amount Due Now (Downpayment + Full Shipping)</strong></td><td class="value">P{{ "%.2f"|format(amount_due_now) }}</td></tr>
           <tr class="payment-balance"><td class="label"><strong>Remaining Balance (on delivery)</strong></td><td class="value">P{{ "%.2f"|format(remaining_balance) }}</td></tr>
@@ -509,7 +495,7 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
           {% if is_self_booking %}
           <tr class="payment-row"><td class="label">Shipping Fee (Customer Self-Booking — no courier fee)</td><td class="value">P0.00</td></tr>
           {% else %}
-          <tr class="payment-row"><td class="label">Shipping Fee ({{ shipping_label }} — paid 100% upfront)</td><td class="value">P{{ "%.2f"|format(shipping_fee) }}</td></tr>
+          <tr class="payment-row"><td class="label">Shipping Fee ({{ shipping_detail }} — paid 100% upfront)</td><td class="value">P{{ "%.2f"|format(shipping_fee) }}</td></tr>
           {% endif %}
           <tr class="payment-due"><td class="label"><strong>Initial Amount Due Now (Full Payment)</strong></td><td class="value">P{{ "%.2f"|format(amount_due_now) }}</td></tr>
           <tr class="payment-balance"><td class="label"><strong>Remaining Balance</strong></td><td class="value">P{{ "%.2f"|format(remaining_balance) }}</td></tr>
@@ -581,15 +567,17 @@ def _order_field_static(order, key, default=''):
         return default
 
 
-def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None, tax_fee=0.0, shipping_label=None, is_dynamic_cod=False, delivery_method=None):
+def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None, tax_fee=0.0, shipping_label=None, is_dynamic_cod=False, delivery_method=None, delivery_zone=None, shipping_breakdown=None):
     """Render the inline invoice template using dynamic order data.
 
     subtotal is strictly the sum of items (quantity * unit_price, INCLUDING
-    microwavables). shipping_fee defaults to the content-aware tier computed
-    on CUPS + LIDS ONLY (microwavables excluded from vehicle assignment):
-    1-3 boxes: Motorcycle P120 only for 12oz<=2 / 16oz-22oz<=1 / 1cup+1lid /
-    lids-only<=3, else Sedan P250; 4-8: P250 Sedan; 9-18: P400 MPV/Small Van;
-    19-40: P600 L300/Medium Truck; 41+: P1200 Large Truck);
+    microwavables). shipping_fee defaults to the Lalamove local courier fee
+    (origin: Taguig) for the order's delivery zone:
+    Base Location Rate (Taguig P60 / Neighboring Cities P90 / Rest of Metro
+    Manila P150 / Nearby Provinces P280 / Outer Provincial P450) + Cup box
+    surcharge (5 + (cup_boxes - 1) * 2) + Lid box surcharge
+    (3 + (lid_boxes - 1) * 2). Microwavables add neither a base rate nor a
+    surcharge — they are billed through the subtotal only.
     total_due = subtotal + shipping_fee + tax_fee.
     Payment breakdown:
       - Downpayment (50%): amount_due_now = (subtotal * 0.50) + FULL
@@ -597,8 +585,8 @@ def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None,
       - Full payment: amount_due_now = subtotal + FULL shipping_fee (+ tax),
         remaining_balance = 0.00.
     Delivery Method (cart checkout flow):
-      - 'standard'     -> Standard Delivery (Ship via Pack & Sip Courier): the
-        content-aware box-tier shipping fee above applies.
+      - 'standard'     -> Lalamove Delivery (Local Courier Rates): the
+        zone-based shipping fee above applies.
       - 'self_booking' -> Customer Self-Booking / Warehouse Pick-up: the
         Shipping Fee is forced to P0.00 and the invoice renders
         'Shipping Fee | P0.00 (Customer Self-Booking)'.
@@ -642,8 +630,9 @@ def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None,
         })
     subtotal = round(sum(item['line_total'] for item in items), 2)
     total_boxes = sum(item['quantity'] for item in items)
-    # Content-aware tier needs per-category boxes + cup sizeBulky signal.
-    # Re-derive from the order row so invoice regeneration matches checkout.
+    # Per-category box counts are re-derived from the order row so regenerated
+    # invoices match checkout. Only cups + lids drive the Lalamove fee —
+    # microwavables add neither a base location rate nor an item surcharge.
     try:
         inv_cup_boxes = int(_order_field_static(order, 'cup_boxes', 0) or 0)
     except (TypeError, ValueError):
@@ -652,33 +641,27 @@ def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None,
         inv_lid_boxes = int(_order_field_static(order, 'lid_boxes', 0) or 0)
     except (TypeError, ValueError):
         inv_lid_boxes = 0
-    try:
-        inv_micro_boxes = int(_order_field_static(order, 'microwavable_boxes', 0) or 0)
-    except (TypeError, ValueError):
-        inv_micro_boxes = 0
-    inv_cup_size = _order_field_static(order, 'cup_size', '')
-    # Cups + lids drive the vehicle tier; microwavables are excluded from the
-    # tier decision (but still appear as invoice line items + in the subtotal).
-    vehicle_boxes = inv_cup_boxes + inv_lid_boxes
-    # Delivery Method for this invoice: an explicit argument (checkout flow) wins,
-    # otherwise fall back to the value stored on the order row.
+    # Delivery Method / Delivery Zone for this invoice: an explicit argument
+    # (checkout flow) wins, otherwise fall back to the stored order row.
     if delivery_method is None:
         delivery_method = _order_field_static(order, 'delivery_method', '')
     delivery_method = normalize_delivery_method(delivery_method)
     self_booking = is_self_booking(delivery_method)
-    if shipping_fee is None or shipping_label is None:
-        tier_fee, tier_label, tier_dynamic = get_shipping_tier(
-            vehicle_boxes,
+    if delivery_zone is None:
+        delivery_zone = _order_field_static(order, 'delivery_zone', '')
+    delivery_zone = normalize_delivery_zone(delivery_zone)
+    if shipping_fee is None or shipping_label is None or shipping_breakdown is None:
+        lalamove_fee, lalamove_label, lalamove_breakdown = get_lalamove_shipping_fee(
+            delivery_zone,
             cup_boxes=inv_cup_boxes,
             lid_boxes=inv_lid_boxes,
-            microwavable_boxes=inv_micro_boxes,
-            has_large_cups=_is_large_cup_size(inv_cup_size),
         )
         if shipping_fee is None:
-            shipping_fee = tier_fee
+            shipping_fee = lalamove_fee
         if shipping_label is None:
-            shipping_label = tier_label
-            is_dynamic_cod = tier_dynamic
+            shipping_label = lalamove_label
+        if shipping_breakdown is None:
+            shipping_breakdown = lalamove_breakdown
     # Customer Self-Booking / Warehouse Pick-up always ships at P0.00: the
     # customer books their own rider (Lalamove/Grab) once the order status is
     # updated to 'Ready for Pick-up'.
@@ -686,15 +669,15 @@ def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None,
         shipping_fee, shipping_label, is_dynamic_cod, delivery_method
     )
     shipping_fee = round(float(shipping_fee or 0), 2)
-    if is_dynamic_cod:
-        # Legacy flag only — current tiers always prepay the full fee.
-        shipping_label = shipping_label or 'Large Truck'
-    else:
-        shipping_label = shipping_label or 'Motorcycle'
+    # The FULL Lalamove fee is always prepaid (the legacy dynamic-COD flag is
+    # reported only for backwards compatibility).
+    shipping_label = shipping_label or LALAMOVE_SHIPPING_LABEL
+    shipping_detail = shipping_breakdown_text(shipping_breakdown)
     if self_booking:
         shipping_label = SELF_BOOKING_SHIPPING_LABEL
         is_dynamic_cod = False
         shipping_display = 'P0.00 (Customer Self-Booking)'
+        shipping_detail = 'no courier fee — customer books their own rider'
     else:
         shipping_display = 'P%.2f' % shipping_fee
     tax_fee = round(float(tax_fee or 0), 2)
@@ -743,10 +726,13 @@ def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None,
             shipping_fee=shipping_fee,
             shipping_label=shipping_label,
             shipping_display=shipping_display,
+            shipping_detail=shipping_detail,
             total_boxes=total_boxes,
             is_dynamic_cod=is_dynamic_cod,
             delivery_method=delivery_method,
             delivery_method_display=delivery_method_label(delivery_method),
+            delivery_zone=delivery_zone,
+            delivery_zone_label=delivery_zone_label(delivery_zone),
             is_self_booking=self_booking,
             fulfillment_mode=(SELF_BOOKING_DELIVERY_LABEL if self_booking else 'Lalamove Local Courier'),
             delivery_note=(SELF_BOOKING_NOTE if self_booking else ''),
@@ -865,6 +851,7 @@ def init_db():
             customer_phone TEXT NOT NULL,
             payment_method TEXT NOT NULL DEFAULT 'Cash on Delivery',
             delivery_method TEXT NOT NULL DEFAULT 'standard',
+            delivery_zone TEXT NOT NULL DEFAULT 'taguig_city',
             status TEXT NOT NULL DEFAULT 'Pending',
             cup_id TEXT,
             cup_size TEXT,
@@ -900,9 +887,14 @@ def init_db():
     if 'payment_status' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'Pending Downpayment'")
     if 'delivery_method' not in order_columns:
-        # Delivery Method: 'standard' (Pack & Sip courier, box-tier fee) or
-        # 'self_booking' (Customer Self-Booking / Warehouse Pick-up, P0.00).
+        # Delivery Method: 'standard' (Lalamove Delivery — local courier rates)
+        # or 'self_booking' (Customer Self-Booking / Warehouse Pick-up, P0.00).
         cursor.execute("ALTER TABLE orders ADD COLUMN delivery_method TEXT NOT NULL DEFAULT 'standard'")
+    if 'delivery_zone' not in order_columns:
+        # Lalamove destination zone ('taguig_city' — the origin area — when
+        # unknown). The base location rate and the cup/lid box surcharges are
+        # derived from it.
+        cursor.execute("ALTER TABLE orders ADD COLUMN delivery_zone TEXT NOT NULL DEFAULT 'taguig_city'")
     if 'user_id' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES users(id)")
     if 'total_amount' not in order_columns:
@@ -1196,7 +1188,16 @@ def index():
     canonical tag consolidates the two URLs into a single one.
     """
     site_url = get_site_base_url()
-    return render_template('index.html', site_url=site_url, canonical_url=site_url + '/')
+    # The City/Location <select> is rendered from the same Lalamove zone table
+    # the API bills against, so the storefront estimate cannot drift.
+    return render_template(
+        'index.html',
+        site_url=site_url,
+        canonical_url=site_url + '/',
+        lalamove_zones=LALAMOVE_ZONE_OPTIONS,
+        lalamove_origin=LALAMOVE_ORIGIN,
+        lalamove_note=LALAMOVE_DELIVERY_NOTE,
+    )
 
 
 @app.route('/sitemap.xml')
@@ -1273,7 +1274,8 @@ def get_admin_orders():
             total_amount,
             status,
             payment_status,
-            COALESCE(delivery_method, 'standard') AS delivery_method
+            COALESCE(delivery_method, 'standard') AS delivery_method,
+            COALESCE(delivery_zone, 'taguig_city') AS delivery_zone
         FROM orders
         ORDER BY created_at DESC, id DESC
     ''').fetchall()
@@ -1339,9 +1341,9 @@ def update_order_status(order_id):
 def admin_ship_order(order_id):
     """Verify payment receipt and mark the order ready for fulfillment.
 
-    Standard Delivery orders are marked 'Shipping'; Customer Self-Booking /
-    Warehouse Pick-up orders are marked 'Ready for Pick-up' instead (no Pack &
-    Sip courier is booked — the customer arranges their own rider).
+    Lalamove Delivery orders are marked 'Shipping'; Customer Self-Booking /
+    Warehouse Pick-up orders are marked 'Ready for Pick-up' instead (no courier
+    is booked — the customer arranges their own rider).
     """
     conn = get_db()
     order = conn.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
@@ -1381,7 +1383,8 @@ def admin_ship_order(order_id):
             f"We have verified your payment proof for Pack & Sip order #{order_id}.\n"
             f"Your payment status is now Verified, and your order status is updated to Shipping.\n\n"
             f"Your package has been prepared and dispatched to your shipping address via a Lalamove driver delivery.\n\n"
-            f"Shipping address:\n{order['customer_address']}\n\n"
+            f"Shipping address:\n{order['customer_address']}\n"
+            f"Lalamove delivery area: {delivery_zone_label(_order_field_static(order, 'delivery_zone', ''))}\n\n"
             f"Order Details:\n"
             f"{order_items_text(order)}\n\n"
             f"Total Amount: ₱{order['total_amount']:.2f}\n"
@@ -1427,7 +1430,7 @@ def calculate_cart():
     except Exception:
         microwavable_boxes = 0
 
-    # Delivery Method: 'standard' keeps the box tier (P120-P1200);
+    # Delivery Method: 'standard' = Lalamove Delivery (Local Courier Rates);
     # 'self_booking' ships at P0.00 (customer books their own rider).
     delivery_method = normalize_delivery_method(data.get('delivery_method'))
 
@@ -1464,48 +1467,22 @@ def calculate_cart():
             subtotal += line_total
 
     subtotal = round(subtotal, 2)
-    # Content-aware tier: box breakdown + per-size 12oz vs 16oz/22oz split.
-    # Vehicle assignment uses CUPS + LIDS ONLY — microwavables excluded.
+    # Lalamove Delivery fee (origin: Taguig) = destination base rate + cup/lid
+    # box surcharges. Microwavables add neither a base rate nor a surcharge, so
+    # only cups + lids feed the fee.
     total_boxes = cup_boxes + lid_boxes + microwavable_boxes
-    vehicle_boxes = cup_boxes + lid_boxes
-    cup_row = None
-    if cup_id and cup_boxes > 0:
-        cup_row = conn.execute('SELECT size FROM products WHERE id = ?', (cup_id,)).fetchone()
-    cup_size_db = cup_row['size'] if cup_row and cup_row['size'] else None
-    has_large = (
-        _is_large_cup_id(cup_id) if (cup_id and cup_boxes > 0)
-        else False
-    ) or (
-        _is_large_cup_size(cup_size_db) if cup_size_db else False
-    )
-    if str(data.get('has_large_cups') or '').strip() != '':
-        has_large = has_large or _normalize_has_large_cups(data.get('has_large_cups'))
-    # Per-size split: explicit counts win; otherwise infer (a 16oz/22oz cup row
-    # means ALL cup boxes are large, a 12oz row means ALL are small).
-    small_split = _parse_large_cup_boxes(data.get('small_cup_boxes'))
-    large_split = _parse_large_cup_boxes(data.get('large_cup_boxes'))
-    if small_split is None and large_split is None and cup_boxes > 0:
-        if _is_large_cup_size(cup_size_db) or _is_large_cup_id(cup_id):
-            small_split, large_split = 0, cup_boxes
-        elif not has_large:
-            small_split, large_split = cup_boxes, 0
-    shipping, shipping_label, is_dynamic_cod = get_shipping_tier(
-        vehicle_boxes,
+    delivery_zone = normalize_delivery_zone(data.get('delivery_zone'))
+    shipping, shipping_label, shipping_breakdown = get_lalamove_shipping_fee(
+        delivery_zone,
         cup_boxes=cup_boxes,
         lid_boxes=lid_boxes,
-        microwavable_boxes=microwavable_boxes,
-        has_large_cups=has_large,
-        cup_id=cup_id if cup_boxes > 0 else None,
-        cup_size=cup_size_db,
-        small_cup_boxes=small_split,
-        large_cup_boxes=large_split,
     )
     if subtotal <= 0:
-        shipping, shipping_label, is_dynamic_cod = 0.0, '—', False
-    # Delivery Method: Standard Delivery keeps the content-aware box tier;
+        shipping, shipping_label, shipping_breakdown = 0.0, '—', None
+    # Delivery Method: Lalamove Delivery keeps the zone-based fee;
     # Customer Self-Booking / Warehouse Pick-up always ships at P0.00.
     shipping, shipping_label, is_dynamic_cod = apply_delivery_method(
-        shipping, shipping_label, is_dynamic_cod, delivery_method
+        shipping, shipping_label, False, delivery_method
     )
     shipping = round(shipping, 2)
     shipping_display = 'P%.2f' % shipping
@@ -1513,7 +1490,6 @@ def calculate_cart():
         shipping_display = 'P0.00 (Customer Self-Booking)'
     total = round(subtotal + shipping, 2)
 
-    # Close the read-only connection only after the per-size cup lookup above.
     conn.close()
 
     return jsonify({
@@ -1522,10 +1498,13 @@ def calculate_cart():
         "shipping": shipping,
         "shipping_label": shipping_label,
         "shipping_display": shipping_display,
+        "shipping_breakdown": shipping_breakdown_text(shipping_breakdown),
         "total_boxes": total_boxes,
         "is_dynamic_cod": is_dynamic_cod,
         "delivery_method": delivery_method,
         "delivery_method_label": delivery_method_label(delivery_method),
+        "delivery_zone": delivery_zone,
+        "delivery_zone_label": delivery_zone_label(delivery_zone),
         "total": total
     })
 
@@ -1550,8 +1529,11 @@ def process_checkout():
     payment_method = (data.get('payment_method') or '').strip()
     if not payment_method:
         payment_method = 'GCash (50% Downpayment)' if payment_type == '50_percent' else 'GCash (Full Payment)'
-    # Delivery Method radio group (defaults to Standard Delivery when absent).
+    # Delivery Method radio group (defaults to Lalamove Delivery when absent).
     delivery_method = normalize_delivery_method(data.get('delivery_method'))
+    # City / Location selector: drives the Lalamove destination base rate
+    # (origin: Taguig). Unknown/legacy submissions fall back to Taguig City.
+    delivery_zone = normalize_delivery_zone(data.get('delivery_zone'))
     user_id = session.get('user_id')
     cup_id = data.get('cup_id') or None
     lid_id = data.get('lid_id') or None
@@ -1623,55 +1605,34 @@ def process_checkout():
     subtotal += MICROWAVABLE_PRICE_PER_BOX * microwavable_boxes
 
     subtotal = round(subtotal, 2)
-    # Content-aware shipping tier based on box breakdown + cup size.
-    # FULL tier fee is always charged upfront, even for 50% downpayment:
-    #   Initial Amount Due = (Subtotal * 0.50) + Full Shipping Fee.
-    # Vehicle assignment uses CUPS + LIDS ONLY — microwavables excluded
-    # (they still count in the order subtotal/total, just not the vehicle).
+    # Lalamove Delivery fee (origin: Taguig) = destination base rate + cup/lid
+    # box surcharges. The FULL fee is always charged upfront, even for 50%
+    # downpayment: Initial Amount Due = (Subtotal * 0.50) + Full Shipping Fee.
+    # Microwavables add neither a base rate nor a surcharge (they still count in
+    # the order subtotal/total).
     total_boxes = cup_boxes + lid_boxes + microwavable_boxes
-    vehicle_boxes = cup_boxes + lid_boxes
-    checkout_large = (
-        _is_large_cup_size(cup_size)
-        or (_is_large_cup_id(cup_id) if cup_boxes > 0 else False)
-        or _normalize_has_large_cups(data.get('has_large_cups'))
-    )
-    # Per-size split: explicit counts win; otherwise infer from the cup row
-    # (legacy single-size orders carry one cup_size for all cup boxes).
-    co_small = _parse_large_cup_boxes(data.get('small_cup_boxes'))
-    co_large = _parse_large_cup_boxes(data.get('large_cup_boxes'))
-    if co_small is None and co_large is None and cup_boxes > 0:
-        if _is_large_cup_size(cup_size) or (_is_large_cup_id(cup_id) if cup_boxes > 0 else False):
-            co_small, co_large = 0, cup_boxes
-        elif not checkout_large:
-            co_small, co_large = cup_boxes, 0
-    shipping, shipping_label, is_dynamic_cod = get_shipping_tier(
-        vehicle_boxes,
+    shipping, shipping_label, shipping_breakdown = get_lalamove_shipping_fee(
+        delivery_zone,
         cup_boxes=cup_boxes,
         lid_boxes=lid_boxes,
-        microwavable_boxes=microwavable_boxes,
-        has_large_cups=checkout_large,
-        cup_size=cup_size,
-        cup_id=cup_id if cup_boxes > 0 else None,
-        small_cup_boxes=co_small,
-        large_cup_boxes=co_large,
     )
     if subtotal <= 0:
-        shipping, shipping_label, is_dynamic_cod = 0.0, '—', False
-    # Delivery Method: Standard Delivery (Ship via Pack & Sip Courier) keeps the
-    # content-aware box-tier fee; Customer Self-Booking / Warehouse Pick-up
-    # always ships at P0.00 (no Pack & Sip courier is booked).
+        shipping, shipping_label, shipping_breakdown = 0.0, '—', None
+    # Delivery Method: Lalamove Delivery (Local Courier Rates) keeps the
+    # zone-based fee; Customer Self-Booking / Warehouse Pick-up always ships at
+    # P0.00 (no courier is booked).
     shipping, shipping_label, is_dynamic_cod = apply_delivery_method(
-        shipping, shipping_label, is_dynamic_cod, delivery_method
+        shipping, shipping_label, False, delivery_method
     )
     shipping = round(shipping, 2)
     total = round(subtotal + shipping, 2)
     if payment_type == 'full':
-        # Full payment: everything (subtotal + FULL tier shipping) is due now.
+        # Full payment: everything (subtotal + FULL shipping) is due now.
         downpayment_amount = round(total, 2)
         remaining_balance = 0.0
         payment_status = 'Full Payment Pending'
     else:
-        # Downpayment (50%): initial due = (subtotal * 50%) + FULL tier shipping;
+        # Downpayment (50%): initial due = (subtotal * 50%) + FULL shipping;
         # remaining balance = subtotal * 50% (shipping already collected at 100%).
         downpayment_base = round(subtotal * 0.5, 2)
         downpayment_amount = round(downpayment_base + shipping, 2)
@@ -1690,9 +1651,9 @@ def process_checkout():
         created_at = datetime.datetime.utcnow().isoformat()
 
         cursor.execute('''
-            INSERT INTO orders (user_id, customer_name, email, customer_address, customer_phone, payment_method, delivery_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total_amount, downpayment_amount, remaining_balance, payment_status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, name, email, address, phone, payment_method, delivery_method, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total, downpayment_amount, remaining_balance, payment_status, created_at))
+            INSERT INTO orders (user_id, customer_name, email, customer_address, customer_phone, payment_method, delivery_method, delivery_zone, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total_amount, downpayment_amount, remaining_balance, payment_status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, name, email, address, phone, payment_method, delivery_method, delivery_zone, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total, downpayment_amount, remaining_balance, payment_status, created_at))
 
 
         order_id = cursor.lastrowid
@@ -1713,7 +1674,7 @@ def process_checkout():
 
     # Render the official B2B invoice HTML from dynamic order data and
     # convert it into a PDF byte stream for the email attachment.
-    # subtotal = sum(items); total_due = subtotal + tier shipping_fee.
+    # subtotal = sum(items); total_due = subtotal + Lalamove shipping_fee.
     invoice_filename = f"PackAndSip_Invoice_Order_{order_id}.pdf"
     try:
         invoice_html = render_invoice_html(
@@ -1722,6 +1683,8 @@ def process_checkout():
             shipping_label=shipping_label,
             is_dynamic_cod=is_dynamic_cod,
             delivery_method=delivery_method,
+            delivery_zone=delivery_zone,
+            shipping_breakdown=shipping_breakdown,
         )
         invoice_pdf_bytes = build_invoice_pdf(invoice_html)
     except Exception as e:
@@ -1759,6 +1722,9 @@ def process_checkout():
         "payment_method": payment_method,
         "delivery_method": delivery_method,
         "delivery_method_label": delivery_method_label(delivery_method),
+        "delivery_zone": delivery_zone,
+        "delivery_zone_label": delivery_zone_label(delivery_zone),
+        "shipping_breakdown": shipping_breakdown_text(shipping_breakdown),
         "shipping": shipping,
         "total": total,
         "downpayment_amount": downpayment_amount,

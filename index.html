@@ -75,7 +75,7 @@
         <p class="mt-4 text-slate-700">High-volume eco-friendly disposable drinkware. Bulk pricing for businesses and events.</p>
         <ul class="mt-4 text-sm text-slate-600">
           <li>• Boxes contain 1,250 units each</li>
-          <li>• Fast quoting and flat-rate shipping</li>
+          <li>• Lalamove courier delivery from our Taguig warehouse</li>
         </ul>
       </div>
       <div class="w-full md:w-1/3 bg-white rounded-lg shadow p-4">
@@ -197,7 +197,11 @@
       </div>
       <div class="mt-2 flex items-center justify-between text-sm text-slate-600">
         <span>Delivery Method</span>
-        <span id="confirmOrderDeliveryMethod" class="font-semibold text-slate-800">Standard Delivery</span>
+        <span id="confirmOrderDeliveryMethod" class="font-semibold text-slate-800">Lalamove Delivery</span>
+      </div>
+      <div class="mt-2 flex items-center justify-between text-sm text-slate-600">
+        <span>Delivery Area</span>
+        <span id="confirmOrderDeliveryZone" class="font-semibold text-slate-800">—</span>
       </div>
       <div class="mt-2 flex items-center justify-between text-sm font-semibold text-amber-700" id="confirmOrderFullRow">
         <span>Required Payment</span>
@@ -362,21 +366,33 @@
             <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
               <label for="customerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
               <textarea id="customerAddress" name="address" autocomplete="off" required title="Shipping Address" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
+              <!-- City / Location: drives the Lalamove destination base rate. The
+                   options (zone id + base rate) are rendered from app.py
+                   LALAMOVE_ZONE_OPTIONS so storefront and server always agree. -->
+              <label for="deliveryZone" class="block text-sm font-medium text-slate-700">City / Location</label>
+              <select id="deliveryZone" name="delivery_zone" onchange="calculate()" title="City / Location — Lalamove shipping origin: Taguig" class="payment-type-select">
+                <option value="" disabled selected>Select your city / area</option>
+                {% for zone in lalamove_zones %}
+                <option value="{{ zone.id }}" data-rate="{{ '%.2f'|format(zone.rate) }}" data-short="{{ zone.short }}">{{ zone.label }} — ₱{{ '%.2f'|format(zone.rate) }}</option>
+                {% endfor %}
+              </select>
+              <p class="delivery-method-hint" id="deliveryZoneNote">Estimated shipping rate calculated based on your location from Taguig + box quantity.</p>
             </div>
             <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
               <label for="customerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
               <input type="tel" id="customerPhone" name="phone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '');" required title="Phone Number" class="w-full rounded-md border-gray-200 p-1.5" />
             </div>
 
-            <!-- Delivery Method: Option A = Pack & Sip courier (box-tier fee);
+            <!-- Delivery Method: Option A = Lalamove Delivery (local courier
+                 rates: Taguig base rate + cup/lid box surcharges);
                  Option B = Customer Self-Booking / Warehouse Pick-up (P0.00). -->
             <fieldset class="payment-option-group delivery-method-group">
               <legend class="payment-type-label">Delivery Method</legend>
               <label class="delivery-method-option" for="deliveryMethodStandard">
-                <input type="radio" id="deliveryMethodStandard" name="delivery_method" value="standard" checked onchange="calculate()" title="Delivery Method: Standard Delivery (Ship via Pack &amp; Sip Courier)" />
+                <input type="radio" id="deliveryMethodStandard" name="delivery_method" value="standard" checked onchange="calculate()" title="Delivery Method: Lalamove Delivery (Local Courier Rates)" />
                 <span class="delivery-method-text">
-                  <span class="delivery-method-title">Standard Delivery (Ship via Pack &amp; Sip Courier)</span>
-                  <span class="delivery-method-hint">Courier fee follows the box-tier rate (₱120 – ₱1,200) for your order volume.</span>
+                  <span class="delivery-method-title">Lalamove Delivery (Local Courier Rates)</span>
+                  <span class="delivery-method-hint">Estimated shipping rate calculated based on your location from Taguig + box quantity.</span>
                 </span>
               </label>
               <label class="delivery-method-option" for="deliveryMethodSelfBooking">
