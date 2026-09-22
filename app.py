@@ -11,10 +11,16 @@ from xhtml2pdf import pisa
 from flask_cors import CORS
 from flask_mail import Mail, Message
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__, template_folder='.')
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'pack-sip-development-secret')
 CORS(app, supports_credentials=True)
+# Trust the X-Forwarded-Proto/Host headers of the hosting reverse proxy so that
+# request.host_url (used by the canonical URL, the Open Graph URL and the XML
+# sitemap) reports the public https:// address on free hosts such as Render or
+# PythonAnywhere instead of the internal http://127.0.0.1 address.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # Flask-Mail configuration for Gmail SMTP.
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -519,9 +525,9 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
     <p class="pay-title">PAYMENT INSTRUCTIONS</p>
     <table class="pay-cards">
       <tr>
-        <td><div class="pay-card"><p class="pay-card-title">GCash</p><p>Account: Pack &amp; Sip<br />0912 345 6789</p></div></td>
-        <td><div class="pay-card"><p class="pay-card-title">Maya</p><p>Account: Pack &amp; Sip<br />0912 345 6789</p></div></td>
-        <td class="last"><div class="pay-card"><p class="pay-card-title">BDO Bank Transfer</p><p>Account: Pack &amp; Sip<br />0012 3456 7890</p></div></td>
+        <td><div class="pay-card"><p class="pay-card-title">GCash</p><p>Account: Pack &amp; Sip<br />09221815599</p></div></td>
+        <td><div class="pay-card"><p class="pay-card-title">Maya</p><p>&nbsp;</p></div></td>
+        <td class="last"><div class="pay-card"><p class="pay-card-title">BDO Bank Transfer</p><p>&nbsp;</p></div></td>
       </tr>
     </table>
   </div>
@@ -1094,9 +1100,126 @@ def user_orders():
     return jsonify({'orders': [dict(order) for order in orders]})
 
 
+# ---------------------------------------------------------------------------
+# SEO assets: canonical base URL, public page list and the XML sitemap.
+# ---------------------------------------------------------------------------
+def get_site_base_url():
+    """Return the absolute site root (no trailing slash) used by SEO assets.
+
+    Resolution order:
+      1. The SITE_URL (or PUBLIC_BASE_URL) environment variable. Set this on a
+         free host such as Render / PythonAnywhere, or as soon as a custom
+         domain goes live, e.g. SITE_URL=https://packandsip.com . A missing
+         scheme is filled in with https:// so SITE_URL=packandsip.com works too.
+      2. request.host_url, so the same build also works on 127.0.0.1:5000,
+         <app>.onrender.com and <user>.pythonanywhere.com without any config.
+    """
+    configured = (os.getenv('SITE_URL') or os.getenv('PUBLIC_BASE_URL') or '').strip()
+    if configured:
+        if '://' not in configured:
+            configured = 'https://' + configured
+        return configured.rstrip('/')
+    return request.host_url.rstrip('/')
+
+
+# Public crawlable pages published in /sitemap.xml: (path, changefreq, priority).
+# The storefront is a single-page app, so the catalogue, configurator and
+# microwavable sections are all part of '/' and are not listed separately
+# ('#section' anchors are ignored by search engines and would only duplicate the
+# homepage). Any new public GET route is discovered automatically by
+# get_public_sitemap_pages(); add an entry here when it needs custom SEO values.
+SITEMAP_PAGES = (
+    ('/', 'weekly', '1.0'),
+)
+
+# Routes that must never be published even though they answer GET requests.
+SITEMAP_EXCLUDED_RULES = frozenset({
+    '/sitemap.xml',
+    '/robots.txt',
+    '/index.html',            # alias of '/'
+    '/manage-orders-ps.html',  # staff-only order dashboard
+    '/upload-receipt',        # order-specific receipt upload link
+})
+SITEMAP_EXCLUDED_PREFIXES = ('/api/', '/admin/', '/static/')
+
+
+def get_public_sitemap_pages():
+    """Return the public (path, changefreq, priority) entries for the sitemap.
+
+    Starts from SITEMAP_PAGES and appends every other GET route that is public
+    (no URL arguments, not an excluded admin/API/utility rule), so newly added
+    pages appear in the sitemap without further changes.
+    """
+    pages = [tuple(entry) for entry in SITEMAP_PAGES]
+    known = {path for path, _, _ in pages}
+    for rule in app.url_map.iter_rules():
+        path = rule.rule
+        if path in known or path in SITEMAP_EXCLUDED_RULES:
+            continue
+        if rule.arguments or path.startswith(SITEMAP_EXCLUDED_PREFIXES):
+            continue
+        if 'GET' not in (rule.methods or set()):
+            continue
+        # Discovered pages get conservative defaults until listed in SITEMAP_PAGES.
+        pages.append((path, 'monthly', '0.5'))
+    return pages
+
+
+def build_sitemap_xml():
+    """Build a valid sitemap.org XML document for the public storefront pages."""
+    base_url = get_site_base_url()
+    lastmod = datetime.date.today().isoformat()
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    for path, changefreq, priority in get_public_sitemap_pages():
+        lines.extend([
+            '  <url>',
+            f'    <loc>{html.escape(base_url + path, quote=True)}</loc>',
+            f'    <lastmod>{lastmod}</lastmod>',
+            f'    <changefreq>{changefreq}</changefreq>',
+            f'    <priority>{priority}</priority>',
+            '  </url>',
+        ])
+    lines.append('</urlset>')
+    return '\n'.join(lines)
+
+
 @app.route('/')
+@app.route('/index.html')
 def index():
-    return send_from_directory('.', 'index.html')
+    """Render the storefront with request-aware SEO metadata.
+
+    Both '/' and '/index.html' serve the same rendered page so the Jinja SEO
+    placeholders (canonical + Open Graph URL) are always resolved, and the
+    canonical tag consolidates the two URLs into a single one.
+    """
+    site_url = get_site_base_url()
+    return render_template('index.html', site_url=site_url, canonical_url=site_url + '/')
+
+
+@app.route('/sitemap.xml')
+def sitemap():
+    """Serve the dynamically generated XML sitemap of the public pages."""
+    return build_sitemap_xml(), 200, {'Content-Type': 'application/xml'}
+
+
+@app.route('/robots.txt')
+def robots_txt():
+    """Serve robots.txt pointing crawlers at the sitemap and hiding staff URLs."""
+    lines = [
+        'User-agent: *',
+        'Allow: /',
+        'Disallow: /admin/',
+        'Disallow: /api/',
+        'Disallow: /manage-orders-ps.html',
+        'Disallow: /upload-receipt',
+        '',
+        f'Sitemap: {get_site_base_url()}/sitemap.xml',
+        '',
+    ]
+    return '\n'.join(lines), 200, {'Content-Type': 'text/plain'}
 
 
 @app.route('/api/products', methods=['GET'])
@@ -1583,8 +1706,9 @@ def process_checkout():
     conn.close()
 
     email_subject = "Order Received - Pack & Sip"
-    # Construct base URL for the receipt upload link
-    base_url = request.host_url.rstrip('/')
+    # Construct base URL for the receipt upload link (SITE_URL-aware, falls
+    # back to the incoming request host).
+    base_url = get_site_base_url()
     upload_link = f"{base_url}/upload-receipt?order_id={order_id}"
 
     # Render the official B2B invoice HTML from dynamic order data and
