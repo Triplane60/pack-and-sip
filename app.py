@@ -1611,6 +1611,10 @@ SITEMAP_EXCLUDED_RULES = frozenset({
     '/robots.txt',
     '/index.html',            # alias of '/'
     '/manage-orders-ps.html',  # staff-only order dashboard
+    '/manage-orders',         # clean alias of the staff dashboard
+    '/manage-orders.html',    # legacy alias of the staff dashboard
+    '/admin',                 # clean alias of the staff dashboard
+    '/admin.html',            # legacy alias of the staff dashboard
     '/upload-receipt',        # order-specific receipt upload link
 })
 SITEMAP_EXCLUDED_PREFIXES = ('/api/', '/admin/', '/static/')
@@ -1694,8 +1698,12 @@ def robots_txt():
         'User-agent: *',
         'Allow: /',
         'Disallow: /admin/',
+        'Disallow: /admin',
+        'Disallow: /admin.html',
         'Disallow: /api/',
         'Disallow: /manage-orders-ps.html',
+        'Disallow: /manage-orders',
+        'Disallow: /manage-orders.html',
         'Disallow: /upload-receipt',
         '',
         f'Sitemap: {get_site_base_url()}/sitemap.xml',
@@ -1723,15 +1731,27 @@ def get_products():
     return jsonify({"products": result})
 
 
+@app.route('/manage-orders-ps.html', methods=['GET'])
+@app.route('/manage-orders.html', methods=['GET'])
+@app.route('/manage-orders', methods=['GET'])
+@app.route('/admin', methods=['GET'])
+@app.route('/admin.html', methods=['GET'])
+def admin_dashboard():
+    """Render the order management dashboard.
+
+    The canonical file on disk is ``manage-orders-ps.html``. The extra
+    ``/manage-orders``, ``/manage-orders.html``, ``/admin`` and
+    ``/admin.html`` aliases exist so footer links, bookmarks, and mobile
+    browsers that request the short names never hit the generic
+    ``/<path:filename>`` static handler (which would 404 when the file is
+    not found). All aliases render the same staff template.
+    """
+    return render_template('manage-orders-ps.html')
+
+
 @app.route('/<path:filename>')
 def serve_static(filename):
     return send_from_directory('.', filename)
-
-
-@app.route('/manage-orders-ps.html', methods=['GET'])
-def admin_dashboard():
-    """Render the order management dashboard."""
-    return render_template('manage-orders-ps.html')
 
 
 @app.route('/api/admin/orders', methods=['GET'])

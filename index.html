@@ -552,6 +552,10 @@
           <nav class="mt-3 flex flex-col gap-2 text-sm">
             <a href="#catalog" class="text-gray-400 transition hover:text-white">Catalog</a>
             <a href="#about" class="text-gray-400 transition hover:text-white">About</a>
+            <!-- Root-relative aliased admin route: renders the staff-only
+                 manage-orders-ps.html template via Flask on both desktop and
+                 mobile browsers (no 404 from missing manage-orders.html). -->
+            <a href="/manage-orders" class="text-gray-400 transition hover:text-white">Store Management</a>
           </nav>
         </div>
 
