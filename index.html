@@ -59,7 +59,7 @@
 
   <header id="top" class="bg-white shadow">
     <!-- Container padding mirrors the #top > div rule in styles.css
-         (padding: 10px 24px; min-height: 85px) so the enlarged 70px
+         (padding: 12px 24px; min-height: 85px) so the enlarged 70px
          .nav-logo fits the taller bar while the "About" and
          "Login / Register" links stay vertically centered against it. -->
     <div class="max-w-6xl mx-auto px-6 py-2.5 flex items-center justify-between">
@@ -167,6 +167,10 @@
         </div>
         <p class="hidden sm:block text-sm font-medium text-slate-700">Bulk boxes of 100</p>
       </div>
+      <!-- Microwavable cards are injected by main.js renderCatalog() in INCREASING
+           size/capacity order (RE 500 -> RE 750 -> RE 1000 -> RE 1600 -> RE 2500
+           -> RE 3200, then RO 10 -> RO 16 -> RO 30) via compareMicrowavableAsc.
+           Do not hardcode product cards here; keep that ascending sequence. -->
       <div id="microwavableList" class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4"></div>
     </section>
 

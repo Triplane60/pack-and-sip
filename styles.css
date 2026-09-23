@@ -21,11 +21,10 @@
 
 /* Navbar container — the flex row inside <header id="top"> that holds the
    logo, the nav links, and the cart (Order History) button.
-   - padding: 10px 24px frames the enlarged 70px logo with even breathing
-     room and matches the px-6 / py-2.5 utilities on the same element in
-     index.html.
+   - padding: 12px 24px frames the enlarged 70px logo with even breathing
+     room and matches the px-6 utilities on the same element in index.html.
    - min-height: 85px (border-box via Tailwind preflight) guarantees a tall
-     bar; with the 70px logo the row naturally reaches ~90px, so the bigger
+     bar; with the 70px logo the row naturally reaches ~94px, so the bigger
      logo fits comfortably without clutter.
    - align-items: center keeps the logo, the "About" / "Login / Register"
      links, and the cart button optically centered on the vertical axis of
@@ -34,16 +33,21 @@
    utilities on the same element (same trick as #nav-orders-btn below), so the
    sizing holds even though the Tailwind CDN injects its styles at runtime. */
 #top > div {
-  padding: 10px 24px;
+  padding: 12px 24px;
   min-height: 85px;
   align-items: center;
 }
 
 /* Drawer default off-screen handled with inline transform class; provide will-change for smoothness.
    position + z-index keep the panel above the .cart-overlay backdrop so the
-   dimmed area around it stays clickable while the panel itself stays usable. */
+   dimmed area around it stays clickable while the panel itself stays usable.
+   Widened Order Summary panel: 480px on desktop, capped at 90vw so phones
+   still show a dismissible margin. The ID selector out-specifies Tailwind's
+   max-w-sm utility on the markup, so this width holds at runtime. */
 #drawerPanel { 
   will-change: transform; 
+  width: 480px;
+  max-width: 90vw;
   max-height: 100vh;
   overflow-y: auto;
   position: relative;
@@ -230,11 +234,13 @@ input[type="number"] {
 
 /* Delivery Packaging Guide — styled alert box in the checkout drawer
    (Delivery Method section) with Lucide vehicle icons. Crisp icon alignment
-   comes from the shared .lucide flex-shrink rule; each row pairs a 16px
-   icon with a bold vehicle label + guideline copy. */
+   comes from the shared .lucide flex-shrink rule; each row pairs a 20px
+   icon with a bold vehicle label + guideline copy. Text is sized at
+   0.95rem/1rem with a roomy 1.6 line-height, and each vehicle option box
+   carries 16px padding so items never feel cramped. */
 .delivery-guide-box {
   margin: 12px 0;
-  padding: 12px 14px;
+  padding: 16px 18px;
   border: 1px solid #bfdbfe;
   border-radius: 8px;
   background: #eff6ff;
@@ -245,16 +251,16 @@ input[type="number"] {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 8px;
-  font-size: 14px;
+  margin: 0 0 10px;
+  font-size: 1.05rem;
   font-weight: 700;
-  line-height: 1.4;
+  line-height: 1.5;
   color: #1e40af;
 }
 
 .delivery-guide-title .lucide {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   color: #1d4ed8;
 }
 
@@ -264,44 +270,46 @@ input[type="number"] {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .delivery-guide-item {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 16px;
   border: 1px solid #dbeafe;
   border-radius: 6px;
   background: #ffffff;
 }
 
 .delivery-guide-item .lucide {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   margin-top: 2px;
   color: #1d4ed8;
 }
 
 .delivery-guide-item-text {
   display: block;
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 0.95rem;
+  line-height: 1.6;
   color: #1e3a8a;
 }
 
 .delivery-guide-item-text strong {
   display: block;
-  font-size: 13px;
+  margin-bottom: 2px;
+  font-size: 1rem;
   font-weight: 700;
+  line-height: 1.6;
   color: #1e40af;
 }
 
 .delivery-guide-foot {
-  margin: 8px 0 0;
-  font-size: 11px;
-  line-height: 1.4;
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
   font-weight: 500;
   color: #3b82f6;
 }

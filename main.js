@@ -38,6 +38,30 @@ function findProductById(id){
   return PRODUCTS.find(p => p.id === id);
 }
 
+// Parse a microwavable container capacity into millilitres so RE/RO sizes
+// (e.g. "500ml", "3,200ml", "10oz") can be compared numerically.
+function microwavableCapacityMl(product){
+  const raw = String((product && (product.size || product.name)) || '');
+  const m = raw.match(/([\d,]+(?:\.\d+)?)\s*(ml|oz)/i);
+  if(!m) return Number.MAX_SAFE_INTEGER;
+  const num = parseFloat(m[1].replace(/,/g, '')) || 0;
+  return m[2].toLowerCase() === 'oz' ? num * 29.5735 : num;
+}
+
+// Ascending comparator for the Microwavable Containers section: RE Series
+// (rectangular) first in increasing capacity, then RO Series (round) in
+// increasing capacity. Keeps each series contiguous per the requested
+// RE 500 -> RE 750 -> RE 1000 -> RE 1600 -> RE 2500 -> RE 3200 sequence.
+function compareMicrowavableAsc(a, b){
+  const aIsRE = /\bRE\b/i.test(String(a.style || '')) || /^container-re-/i.test(String(a.id || ''));
+  const bIsRE = /\bRE\b/i.test(String(b.style || '')) || /^container-re-/i.test(String(b.id || ''));
+  if(aIsRE !== bIsRE) return aIsRE ? -1 : 1;
+  const capA = microwavableCapacityMl(a);
+  const capB = microwavableCapacityMl(b);
+  if(capA !== capB) return capA - capB;
+  return String(a.name || '').localeCompare(String(b.name || ''));
+}
+
 function getProductImage(product){
   const label = product.type === 'cup' ? `${product.size} Cup` : product.type === 'lid' ? `${product.style} Lid` : `${product.name}`;
   const background = product.type === 'cup' ? 'e0e7ff' : product.type === 'lid' ? 'f1f5f9' : 'ecfdf5';
@@ -52,7 +76,16 @@ function renderCatalog(){
   list.innerHTML = '';
   microwavableList.innerHTML = '';
 
-  PRODUCTS.forEach(product => {
+  // Microwavable Containers are always displayed in INCREASING size/capacity
+  // order (RE 500 -> RE 750 -> RE 1000 -> RE 1600 -> RE 2500 -> RE 3200,
+  // then RO 10 -> RO 16 -> RO 30) so the section reads smallest-to-largest
+  // on both desktop and mobile. Sorting here (instead of relying on API/DB
+  // insertion order) guarantees the ascending sequence everywhere.
+  const microwavables = PRODUCTS.filter(p => p.type === 'microwavable').sort(compareMicrowavableAsc);
+  const others = PRODUCTS.filter(p => p.type !== 'microwavable');
+  const orderedProducts = [...others, ...microwavables];
+
+  orderedProducts.forEach(product => {
     const card = document.createElement('article');
     const stock = Number(product.stock_boxes || 0);
     const stockLabel = stock > 0 ? 'In Stock' : 'Out of Stock';
