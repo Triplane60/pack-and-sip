@@ -133,6 +133,7 @@ function resetConfigurator(){
   resetDeliveryMethod();
   updateDeliveryAddressVisibility(false);
   syncCategoryTotals();
+  updateReservationLimitNote();
   document.getElementById('subtotal').innerText = '₱0.00';
   document.getElementById('shipping').innerText = '₱0.00';
   document.getElementById('total').innerText = '₱0.00';
@@ -210,6 +211,18 @@ function showToast(message) {
     toast.classList.remove('opacity-100', 'scale-100');
     toast.classList.add('opacity-0', 'scale-95');
   }, 2500);
+}
+
+// Convert every <i data-lucide="..."> placeholder into an inline SVG. Called
+// again after the Order Summary / Confirm Order modal inject new markup.
+// Guarded so a blocked Lucide CDN or an unknown icon name never breaks ordering.
+function refreshIcons(root){
+  if(!window.lucide || typeof window.lucide.createIcons !== 'function') return;
+  try {
+    window.lucide.createIcons(root ? { root } : undefined);
+  } catch (err) {
+    // Icons are decorative; ignore conversion errors.
+  }
 }
 
 
@@ -350,6 +363,10 @@ async function calculate(){
     total,
     items
   });
+
+  // The selected City / Location also sets the dynamic payment reservation
+  // window shown under the City / Location dropdown.
+  updateReservationLimitNote();
 }
 
 function isLargeCupProduct(product){
@@ -385,6 +402,9 @@ const DELIVERY_METHOD_LABELS = {
 };
 const SELF_BOOKING_SHIPPING_LABEL = 'Customer Self-Booking';
 const SELF_BOOKING_NOTE = "Note: You will book your own rider (Lalamove/Grab) once your order status is updated to 'Ready for Pick-up'.";
+// Warehouse pick-up address shown in the Confirm Order modal when the
+// Customer Self-Booking / Warehouse Pick-up delivery method is selected.
+const WAREHOUSE_PICKUP_ADDRESS = '175 M.L.Q. St. Bagumbayan, Taguig City';
 
 // ---------------------------------------------------------------------------
 // Lalamove local courier shipping (origin: Taguig City). The destination base
@@ -428,6 +448,39 @@ function deliveryZoneRate(){
   if(!select || !select.selectedOptions || select.selectedOptions.length === 0) return 0;
   const rate = parseFloat(select.selectedOptions[0].dataset.rate || '');
   return Number.isFinite(rate) ? rate : 0;
+}
+
+// Dynamic payment reservation limit per City / Location. Mirrors app.py
+// LALAMOVE_ZONE_RESERVATION_MINUTES / reservation_window_label():
+//   Taguig City = 30 minutes, nearby NCR cities = 1 hour, provincial = 2h+.
+function reservationWindowLabel(minutes){
+  const total = Math.max(0, parseInt(minutes || 0, 10) || 0);
+  if(total <= 0) return '—';
+  if(total % 60 === 0){
+    const hours = total / 60;
+    return `${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  return `${total} minutes`;
+}
+
+// Reservation window (minutes) from the selected option's data-reservation.
+function selectedZoneReservationMinutes(){
+  const select = getDeliveryZoneSelect();
+  if(!select || !select.selectedOptions || select.selectedOptions.length === 0) return 0;
+  const minutes = parseInt(select.selectedOptions[0].dataset.reservation || '', 10);
+  return Number.isFinite(minutes) ? minutes : 0;
+}
+
+// Refresh the City / Location hint stating how long the payment reservation
+// (reserved stock + quoted pricing) is held for the selected area.
+function updateReservationLimitNote(){
+  const note = document.getElementById('reservationLimitNote');
+  if(!note) return;
+  if(!getSelectedDeliveryZone()){
+    note.textContent = 'Select your City / Location to see how long your payment reservation is held.';
+    return;
+  }
+  note.textContent = `Payment reservation limit: ${reservationWindowLabel(selectedZoneReservationMinutes())} from order confirmation (${deliveryZoneLabel()}).`;
 }
 
 function cupBoxSurcharge(cupBoxes){
@@ -502,11 +555,14 @@ function deliveryMethodLabel(method){
   return DELIVERY_METHOD_LABELS[method || DELIVERY_METHOD_STANDARD] || DELIVERY_METHOD_LABELS[DELIVERY_METHOD_STANDARD];
 }
 
-// Keep delivery address, location and fee UI in sync with the chosen method.
-//   - Self-Booking / Warehouse Pick-up: hides the Shipping Address and City /
-//     Location fields, keeps shipping at P0.00 and relaxes address validation.
-//   - Lalamove Delivery: restores the address fields, validation, and the
+// Keep delivery address, fee UI and location notes in sync with the chosen
+// delivery method.
+//   - Self-Booking / Warehouse Pick-up: hides ONLY the Shipping Address field,
+//     keeps shipping at P0.00 and relaxes address validation.
+//   - Lalamove Delivery: restores the address field, validation, and the
 //     location + box surcharge fee.
+// City / Location stays visible and enabled for BOTH methods because it also
+// sets the dynamic payment reservation window.
 function getDeliveryAddressFields(){
   return document.getElementById('deliveryAddressFields');
 }
@@ -519,11 +575,22 @@ function updateDeliveryAddressVisibility(selfBooking){
     fields.classList.add('hidden');
     fields.setAttribute('aria-hidden', 'true');
     if(address) address.removeAttribute('required');
-    if(zone) zone.removeAttribute('required');
   }else if(fields){
     fields.classList.remove('hidden');
     fields.removeAttribute('aria-hidden');
     if(address) address.setAttribute('required', '');
+  }
+  // The City / Location selector is never disabled or hidden: it feeds both the
+  // Lalamove base rate and the payment reservation limit.
+  if(zone){
+    zone.removeAttribute('disabled');
+    zone.disabled = false;
+  }
+  const zoneNote = document.getElementById('deliveryZoneNote');
+  if(zoneNote){
+    zoneNote.textContent = selfBooking
+      ? 'Warehouse pick-up: shipping is free. Your City / Location sets your payment reservation window.'
+      : 'Estimated shipping rate calculated based on your location from Taguig + box quantity.';
   }
 }
 
@@ -552,6 +619,7 @@ function updateSummary(data){
     cartContent.innerHTML = `<p class="text-sm text-slate-600">No items in cart.</p>`;
     updateCartBadges(0);
     updateCheckoutTotals();
+    refreshIcons();
     return;
   }
   updateCartBadges(data.items.reduce((s,i)=>s+i.boxes,0));
@@ -581,6 +649,7 @@ function updateSummary(data){
   totals.innerHTML = `<div class="flex items-center justify-between"><div class="text-sm">Subtotal</div><div class="font-medium">${formatPrice(data.subtotal)}</div></div><div class="flex items-center justify-between mt-2"><div class="text-sm">${shipLine}</div><div class="font-medium">${formatPrice(data.shipping)}</div></div>${shipNote}<div class="flex items-center justify-between mt-3 text-lg font-bold text-indigo-700"><div>Total</div><div>${formatPrice(data.total)}</div></div>`;
   cartContent.appendChild(totals);
   updateCheckoutTotals();
+  refreshIcons();
 }
 
 function updateCheckoutTotals() {
@@ -645,6 +714,22 @@ function openCartModal(){
   openCart();
 }
 
+// "Clear All" in the Order Summary header: reset every item quantity to 0 and
+// let the shared calculator push P0.00 back into the Order Summary totals and
+// the checkout fields, while keeping the City / Location and Delivery Method
+// selections the customer already made.
+async function clearCartItems(){
+  selectedCupId = null;
+  selectedLidId = null;
+  selectedMicrowavableId = null;
+  Object.keys(qtys).forEach(id => delete qtys[id]);
+  refreshCatalogQuantityInputs();
+  updateConfiguratorActionState();
+  await calculate();
+  refreshIcons();
+  showToast('Cart cleared — all item quantities reset to 0.');
+}
+
 
 // Event wiring
 document.addEventListener('DOMContentLoaded', () => {
@@ -670,6 +755,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // (#nav-orders-btn), which uses an inline onclick routing to
   // handleNavOrdersClick(). The floating cart FAB remains the cart entry point.
   document.getElementById('closeCart').addEventListener('click', closeCart);
+  // "Clear All" resets every quantity to 0 and zeroes the Order Summary totals.
+  document.getElementById('clearCartBtn').addEventListener('click', clearCartItems);
+  // Backdrop dismiss: tapping/clicking the background overlay outside the
+  // Order Summary panel closes the drawer (clicks inside the panel keep
+  // their own handlers and must not close it).
+  const cartDrawer = document.getElementById('cartDrawer');
+  if (cartDrawer) {
+    cartDrawer.addEventListener('click', (e) => {
+      if (e.target === cartDrawer) closeCart();
+    });
+  }
+  // Keyboard equivalent of the backdrop dismiss: Escape closes the Order
+  // Summary panel, unless a dialog is stacked on top of it.
+  document.addEventListener('keydown', (e) => {
+    if(e.key !== 'Escape') return;
+    if(!document.body.classList.contains('drawer-open')) return;
+    const confirmModal = document.getElementById('confirmOrderModal');
+    if(confirmModal && !confirmModal.classList.contains('hidden')) return;
+    closeCart();
+  });
   document.getElementById('addMoreItemsBtn').addEventListener('click', closeConfirmationModal);
   document.getElementById('confirmOrderBtn').addEventListener('click', submitOrder);
   document.getElementById('closeModalBtn').addEventListener('click', closeOrderPendingModal);
@@ -806,6 +911,8 @@ function setupAuthModal(){
 
 
   document.getElementById('logoutBtn').addEventListener('click', logout);
+  // Render the static Lucide icon placeholders (Clear All, Close, modal icons).
+  refreshIcons();
 
     // Check if already logged in
   fetch(`${API_BASE}/me`, { credentials: 'include' })
@@ -1358,10 +1465,10 @@ function validateCheckoutFields(){
     return false;
   }
 
-  // Lalamove Delivery needs the City / Location so the destination base rate
-  // can be computed; Self-Booking / Pick-up orders carry no courier fee.
-  if(!isSelfBookingSelected() && !getSelectedDeliveryZone()){
-    showCustomAlert('Please select your City / Location so we can compute the Lalamove delivery fee.');
+  // City / Location is required for BOTH delivery methods: it drives the
+  // Lalamove base rate and the dynamic payment reservation window.
+  if(!getSelectedDeliveryZone()){
+    showCustomAlert('Please select your City / Location so we can set your delivery fee and payment reservation window.');
     return false;
   }
 
@@ -1482,6 +1589,37 @@ async function openConfirmationModal(){
       : (deliveryZoneLabel() || 'Not selected');
   }
 
+  // Dynamic payment reservation window for the selected City / Location.
+  const reservationNote = document.getElementById('confirmOrderReservationNote');
+  if (reservationNote) {
+    reservationNote.textContent = getSelectedDeliveryZone()
+      ? `⏳ Reserved for ${reservationWindowLabel(selectedZoneReservationMinutes())} from confirmation (${deliveryZoneLabel()}) — send your GCash / bank transfer payment within this window.`
+      : '';
+  }
+
+  // Address line: Self-Booking shows the Taguig Warehouse Pick-up Address;
+  // Lalamove Delivery shows the customer's Shipping Address instead
+  // (the row stays hidden when there is no address to show).
+  const addressRow = document.getElementById('confirmOrderAddressRow');
+  const addressText = document.getElementById('confirmOrderAddressText');
+  if (addressRow && addressText) {
+    if (selfBooking) {
+      addressText.textContent = `Pick-up Address: ${WAREHOUSE_PICKUP_ADDRESS}`;
+      addressRow.classList.remove('is-hidden-row');
+      addressRow.classList.add('is-flex-row');
+    } else {
+      const shippingAddress = document.getElementById('customerAddress').value.trim();
+      if (shippingAddress) {
+        addressText.textContent = `Shipping Address: ${shippingAddress}`;
+        addressRow.classList.remove('is-hidden-row');
+        addressRow.classList.add('is-flex-row');
+      } else {
+        addressRow.classList.remove('is-flex-row');
+        addressRow.classList.add('is-hidden-row');
+      }
+    }
+  }
+
   if (paymentType === 'full') {
     // 100% Full Payment: show the full total as the required payment.
     fullRow.classList.remove('is-hidden-row');
@@ -1512,6 +1650,8 @@ async function openConfirmationModal(){
   const modal = document.getElementById('confirmOrderModal');
   modal.classList.remove('hidden');
   modal.classList.add('flex');
+  // Lucide placeholders inside the modal are converted on first open.
+  refreshIcons(modal);
 }
 
 async function submitOrder(){

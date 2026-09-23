@@ -207,6 +207,84 @@ input[type="number"] {
   transform: translateX(100%) !important;
 }
 
+/* Cart drawer backdrop: dim the page behind the Order Summary panel while it
+   is open. The container keeps pointer-events (it is pointer-events-none by
+   default) so tapping/clicking the background closes the drawer instead of
+   falling through to the page; main.js wires the click-to-dismiss handler. */
+#cartDrawer {
+  background-color: transparent;
+  transition: background-color 300ms ease;
+}
+
+body.drawer-open #cartDrawer {
+  pointer-events: auto;
+  background-color: rgba(15, 23, 42, 0.45);
+}
+
+/* ---------------------------------------------------------------------------
+   Order Summary header actions (Clear All + Close) — Lucide icon buttons
+   --------------------------------------------------------------------------- */
+.drawer-action-btn,
+.drawer-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.drawer-action-btn {
+  padding: 7px 10px;
+}
+
+.drawer-icon-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.drawer-action-btn:hover,
+.drawer-icon-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.drawer-action-btn:focus-visible,
+.drawer-icon-btn:focus-visible {
+  outline: 2px solid var(--brand-indigo);
+  outline-offset: 1px;
+}
+
+/* Wholesale-only notice inside the Confirm Order modal (Lucide 'package'). */
+.wholesale-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+/* Lucide icons: keep the SVG from being squeezed inside flex rows. */
+.lucide {
+  flex-shrink: 0;
+}
+
 /* Cart toast positioning (replaces inline toast.style.* assignments) */
 #cart-toast.cart-toast-position {
   top: auto !important;
@@ -264,6 +342,80 @@ input[type="number"] {
     bottom: 24px !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
+  }
+}
+
+/* ============================================================
+   Mobile responsive Order Summary panel (#drawerPanel)
+   Reduce padding and font sizes slightly so the panel takes up
+   less vertical height. The desktop-only restriction below hides
+   the whole page (and drawer) at <=768px, so this targets the
+   range up to 1024px — small windows and phones in "Desktop site"
+   mode (~980px viewport) — where the panel is actually rendered.
+   ============================================================ */
+@media (max-width: 1024px) {
+  #drawerPanel .p-4 {
+    padding: 0.75rem;
+  }
+
+  #drawerPanel .p-3 {
+    padding: 0.625rem;
+  }
+
+  #drawerPanel .text-lg {
+    font-size: 1rem;
+  }
+
+  #drawerPanel .text-sm {
+    font-size: 0.8125rem;
+  }
+
+  #drawerPanel .text-xs {
+    font-size: 0.6875rem;
+  }
+
+  #drawerPanel .delivery-method-hint {
+    font-size: 11px;
+  }
+
+  #drawerPanel .payment-option-group {
+    margin: 10px 0;
+  }
+
+  #drawerPanel .payment-breakdown {
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+
+  #drawerPanel .delivery-method-option {
+    padding: 8px;
+  }
+
+  /* Compact the header actions and the checkout footer so the panel's fixed
+     chrome costs less vertical space on short screens. */
+  #drawerPanel .drawer-action-btn {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  #drawerPanel .drawer-icon-btn {
+    width: 26px;
+    height: 26px;
+  }
+
+  /* Tighter cart line items + totals block inside the Order Summary. */
+  #cartContent .py-2 {
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+  }
+
+  #cartContent .pt-3 {
+    padding-top: 0.5rem;
+  }
+
+  /* Tighter vertical spacing between the checkout fields. */
+  #customerForm > * + * {
+    margin-top: 0.5rem;
   }
 }
 
