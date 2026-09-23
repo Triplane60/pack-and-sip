@@ -51,16 +51,10 @@ app.config['MAIL_USE_TLS'] = True
 # MAIL_USERNAME must be the Gmail address that owns the App Password — it
 # defaults to the sender (jambyletesa@gmail.com) so SMTP auth matches the From.
 app.config['MAIL_USERNAME'] = 'jambyletesa@gmail.com'
-app.config['MAIL_PASSWORD'] = 'fxzhrrvwiueqwunn' (
-    os.getenv('MAIL_PASSWORD')
-    or os.getenv('MAIL_APP_PASSWORD')
-    or ''
-)
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD') or 'fxzhrrvwiueqwunn'
 # Every receipt needs a sender: default to SENDER_EMAIL (jambyletesa@gmail.com)
 # so mail.send() never fails with an empty From address.
-app.config['MAIL_DEFAULT_SENDER'] = 'jambyletesa@gmail.com' (
-    os.getenv('MAIL_DEFAULT_SENDER') or SENDER_EMAIL or app.config['MAIL_USERNAME']
-)
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER') or SENDER_EMAIL or 'jambyletesa@gmail.com'
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 mail = Mail(app)
 
