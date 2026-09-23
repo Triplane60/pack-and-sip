@@ -5,11 +5,30 @@
 /* Navigation brand logo: the transparent PNG composites cleanly on the white
    header, so no blending workarounds are applied here. A fixed height keeps
    it optically aligned with the nav links inside the flex header; width:auto
-   preserves the aspect ratio. */
+   preserves the aspect ratio. Height sits in the 50-60px band (was 42px) so
+   the "PACK & SIP" text inside the logo circle is clear and easily readable. */
 .nav-logo {
   display: block;
-  height: 42px;
+  height: 56px;
   width: auto;
+}
+
+/* Navbar container — the flex row inside <header id="top"> that holds the
+   logo, the nav links, and the cart (Order History) button.
+   - padding: 12px 20px gives the enlarged logo comfortable breathing room
+     without crowding the other header elements.
+   - min-height: 88px (border-box via Tailwind preflight) makes the whole
+     header taller than before (~84px), so the bigger logo doesn't just fill
+     the bar but visibly enlarges it.
+   - align-items: center keeps the logo, links, and cart button optically
+     centered on the vertical axis.
+   The #top > div id selector deliberately out-specifies Tailwind's px-4/py-4
+   utilities on the same element (same trick as #nav-orders-btn below), so the
+   sizing holds even though the Tailwind CDN injects its styles at runtime. */
+#top > div {
+  padding: 12px 20px;
+  min-height: 88px;
+  align-items: center;
 }
 
 /* Drawer default off-screen handled with inline transform class; provide will-change for smoothness.
@@ -367,11 +386,13 @@ body.drawer-open #cartDrawer {
   line-height: 1.45;
 }
 
-/* Official Dabba attribution badge shown above the catalog section.
-   Enlarged for prominence: 1rem bold text, 10px/18px padding, a 2px rounded
-   border, a larger check icon, and extra bottom margin so it stands out
-   clearly above the "Bulk essentials" / Catalog section title. */
-.catalog-dabba-badge {
+/* Supplier attribution badges shown directly above their section headers:
+   the Dabba badge above the Catalog, the GoUp badge above Microwavable
+   Containers. Enlarged for prominence: 1rem bold text, 10px/18px padding,
+   a 2px rounded border, a larger check icon, and extra bottom margin so each
+   stands out clearly above its section title. Both share one visual design. */
+.catalog-dabba-badge,
+.goup-supplier-badge {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -388,10 +409,11 @@ body.drawer-open #cartDrawer {
   box-shadow: 0 1px 3px rgba(4, 120, 87, 0.15);
 }
 
-/* Scale the badge's check icon with the larger badge text. The two-class
+/* Scale each badge's check icon with the larger badge text. The two-class
    selector out-specifies Tailwind's h-* / w-* utilities on the icon markup,
    so the icon stays 20px regardless of stylesheet order. */
-.catalog-dabba-badge .lucide {
+.catalog-dabba-badge .lucide,
+.goup-supplier-badge .lucide {
   width: 20px;
   height: 20px;
 }
@@ -431,13 +453,15 @@ body.drawer-open #cartDrawer {
      sized logo, aligned nav items / mobile menu icon.
      ----------------------------------------------------------- */
 
-  /* Navbar shell — more height + horizontal padding so it doesn't look squished. */
+  /* Navbar shell — taller bar with 12px/20px padding (matching the desktop
+     container rule above) so the larger logo doesn't look squished and the
+     header gains height on mobile too. */
   header,
   header nav,
   .navbar,
   nav.navbar,
   nav.site-nav {
-    padding: 12px 16px !important;
+    padding: 12px 20px !important;
   }
 
   /* Logo size on mobile — clear and proportional. */
@@ -450,6 +474,26 @@ body.drawer-open #cartDrawer {
     max-height: 36px !important;
     width: auto !important;
     height: auto !important;
+  }
+
+  /* Brand logo (.nav-logo / #siteLogo) on mobile — 46px, inside the
+     requested 45-50px band, so the "PACK & SIP" text inside the logo circle
+     stays clear while still fitting beside the cart button in the taller
+     header. Kept separate from the generic rule above, which is capped at
+     36px for legacy logo markup. */
+  .nav-logo,
+  #siteLogo {
+    height: 46px !important;
+    max-height: 50px !important;
+    width: auto !important;
+  }
+
+  /* Header row alignment — the container and its two groups (logo + links,
+     cart button) all center their children vertically, so the logo, links,
+     and cart icon sit perfectly centered inside the header on mobile. */
+  #top > div,
+  #top > div > div {
+    align-items: center !important;
   }
 
   /* Nav items — proper alignment and touch spacing. */
