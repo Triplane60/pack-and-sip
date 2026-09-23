@@ -51,7 +51,11 @@
   </div>
 
   <header id="top" class="bg-white shadow">
-    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+    <!-- Container padding mirrors the #top > div rule in styles.css
+         (padding: 10px 24px; min-height: 85px) so the enlarged 80px
+         .nav-logo fits the taller bar while the "About" and
+         "Login / Register" links stay vertically centered against it. -->
+    <div class="max-w-6xl mx-auto px-6 py-2.5 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <img id="siteLogo" class="nav-logo" src="logo.png" alt="Pack &amp; Sip" />
         <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-700">

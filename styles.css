@@ -5,29 +5,33 @@
 /* Navigation brand logo: the transparent PNG composites cleanly on the white
    header, so no blending workarounds are applied here. A fixed height keeps
    it optically aligned with the nav links inside the flex header; width:auto
-   preserves the aspect ratio. Height sits in the 50-60px band (was 42px) so
-   the "PACK & SIP" text inside the logo circle is clear and easily readable. */
+   preserves the circular aspect ratio. Height is 80px on desktop (was 56px)
+   so the "PACK & SIP" text inside the logo circle is large and readable, and
+   max-height is explicitly cleared so nothing can clip the enlarged art. */
 .nav-logo {
   display: block;
-  height: 56px;
+  height: 80px;
   width: auto;
+  max-height: none;
 }
 
 /* Navbar container — the flex row inside <header id="top"> that holds the
    logo, the nav links, and the cart (Order History) button.
-   - padding: 12px 20px gives the enlarged logo comfortable breathing room
-     without crowding the other header elements.
-   - min-height: 88px (border-box via Tailwind preflight) makes the whole
-     header taller than before (~84px), so the bigger logo doesn't just fill
-     the bar but visibly enlarges it.
-   - align-items: center keeps the logo, links, and cart button optically
-     centered on the vertical axis.
-   The #top > div id selector deliberately out-specifies Tailwind's px-4/py-4
+   - padding: 10px 24px frames the enlarged 80px logo with even breathing
+     room and matches the px-6 / py-2.5 utilities on the same element in
+     index.html.
+   - min-height: 85px (border-box via Tailwind preflight) guarantees a tall
+     bar; with the 80px logo the row naturally reaches ~100px, so the bigger
+     logo visibly enlarges the header instead of just filling it.
+   - align-items: center keeps the logo, the "About" / "Login / Register"
+     links, and the cart button optically centered on the vertical axis of
+     the taller logo.
+   The #top > div id selector deliberately out-specifies Tailwind's px-6/py-2.5
    utilities on the same element (same trick as #nav-orders-btn below), so the
    sizing holds even though the Tailwind CDN injects its styles at runtime. */
 #top > div {
-  padding: 12px 20px;
-  min-height: 88px;
+  padding: 10px 24px;
+  min-height: 85px;
   align-items: center;
 }
 
@@ -453,15 +457,15 @@ body.drawer-open #cartDrawer {
      sized logo, aligned nav items / mobile menu icon.
      ----------------------------------------------------------- */
 
-  /* Navbar shell — taller bar with 12px/20px padding (matching the desktop
-     container rule above) so the larger logo doesn't look squished and the
+  /* Navbar shell — 10px/24px padding (matching the desktop container rule
+     above) so the enlarged 55px mobile logo doesn't look squished and the
      header gains height on mobile too. */
   header,
   header nav,
   .navbar,
   nav.navbar,
   nav.site-nav {
-    padding: 12px 20px !important;
+    padding: 10px 24px !important;
   }
 
   /* Logo size on mobile — clear and proportional. */
@@ -476,15 +480,16 @@ body.drawer-open #cartDrawer {
     height: auto !important;
   }
 
-  /* Brand logo (.nav-logo / #siteLogo) on mobile — 46px, inside the
-     requested 45-50px band, so the "PACK & SIP" text inside the logo circle
-     stays clear while still fitting beside the cart button in the taller
-     header. Kept separate from the generic rule above, which is capped at
-     36px for legacy logo markup. */
+  /* Brand logo (.nav-logo / #siteLogo) on mobile — 55px so the "PACK & SIP"
+     text inside the logo circle stays clear while still fitting beside the
+     cart button in the taller header. max-height is overridden to none (was
+     50px) so the enlarged logo renders in full, and width:auto preserves the
+     circular aspect ratio. Kept separate from the generic rule above, which
+     is capped at 36px for legacy logo markup. */
   .nav-logo,
   #siteLogo {
-    height: 46px !important;
-    max-height: 50px !important;
+    height: 55px !important;
+    max-height: none !important;
     width: auto !important;
   }
 
