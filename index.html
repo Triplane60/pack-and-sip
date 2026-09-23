@@ -30,9 +30,9 @@
   <!-- Mobile view restriction: this platform is desktop-only -->
   <div id="mobile-overlay" class="fixed inset-0 hidden items-center justify-center" role="alertdialog" aria-modal="true" aria-labelledby="mobileOverlayTitle" tabindex="-1">
     <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl text-center">
-      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-3xl" aria-hidden="true">📱</div>
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-7 w-7"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></div>
       <h2 id="mobileOverlayTitle" class="mt-4 text-xl font-bold text-slate-900">Desktop Site Required</h2>
-      <p class="mt-2 text-sm leading-6 text-slate-600">
+      <p class="mt-2 text-sm font-medium leading-6 text-slate-700">
         Pack &amp; Sip is a desktop-only ordering platform. Switch your mobile browser to
         <em class="text-indigo-700 font-semibold">&ldquo;Desktop site&rdquo;</em> mode, or open the platform on a
         desktop computer.
@@ -45,7 +45,7 @@
         <li>The page reloads automatically &mdash; if it doesn&rsquo;t, refresh it manually.</li>
       </ol>
 
-      <p class="mt-3 text-xs text-slate-500">No browser menu? Open this platform on any desktop computer or laptop instead.</p>
+      <p class="mt-3 text-xs font-medium text-slate-700">No browser menu? Open this platform on any desktop computer or laptop instead.</p>
     </div>
   </div>
 
@@ -53,7 +53,7 @@
     <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <div id="siteLogo" class="text-indigo-600 font-bold text-xl">Pack & Sip</div>
-                <nav class="hidden md:flex gap-4 text-sm text-slate-600">
+                <nav class="hidden md:flex gap-4 text-sm font-medium text-slate-700">
           <a href="#catalog" class="hover:text-slate-900">Catalog</a>
           <a href="#about" id="aboutLink" class="hover:text-slate-900">About</a>
           <button id="authBtn" class="hover:text-slate-900">Login / Register</button>
@@ -84,7 +84,7 @@
       <div class="flex-1">
         <h1 class="text-3xl font-extrabold text-slate-900">Wholesale Boxes of Cups & Lids</h1>
         <p class="mt-4 text-slate-700">High-volume eco-friendly disposable drinkware. Bulk pricing for businesses and events.</p>
-        <ul class="mt-4 text-sm text-slate-600">
+        <ul class="mt-4 text-sm font-medium text-slate-700">
           <li>• Boxes contain 1,250 units each</li>
           <li>• Lalamove courier delivery from our Taguig warehouse</li>
         </ul>
@@ -94,24 +94,31 @@
         <h3 class="mt-1 text-lg font-semibold text-slate-800">Why order from Pack &amp; Sip?</h3>
         <ul class="mt-4 space-y-3 text-sm">
           <li class="flex items-start gap-3 rounded-md bg-slate-50 p-3">
-            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-lg" aria-hidden="true">🚚</span>
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg></span>
             <span>
               <strong class="block text-slate-900">Lalamove Express Delivery</strong>
-              <span class="text-slate-600">Dispatched from Taguig City</span>
+              <span class="font-medium text-slate-700">Dispatched from Taguig City</span>
             </span>
           </li>
           <li class="flex items-start gap-3 rounded-md bg-slate-50 p-3">
-            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-lg" aria-hidden="true">📦</span>
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span>
             <span>
               <strong class="block text-slate-900">Bulk Packaging</strong>
-              <span class="text-slate-600">1,250 units sealed per box</span>
+              <span class="font-medium text-slate-700">1,250 units sealed per box</span>
             </span>
           </li>
           <li class="flex items-start gap-3 rounded-md bg-slate-50 p-3">
-            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-lg" aria-hidden="true">🏷️</span>
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg></span>
             <span>
               <strong class="block text-slate-900">B2B Wholesale Rates</strong>
-              <span class="text-slate-600">Direct warehouse pricing</span>
+              <span class="font-medium text-slate-700">Direct warehouse pricing</span>
+            </span>
+          </li>
+          <li class="flex items-start gap-3 rounded-md bg-slate-50 p-3">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>
+            <span>
+              <strong class="block text-slate-900">Flexible Booking Options</strong>
+              <span class="font-medium text-slate-700">Need full delivery control? You can choose Customer Self-Booking during checkout to send your own Lalamove/Grab rider or pick up directly from our Taguig warehouse!</span>
             </span>
           </li>
         </ul>
@@ -126,7 +133,7 @@
           <h2 class="text-2xl font-semibold">Catalog</h2>
         </div>
         <div class="flex items-center gap-4">
-          <p class="hidden sm:block text-sm text-slate-500">Boxes of 1,250 units</p>
+          <p class="hidden sm:block text-sm font-medium text-slate-700">Boxes of 1,250 units</p>
         </div>
       </div>
       <div id="productList" class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4"></div>
@@ -138,14 +145,14 @@
           <p class="text-sm font-semibold uppercase tracking-wide text-indigo-600">Meal prep essentials</p>
           <h2 class="text-2xl font-semibold">Microwavable Containers</h2>
         </div>
-        <p class="hidden sm:block text-sm text-slate-500">Bulk boxes of 100</p>
+        <p class="hidden sm:block text-sm font-medium text-slate-700">Bulk boxes of 100</p>
       </div>
       <div id="microwavableList" class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4"></div>
     </section>
 
   </main>
 
-  <button id="backToTopBtn" onclick="scrollToTop(event)" class="fixed bottom-6 right-6 bg-indigo-600 text-white p-3 rounded-full shadow-lg hidden hover:bg-indigo-700 transition-all z-40" aria-label="Back to top">↑</button>
+  <button id="backToTopBtn" onclick="scrollToTop(event)" class="fixed bottom-6 right-6 bg-indigo-600 text-white p-3 rounded-full shadow-lg hidden hover:bg-indigo-700 transition-all z-40" aria-label="Back to top"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></button>
 
   <!-- Fixed floating cart button (sits just left of the scroll-to-top button) -->
   <button id="floating-cart-btn" onclick="openCartModal()" class="fixed bottom-6 right-20 bg-indigo-600 text-white p-3 rounded-full shadow-2xl hover:bg-indigo-700 transition-all z-40" aria-label="Open cart"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6">
@@ -157,9 +164,9 @@
   <!-- Pending order modal -->
   <div id="orderPendingModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/60 p-4 opacity-0 transition-opacity duration-300" role="dialog" aria-modal="true" aria-labelledby="orderPendingTitle">
     <div class="w-full max-w-md rounded-xl bg-white p-6 text-center shadow-2xl transition-transform duration-300">
-      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-3xl text-emerald-600" aria-hidden="true">✓</div>
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-7 w-7"><path d="M20 6 9 17l-5-5"/></svg></div>
       <h2 id="orderPendingTitle" class="mt-4 text-2xl font-bold text-slate-900">Order Placed &amp; Pending</h2>
-            <p class="mt-3 text-sm leading-6 text-slate-600">Your order has been received. Please check your Gmail <span id="modalEmail" class="font-semibold text-slate-900"></span> for shipping updates and receipt notifications once processed.</p>
+            <p class="mt-3 text-sm font-medium leading-6 text-slate-700">Your order has been received. Please check your Gmail <span id="modalEmail" class="font-semibold text-slate-900"></span> for shipping updates and receipt notifications once processed.</p>
 
       <button id="closeModalBtn" type="button" class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700">Done</button>
     </div>
@@ -168,7 +175,7 @@
   <!-- Order confirmation modal -->
   <div id="confirmOrderModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 p-4" role="dialog" aria-modal="true" aria-labelledby="confirmOrderTitle">
     <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-      <div class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-2xl text-indigo-600" aria-hidden="true">🛒</div>
+      <div class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-indigo-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></div>
       <h2 id="confirmOrderTitle" class="mt-4 text-2xl font-bold text-slate-900">Confirm Your Order</h2>
       <p class="mt-2 text-slate-600">Is this everything you'd like to order?</p>
       <!-- Wholesale-only notice: Lucide 'package' icon + by-the-box reminder. -->
@@ -205,20 +212,6 @@
         <span id="confirmOrderDownpayment">₱0.00</span>
       </div>
       <p id="confirmOrderPaymentNote" class="mt-4 text-xs leading-5 text-slate-500">A 50% downpayment is required via GCash/Maya to process your order. The remaining balance will be paid upon Lalamove delivery.</p>
-      <!-- Payment instructions: Lucide 'camera' for the email proof-of-payment. -->
-      <p class="mt-2 flex items-start gap-2 text-xs leading-5 text-slate-600">
-        <i data-lucide="camera" class="mt-0.5 h-3.5 w-3.5 text-indigo-600" aria-hidden="true"></i>
-        <span>After paying via GCash / bank transfer, REPLY directly to your email receipt with your payment screenshot/reference number.</span>
-      </p>
-      <!-- Operating hours (always shown) + the City-based payment reservation
-           window, which main.js refreshes from the selected City / Location. -->
-      <div class="mt-3 rounded-md border border-amber-100 bg-amber-50 p-2.5 text-xs leading-5 text-amber-800">
-        <p id="confirmOrderOperatingHours" class="flex items-start gap-2">
-          <i data-lucide="clock" class="mt-0.5 h-3.5 w-3.5" aria-hidden="true"></i>
-          <span>Operating hours: 7:00 AM – 7:00 PM daily. Orders confirmed after 7:00 PM are dispatched the next morning.</span>
-        </p>
-        <p id="confirmOrderReservationNote" class="mt-1"></p>
-      </div>
       <div class="mt-6 grid grid-cols-2 gap-3">
         <button id="addMoreItemsBtn" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-50">Add More Items</button>
         <button id="confirmOrderBtn" type="button" class="rounded-md bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700">Yes, Place Order</button>
@@ -234,7 +227,7 @@
           <button id="tabLogin" class="text-lg font-bold border-b-2 border-indigo-600 text-indigo-600">Login</button>
           <button id="tabRegister" class="text-lg font-bold border-b-2 border-transparent text-slate-500">Register</button>
         </div>
-                <button id="closeAuth" class="text-slate-500 hover:text-slate-900" aria-label="Close Login Modal">✕</button>
+                <button id="closeAuth" class="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900" aria-label="Close Login Modal"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-[18px] w-[18px]"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
 
       </div>
 
@@ -268,7 +261,7 @@
         <div>
           <label for="registerPassword" class="block text-sm font-medium text-slate-700">Password</label>
           <input type="password" id="registerPassword" name="password" autocomplete="off" required minlength="8" maxlength="20" title="Password" class="w-full border rounded-md p-2 mt-1" />
-          <p class="text-xs text-slate-500 mt-1">Minimum 8 characters</p>
+          <p class="text-xs font-medium text-slate-700 mt-1">Minimum 8 characters</p>
         </div>
         <div>
           <label for="registerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
@@ -298,9 +291,9 @@
           </button>
           <h2 id="forgotPasswordTitle" class="text-lg font-bold text-slate-900">Reset your password</h2>
         </div>
-        <button type="button" id="closeForgotPassword" class="text-slate-500 hover:text-slate-900" aria-label="Close Forgot Password Modal">✕</button>
+        <button type="button" id="closeForgotPassword" class="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900" aria-label="Close Forgot Password Modal"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-[18px] w-[18px]"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
-      <p class="mt-3 text-sm text-slate-500">Enter the email address on your account, then choose a new password.</p>
+      <p class="mt-3 text-sm font-medium text-slate-700">Enter the email address on your account, then choose a new password.</p>
       <form id="forgotPasswordForm" autocomplete="off" class="mt-6 space-y-4">
         <div>
           <label for="resetEmail" class="block text-sm font-medium text-slate-700">Email Address</label>
@@ -309,7 +302,7 @@
         <div>
           <label for="resetNewPassword" class="block text-sm font-medium text-slate-700">New Password</label>
           <input type="password" id="resetNewPassword" name="new_password" autocomplete="off" required minlength="8" maxlength="20" title="New Password" class="w-full border rounded-md p-2 mt-1" />
-          <p class="text-xs text-slate-500 mt-1">Minimum 8 characters</p>
+          <p class="text-xs font-medium text-slate-700 mt-1">Minimum 8 characters</p>
         </div>
         <p id="forgotPasswordError" class="hidden text-sm font-medium text-red-600" role="alert"></p>
         <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-md font-semibold hover:bg-indigo-700">Reset Password</button>
@@ -326,13 +319,13 @@
           <p class="text-sm font-semibold uppercase tracking-wide text-indigo-600">About Pack & Sip</p>
           <h2 id="aboutTitle" class="mt-1 text-2xl font-bold text-slate-900">Drinkware built for busy teams.</h2>
         </div>
-        <button id="closeAbout" type="button" class="text-slate-500 hover:text-slate-900" aria-label="Close About Us">✕</button>
+        <button id="closeAbout" type="button" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900" aria-label="Close About Us"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-[18px] w-[18px]"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
-      <p class="mt-4 text-slate-600">Pack & Sip is an eco-friendly wholesale provider of disposable cups and lids for cafes, caterers, events, and growing businesses.</p>
+      <p class="mt-4 font-medium text-slate-700">Pack & Sip is an eco-friendly wholesale provider of disposable cups and lids for cafes, caterers, events, and growing businesses.</p>
       <div class="mt-5 grid gap-3 sm:grid-cols-3">
-        <div class="rounded-md bg-slate-50 p-3"><strong class="block text-slate-900">Eco-minded</strong><span class="text-sm text-slate-600">Practical drinkware for lower-waste service.</span></div>
-        <div class="rounded-md bg-slate-50 p-3"><strong class="block text-slate-900">Fast delivery</strong><span class="text-sm text-slate-600">Reliable fulfillment for your next rush.</span></div>
-        <div class="rounded-md bg-slate-50 p-3"><strong class="block text-slate-900">Bulk support</strong><span class="text-sm text-slate-600">Simple ordering by the box or by volume.</span></div>
+        <div class="rounded-md bg-slate-50 p-3"><strong class="block text-slate-900">Eco-minded</strong><span class="text-sm font-medium text-slate-700">Practical drinkware for lower-waste service.</span></div>
+        <div class="rounded-md bg-slate-50 p-3"><strong class="block text-slate-900">Fast delivery</strong><span class="text-sm font-medium text-slate-700">Reliable fulfillment for your next rush.</span></div>
+        <div class="rounded-md bg-slate-50 p-3"><strong class="block text-slate-900">Bulk support</strong><span class="text-sm font-medium text-slate-700">Simple ordering by the box or by volume.</span></div>
       </div>
     </div>
   </div>
@@ -342,10 +335,10 @@
     <div class="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
       <div class="flex items-center justify-between border-b pb-4">
         <h2 id="customerOrdersTitle" class="text-lg font-bold text-slate-900">My Orders</h2>
-        <button id="closeCustomerOrders" type="button" class="text-slate-500 hover:text-slate-900" aria-label="Close Orders Modal">✕</button>
+        <button id="closeCustomerOrders" type="button" class="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900" aria-label="Close Orders Modal"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-[18px] w-[18px]"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
       <div id="customer-orders-list" class="mt-5 space-y-3">
-        <p class="text-sm text-slate-500">Your orders will appear here.</p>
+        <p class="text-sm font-medium text-slate-700">Your orders will appear here.</p>
       </div>
     </div>
   </div>
@@ -353,7 +346,7 @@
   <!-- Account recommendation modal for guests -->
   <div id="accountNudgeModal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-slate-900/60 p-4" role="dialog" aria-modal="true" aria-labelledby="accountNudgeTitle">
     <div class="w-full max-w-md rounded-xl bg-white p-6 text-center shadow-2xl">
-      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-indigo-100 text-3xl text-indigo-600" aria-hidden="true">👤</div>
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-indigo-100 text-indigo-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-7 w-7"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
       <h2 id="accountNudgeTitle" class="mt-4 text-2xl font-bold text-slate-900">Track orders faster</h2>
       <p class="mt-3 text-sm leading-6 text-slate-600">Create an account or Log in to easily track your orders, view order history, and enjoy faster checkouts!</p>
       <div class="mt-6 grid grid-cols-2 gap-3">
@@ -369,21 +362,13 @@
     <div id="drawerPanel" class="max-w-sm w-full bg-white shadow-xl transform translate-x-full pointer-events-auto transition-transform duration-300 flex flex-col drawer-closed-state" aria-hidden="true">
             <div class="p-4 flex items-center justify-between gap-2 border-b shrink-0">
         <h3 class="text-lg font-semibold">Order Summary</h3>
-        <div class="flex items-center gap-1.5">
-          <button id="clearCartBtn" type="button" class="drawer-action-btn" title="Reset every item quantity to 0" aria-label="Clear all items in the cart">
-            <i data-lucide="trash-2" class="h-4 w-4" aria-hidden="true"></i>
-            <span>Clear All</span>
-          </button>
-          <button id="closeCart" type="button" class="drawer-icon-btn" title="Close order summary" aria-label="Close cart summary">
-            <i data-lucide="x" class="h-4 w-4" aria-hidden="true"></i>
-          </button>
-        </div>
+        <button id="closeCart" class="text-slate-500" aria-label="Close cart summary">Close</button>
       </div>
 
             <form id="checkoutForm" action="/checkout" method="POST" novalidate autocomplete="off" class="contents-display">
         <div class="flex-1 overflow-y-auto">
           <div class="p-4" id="cartContent">
-            <p class="text-sm text-slate-600">No items in cart.</p>
+            <p class="text-sm font-medium text-slate-700">No items in cart.</p>
           </div>
           <div class="p-4 border-t space-y-2.5" id="customerForm">
             <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
@@ -432,10 +417,9 @@
                 </span>
               </label>
               <label class="delivery-method-option" for="deliveryMethodSelfBooking">
-                <input type="radio" id="deliveryMethodSelfBooking" name="delivery_method" value="self_booking" onchange="handleDeliveryMethodChange()" title="Delivery Method: Customer Self-Booking / Warehouse Pick-up" />
+                <input type="radio" id="deliveryMethodSelfBooking" name="delivery_method" value="self_booking" onchange="handleDeliveryMethodChange()" />
                 <span class="delivery-method-text">
                   <span class="delivery-method-title">Customer Self-Booking / Warehouse Pick-up</span>
-                  <span class="delivery-method-hint">Note: You will book your own rider (Lalamove/Grab) once your order status is updated to 'Ready for Pick-up'.</span>
                 </span>
               </label>
             </fieldset>
@@ -507,7 +491,7 @@
           <h3 class="font-semibold text-white">Contact Us</h3>
           <div class="mt-3 space-y-2 text-sm text-gray-400">
             <a href="tel:+639281815599" class="block transition hover:text-white">+63 928 181 5599</a>
-            <a href="mailto:hello@packandsip.example" class="block transition hover:text-white">hello@packandsip.example</a>
+            <a href="mailto:jambyletesa@gmail.com" class="block transition hover:text-white">jambyletesa@gmail.com</a>
           </div>
         </div>
       </div>

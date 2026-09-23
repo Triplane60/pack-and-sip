@@ -1210,12 +1210,12 @@ def init_db():
     cursor.execute('SELECT COUNT(*) FROM products')
     if cursor.fetchone()[0] == 0:
         initial_products = [
-            ('cup-12oz', 'cup', 'Cups — 12 oz (Box of 1,250)', '12oz', None, 1250, 45.0, 50, 'Durable 12oz disposable cups.'),
-            ('cup-16oz', 'cup', 'Cups — 16 oz (Box of 1,250)', '16oz', None, 1250, 45.0, 40, 'Classic 16oz disposable cups.'),
-            ('cup-22oz', 'cup', 'Cups — 22 oz (Box of 1,250)', '22oz', None, 1250, 45.0, 25, 'Large 22oz disposable cups.'),
-            ('lid-strawless', 'lid', 'Lids — Strawless (Box of 1,250)', None, 'Strawless', 1250, 25.0, 60, 'Strawless lids — universal fit.'),
-            ('lid-dome', 'lid', 'Lids — Dome (Box of 1,250)', None, 'Dome', 1250, 25.0, 30, 'Dome lids — universal fit.'),
-            ('lid-flat', 'lid', 'Lids — Flat (Box of 1,250)', None, 'Flat', 1250, 25.0, 15, 'Flat lids — universal fit.')
+            ('cup-12oz', 'cup', 'Cups — 12 oz (Box of 1,250)', '12oz', None, 1250, 2860.0, 50, 'Durable 12oz disposable cups.'),
+            ('cup-16oz', 'cup', 'Cups — 16 oz (Box of 1,250)', '16oz', None, 1250, 2960.0, 40, 'Classic 16oz disposable cups.'),
+            ('cup-22oz', 'cup', 'Cups — 22 oz (Box of 1,250)', '22oz', None, 1250, 3840.0, 25, 'Large 22oz disposable cups.'),
+            ('lid-strawless', 'lid', 'Lids — Strawless (Box of 1,250)', None, 'Strawless', 1250, 1150.0, 60, 'Strawless lids — universal fit.'),
+            ('lid-dome', 'lid', 'Lids — Dome (Box of 1,250)', None, 'Dome', 1250, 1300.0, 30, 'Dome lids — universal fit.'),
+            ('lid-flat', 'lid', 'Lids — Flat (Box of 1,250)', None, 'Flat', 1250, 1150.0, 15, 'Flat lids — universal fit.')
         ]
         cursor.executemany('''
             INSERT INTO products (id, type, name, size, style, quantity_per_box, price_per_box, stock_boxes, description)
@@ -1228,11 +1228,11 @@ def init_db():
         ('container-re-2500', 'microwavable', 'RE 2500 Rectangular Container (2,500ml)', '2,500ml', 'RE Series', 100, 1600.0, 20, 'Microwavable rectangular container with a 2,500ml capacity.'),
         ('container-re-1600', 'microwavable', 'RE 1600 Rectangular Container (1,600ml)', '1,600ml', 'RE Series', 100, 1400.0, 20, 'Microwavable rectangular container with a 1,600ml capacity.'),
         ('container-re-1000', 'microwavable', 'RE 1000 Rectangular Container (1,000ml)', '1,000ml', 'RE Series', 100, 1200.0, 20, 'Microwavable rectangular container with a 1,000ml capacity.'),
-        ('container-re-750', 'microwavable', 'RE 750 Rectangular Container (750ml)', '750ml', 'RE Series', 100, 950.0, 20, 'Microwavable rectangular container with a 750ml capacity.'),
-        ('container-re-500', 'microwavable', 'RE 500 Rectangular Container (500ml)', '500ml', 'RE Series', 100, 800.0, 20, 'Microwavable rectangular container with a 500ml capacity.'),
-        ('container-ro-30', 'microwavable', 'RO 30 Round Container (30 oz)', '30oz', 'RO Series', 100, 1100.0, 20, 'Microwavable round container with a 30oz capacity.'),
-        ('container-ro-16', 'microwavable', 'RO 16 Round Container (16 oz)', '16oz', 'RO Series', 100, 900.0, 20, 'Microwavable round container with a 16oz capacity.'),
-        ('container-ro-10', 'microwavable', 'RO 10 Round Container (10 oz)', '10oz', 'RO Series', 100, 750.0, 20, 'Microwavable round container with a 10oz capacity.')
+        ('container-re-750', 'microwavable', 'RE 750 Rectangular Container (750ml)', '750ml', 'RE Series', 100, 1450.0, 20, 'Microwavable rectangular container with a 750ml capacity.'),
+        ('container-re-500', 'microwavable', 'RE 500 Rectangular Container (500ml)', '500ml', 'RE Series', 100, 1250.0, 20, 'Microwavable rectangular container with a 500ml capacity.'),
+        ('container-ro-30', 'microwavable', 'RO 30 Round Container (30 oz)', '30oz', 'RO Series', 100, 1230.0, 20, 'Microwavable round container with a 30oz capacity.'),
+        ('container-ro-16', 'microwavable', 'RO 16 Round Container (16 oz)', '16oz', 'RO Series', 100, 960.0, 20, 'Microwavable round container with a 16oz capacity.'),
+        ('container-ro-10', 'microwavable', 'RO 10 Round Container (10 oz)', '10oz', 'RO Series', 100, 820.0, 20, 'Microwavable round container with a 10oz capacity.')
     ]
     cursor.executemany('''
         INSERT OR IGNORE INTO products (id, type, name, size, style, quantity_per_box, price_per_box, stock_boxes, description)
@@ -1256,6 +1256,28 @@ def init_db():
             WHERE type IN ('cup', 'lid')
         ''')
         conn.commit()
+
+    # Microwavable container pricing update (per-box, packs of 100). Databases
+    # seeded before this change carry the legacy rates, so backfill them here;
+    # guarded so we only write while a legacy price is still present (fresh
+    # databases are seeded directly with the new rates and any admin-updated
+    # prices are left untouched).
+    legacy_microwavable_prices = cursor.execute(
+        "SELECT COUNT(*) FROM products WHERE type = 'microwavable' "
+        "AND price_per_box IN (950.0, 800.0, 1100.0, 900.0, 750.0)"
+    ).fetchone()[0]
+    if legacy_microwavable_prices > 0:
+        cursor.executemany('''
+            UPDATE products SET price_per_box = ? WHERE id = ?
+        ''', (
+            (1450.0, 'container-re-750'),
+            (1250.0, 'container-re-500'),
+            (1230.0, 'container-ro-30'),
+            (960.0, 'container-ro-16'),
+            (820.0, 'container-ro-10'),
+        ))
+        conn.commit()
+
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS orders (
@@ -2024,7 +2046,17 @@ def process_checkout():
         lid = cursor.execute('SELECT price_per_box FROM products WHERE id = ?', (lid_id,)).fetchone()
         unit_prices['lid'] = float(lid['price_per_box'] or 0)
         subtotal += lid['price_per_box'] * lid_boxes
-    subtotal += MICROWAVABLE_PRICE_PER_BOX * microwavable_boxes
+    if microwavable_id and microwavable_boxes > 0:
+        # Charge the selected container's own per-box price (admin-editable);
+        # fall back to the legacy flat rate only if the product is missing.
+        micro = cursor.execute(
+            'SELECT price_per_box FROM products WHERE id = ?', (microwavable_id,)
+        ).fetchone()
+        micro_price = float(micro['price_per_box']) if micro else MICROWAVABLE_PRICE_PER_BOX
+    else:
+        micro_price = MICROWAVABLE_PRICE_PER_BOX
+    unit_prices['microwavable'] = micro_price
+    subtotal += micro_price * microwavable_boxes
 
     subtotal = round(subtotal, 2)
     # Lalamove Delivery fee (origin: Taguig) = destination base rate + cup/lid
@@ -2228,7 +2260,7 @@ def upload_receipt():
         <body class="bg-slate-50 flex items-center justify-center min-h-screen p-4">
             <div class="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
                 <h1 class="text-2xl font-bold mb-4 text-indigo-700">Upload Payment Receipt</h1>
-                <p class="text-slate-600 mb-6 text-sm">Please upload your GCash/Maya screenshot for Order #{{ order_id }}</p>
+                <p class="text-slate-700 font-medium mb-6 text-sm">Please upload your GCash/Maya screenshot for Order #{{ order_id }}</p>
                 <form method="POST" enctype="multipart/form-data" class="space-y-4">
                     <input type="hidden" name="order_id" value="{{ order_id }}">
                     <div>
