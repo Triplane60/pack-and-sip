@@ -2,8 +2,58 @@
   --brand-indigo:#4f46e5;
 }
 
+/* Navigation brand: styled "Pack & Sip Wholesale" text (replaces the logo
+   image, which moved to the hero banner). Clean, bold, modern store-header
+   look in the brand indigo; the "Wholesale" eyebrow sits underneath so the
+   bar stays compact. */
+.nav-brand-text {
+  display: inline-block;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--brand-indigo);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nav-brand-text:hover {
+  color: #4338ca;
+}
+
+.nav-brand-amp {
+  font-weight: 700;
+}
+
+.nav-brand-sub {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #64748b;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+/* Hero brand logo: official mark above "Wholesale Boxes of Cups & Lids".
+   Prominent 110px width (within the requested 90-120px range), auto height
+   + object-fit: contain so the 1408x768 artwork never distorts, 12px bottom
+   margin separating it from the headline, left-aligned with the heading on
+   desktop and centered on small screens via the media query below. */
+.hero-logo {
+  display: block;
+  width: 110px;
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
+  margin-bottom: 12px;
+}
+
 /* Navigation brand logo: the transparent PNG composites cleanly on the white
-   header, so no blending workarounds are applied here. A fixed height keeps
+   header, so no blending workarounds are applied here. (Kept for backward
+   compatibility with any legacy markup; current pages use .nav-brand-text in
+   the navbar and .hero-logo for the artwork.) A fixed height keeps
    it optically aligned with the nav links inside the flex header; width:auto
    preserves the original (1408x768) aspect ratio and object-fit: contain
    guarantees the artwork is never stretched even if a future rule constrains
@@ -38,20 +88,26 @@
   align-items: center;
 }
 
-/* Drawer default off-screen handled with inline transform class; provide will-change for smoothness.
-   position + z-index keep the panel above the .cart-overlay backdrop so the
-   dimmed area around it stays clickable while the panel itself stays usable.
-   Widened Order Summary panel: 480px on desktop, capped at 90vw so phones
-   still show a dismissible margin. The ID selector out-specifies Tailwind's
+/* Order Summary drawer — fixed overlay panel (never pushes page content).
+   The panel is pinned to the viewport (top/right, full height) with a high
+   z-index + shadow so it slides IN OVER the catalog instead of resizing or
+   shifting .container / .catalog-grid. The main catalog stays fixed-width
+   and centered at all times because a fixed element is removed from normal
+   document flow. Width: 480px on desktop, capped at 90vw so phones still
+   show a dismissible margin. The ID selector out-specifies Tailwind's
    max-w-sm utility on the markup, so this width holds at runtime. */
-#drawerPanel { 
-  will-change: transform; 
+#drawerPanel {
+  will-change: transform;
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  max-height: 100vh;
+  z-index: 1000;
+  box-shadow: -4px 0 20px rgba(0,0,0,0.15);
   width: 480px;
   max-width: 90vw;
-  max-height: 100vh;
   overflow-y: auto;
-  position: relative;
-  z-index: 2;
 }
 
 /* Hide FAB when drawer/modals are open */
@@ -152,6 +208,46 @@ input[type="number"] {
   border: 0;
 }
 
+/* Product card titles: bold, dark, and readable at every size so long
+   microwavable names (e.g. "RE 1600 Rectangular Container") stay legible
+   on all screen sizes. The class selector out-specifies base heading
+   styles so this holds at runtime. */
+.product-card-title {
+  font-size: clamp(1.1rem, 2.5vw, 1.25rem);
+  font-weight: 700;
+  line-height: 1.35;
+  color: #0f172a;
+}
+
+/* Product card image/placeholder caption: the placehold.co image text is
+   baked into a raster image and cannot be styled with CSS, so each card
+   also renders this DOM caption directly beneath its image. Bold/dark at
+   1.1rem–1.25rem so the product name (e.g. "RO 10 Round Container (10 oz)")
+   is easily readable on both desktop and mobile. */
+.product-card-media {
+  margin: 0;
+}
+
+.product-card-media-label {
+  display: block;
+  padding: 10px 20px 0;
+  font-size: clamp(1.1rem, 2.5vw, 1.25rem);
+  font-weight: 700;
+  line-height: 1.4;
+  color: #0f172a;
+}
+
+/* Product card descriptions: consistent sizing (0.85rem–0.9rem) and line
+   spacing across cups, lids, and microwavable cards. The 0.85rem base with
+   a 1.6 line-height keeps two-line professional copy neat; cards with room
+   scale toward 0.9rem via clamp. The class selector out-specifies Tailwind's
+   text-sm utility on the same element so this holds at runtime. */
+.product-card-desc {
+  font-size: clamp(0.85rem, 2.5vw, 0.9rem);
+  line-height: 1.6;
+}
+
+
 /* Externalized Styles */
 .contents-display {
   display: contents;
@@ -230,6 +326,52 @@ input[type="number"] {
   display: block;
   font-size: 14px;
   line-height: 1.5;
+}
+
+/* City / Location explainer — Lucide 'info' banner shown only for Lalamove
+   Delivery (Self-Booking hides it via updateDeliveryAddressVisibility).
+   Matches the Delivery Packaging Guide palette so the two banners read as
+   one family; hidden state keeps it out of the pick-up flow entirely. */
+.delivery-zone-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 16px 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.delivery-zone-info .lucide {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  color: #1d4ed8;
+}
+
+.delivery-zone-info-text {
+  display: block;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #1e3a8a;
+}
+
+.delivery-zone-info-text strong {
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.delivery-zone-info-text > strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.delivery-zone-info.is-hidden-banner {
+  display: none !important;
 }
 
 /* Delivery Packaging Guide — styled alert box in the checkout drawer
@@ -398,8 +540,10 @@ input[type="number"] {
 }
 
 /* Cart drawer backdrop (#cartOverlay.cart-overlay)
-   - Sits above the page but BELOW the Order Summary panel (z-index 1 vs 2), so
-     the dimmed area is clickable while the panel keeps its own events.
+   - Sits above the page but BELOW the Order Summary panel (z-index 999 vs
+     1000), so the dimmed area is clickable while the panel keeps its own
+     events. Fixed + full-viewport so it always covers the page behind the
+     fixed panel, regardless of scroll position.
    - pointer-events stays 'none' while the drawer is closed (the backdrop must
      never block the page) and flips to 'auto' while it is open, which is what
      makes "click outside the panel to dismiss" work.
@@ -409,9 +553,9 @@ input[type="number"] {
 }
 
 .cart-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 1;
+  z-index: 999;
   background-color: rgba(15, 23, 42, 0.45);
   opacity: 0;
   pointer-events: none;
@@ -578,20 +722,31 @@ body.drawer-open #cartDrawer {
     height: auto !important;
   }
 
-  /* Brand logo (.nav-logo / #siteLogo) on mobile — 55px so the "PACK & SIP"
-     text inside the logo circle stays clear while still fitting beside the
-     cart button in the taller header. max-height is overridden to none (was
-     50px) so the enlarged logo renders in full, and width:auto preserves the
-     circular aspect ratio. Kept separate from the generic rule above, which
-     is capped at 36px for legacy logo markup. */
-  .nav-logo,
-  #siteLogo {
+  /* Legacy navbar image logo (.nav-logo) on mobile — 55px so the "PACK & SIP"
+     text stays clear while fitting beside the cart button. Scoped to the
+     .nav-logo class only (NOT #siteLogo, which now lives on the hero image)
+     so it never overrides the .hero-logo sizing below. */
+  .nav-logo {
     height: 55px !important;
     max-height: none !important;
     width: auto !important;
   }
 
-  /* Header row alignment — the container and its two groups (logo + links,
+  /* Navbar brand text on mobile — slightly smaller so it fits beside the
+     cart button with room to spare. */
+  .nav-brand-text {
+    font-size: 1.35rem !important;
+  }
+
+  /* Hero logo on mobile — centered above the heading for a strong,
+     balanced identity on small screens. */
+  .hero-logo {
+    width: 100px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  /* Header row alignment — the container and its two groups (brand + links,
      cart button) all center their children vertically, so the logo, links,
      and cart icon sit perfectly centered inside the header on mobile. */
   #top > div,
@@ -656,11 +811,12 @@ body.drawer-open #cartDrawer {
      Order Summary Panel / Drawer on Mobile
      ----------------------------------------------------------- */
 
-  /* Full-width drawer capped to the viewport on small screens. */
+  /* Full-width drawer capped to the viewport on small screens: 90vw keeps a
+     dismissible margin so tapping outside still closes the fixed overlay. */
   @media (max-width: 640px) {
     #drawerPanel {
-      width: 100% !important;
-      max-width: 100vw !important;
+      width: 480px !important;
+      max-width: 90vw !important;
       border-radius: 0 !important;
       box-sizing: border-box !important;
       transform-origin: right center !important;

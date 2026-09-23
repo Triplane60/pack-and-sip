@@ -48,14 +48,17 @@ function microwavableCapacityMl(product){
   return m[2].toLowerCase() === 'oz' ? num * 29.5735 : num;
 }
 
-// Ascending comparator for the Microwavable Containers section: RE Series
-// (rectangular) first in increasing capacity, then RO Series (round) in
+// Ascending comparator for the Microwavable Containers section: RO Series
+// (round) first in increasing capacity, then RE Series (rectangular) in
 // increasing capacity. Keeps each series contiguous per the requested
-// RE 500 -> RE 750 -> RE 1000 -> RE 1600 -> RE 2500 -> RE 3200 sequence.
+// RO 10 -> RO 16 -> RO 30, then RE 500 -> RE 750 -> RE 1000
+// -> (RE 1250 / RE 1450 / RE 1650 when added) -> RE 1600 -> RE 2500
+// -> RE 3200 sequence. Capacity is parsed numerically (ml/oz) so future
+// sizes slot into the right position automatically on desktop and mobile.
 function compareMicrowavableAsc(a, b){
   const aIsRE = /\bRE\b/i.test(String(a.style || '')) || /^container-re-/i.test(String(a.id || ''));
   const bIsRE = /\bRE\b/i.test(String(b.style || '')) || /^container-re-/i.test(String(b.id || ''));
-  if(aIsRE !== bIsRE) return aIsRE ? -1 : 1;
+  if(aIsRE !== bIsRE) return aIsRE ? 1 : -1;
   const capA = microwavableCapacityMl(a);
   const capB = microwavableCapacityMl(b);
   if(capA !== capB) return capA - capB;
@@ -77,8 +80,9 @@ function renderCatalog(){
   microwavableList.innerHTML = '';
 
   // Microwavable Containers are always displayed in INCREASING size/capacity
-  // order (RE 500 -> RE 750 -> RE 1000 -> RE 1600 -> RE 2500 -> RE 3200,
-  // then RO 10 -> RO 16 -> RO 30) so the section reads smallest-to-largest
+  // order (RO 10 -> RO 16 -> RO 30, then RE 500 -> RE 750 -> RE 1000
+  // -> RE 1600 -> RE 2500 -> RE 3200, with RE 1250 / RE 1450 / RE 1650
+  // slotting in by capacity if added) so the section reads smallest-to-largest
   // on both desktop and mobile. Sorting here (instead of relying on API/DB
   // insertion order) guarantees the ascending sequence everywhere.
   const microwavables = PRODUCTS.filter(p => p.type === 'microwavable').sort(compareMicrowavableAsc);
@@ -94,12 +98,15 @@ function renderCatalog(){
     card.innerHTML = `
       <div>
         <div class="flex items-start justify-between gap-3 p-5 pb-3">
-          <h3 class="font-semibold text-slate-900">${product.name}</h3>
+          <h3 class="product-card-title font-semibold text-slate-900">${product.name}</h3>
           <span class="shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${stockClasses}">${stockLabel}</span>
         </div>
-        <img src="${getProductImage(product)}" alt="${product.name} preview" class="h-40 w-full object-cover" />
+        <figure class="product-card-media">
+          <img src="${getProductImage(product)}" alt="${product.name} preview" class="h-40 w-full object-cover" />
+          <figcaption class="product-card-media-label">${product.name}</figcaption>
+        </figure>
         <div class="p-5 pt-4">
-          <p class="text-sm font-medium text-slate-700">${product.description}</p>
+          <p class="product-card-desc text-sm font-medium text-slate-700">${product.description}</p>
           <div class="mt-4 flex items-end justify-between gap-3">
             <div>
               <span class="cardPrice text-2xl font-bold text-indigo-700">${formatPrice(product.price_per_box)}</span>
@@ -613,9 +620,10 @@ function deliveryMethodLabel(method){
 // Keep delivery address, fee UI and location notes in sync with the chosen
 // delivery method.
 //   - Self-Booking / Warehouse Pick-up: hides ONLY the Shipping Address field,
-//     keeps shipping at P0.00 and relaxes address validation.
-//   - Lalamove Delivery: restores the address field, validation, and the
-//     location + box surcharge fee.
+//     keeps shipping at P0.00 and relaxes address validation. It also hides
+//     the City / Location 'info' explainer banner (Lalamove-only context).
+//   - Lalamove Delivery: restores the address field, validation, the
+//     location + box surcharge fee, and the 'info' explainer banner.
 // City / Location stays visible and enabled for BOTH methods because it also
 // sets the dynamic payment reservation window.
 function getDeliveryAddressFields(){
@@ -626,6 +634,17 @@ function updateDeliveryAddressVisibility(selfBooking){
   const fields = getDeliveryAddressFields();
   const address = document.getElementById('customerAddress');
   const zone = getDeliveryZoneSelect();
+  // City / Location explainer banner: Lalamove-only context. Hide it for
+  // Self-Booking / Pick-up, restore it for Lalamove Delivery.
+  const zoneInfo = document.getElementById('deliveryZoneInfo');
+  if(zoneInfo){
+    zoneInfo.classList.toggle('is-hidden-banner', !!selfBooking);
+    if(selfBooking){
+      zoneInfo.setAttribute('aria-hidden', 'true');
+    }else{
+      zoneInfo.removeAttribute('aria-hidden');
+    }
+  }
   if(selfBooking && fields){
     fields.classList.add('hidden');
     fields.setAttribute('aria-hidden', 'true');
@@ -653,9 +672,13 @@ function updateDeliveryAddressVisibility(selfBooking){
 }
 
 // Delivery Method radio change: refresh fee totals first, then show or hide
-// the Lalamove-specific address inputs for that same selection.
+// the Lalamove-specific address inputs for that same selection. The banner
+// itself is static markup, so no DOM rewrite is needed — but re-run
+// refreshIcons() so the 'info'/vehicle Lucide placeholders render crisply
+// even if the icon CDN finished loading after the initial page render.
 function handleDeliveryMethodChange(){
   updateDeliveryAddressVisibility(isSelfBookingSelected());
+  refreshIcons();
   calculate();
 }
 
@@ -1827,6 +1850,7 @@ function setupAboutModal(){
 
 function setupSecretAdminAccess(){
   const siteLogo = document.getElementById('siteLogo');
+  const siteBrand = document.getElementById('siteBrand');
   const openAdmin = () => { window.location.href = 'manage-orders-ps.html'; };
 
   document.addEventListener('keydown', event => {
@@ -1837,4 +1861,5 @@ function setupSecretAdminAccess(){
   });
 
   if(siteLogo) siteLogo.addEventListener('dblclick', openAdmin);
+  if(siteBrand) siteBrand.addEventListener('dblclick', openAdmin);
 }

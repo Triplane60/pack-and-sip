@@ -59,12 +59,16 @@
 
   <header id="top" class="bg-white shadow">
     <!-- Container padding mirrors the #top > div rule in styles.css
-         (padding: 12px 24px; min-height: 85px) so the enlarged 70px
-         .nav-logo fits the taller bar while the "About" and
-         "Login / Register" links stay vertically centered against it. -->
+         (padding: 12px 24px; min-height: 85px) so the "Pack & Sip
+         Wholesale" brand text and the "About" / "Login / Register" links
+         stay vertically centered in a spacious bar. -->
     <div class="max-w-6xl mx-auto px-6 py-2.5 flex items-center justify-between">
       <div class="flex items-center gap-4">
-        <img id="siteLogo" class="nav-logo" src="logo.png" alt="Pack &amp; Sip" />
+        <!-- Navbar brand: styled text (replaces the logo image, which now lives
+             in the hero banner above "Wholesale Boxes of Cups & Lids"). The
+             double-click admin shortcut is wired to #siteBrand in main.js
+             (setupSecretAdminAccess) alongside the hero logo. -->
+        <a id="siteBrand" href="#top" class="nav-brand-text" title="Pack &amp; Sip — home">Pack <span class="nav-brand-amp">&amp;</span> Sip<span class="nav-brand-sub">Wholesale</span></a>
         <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-700">
           <a href="#about" id="aboutLink" class="hover:text-slate-900">About</a>
           <button id="authBtn" class="hover:text-slate-900">Login / Register</button>
@@ -93,6 +97,11 @@
     </div>
     <section id="configurator" class="bg-gradient-to-r from-indigo-50 to-slate-50 rounded-lg p-8 flex flex-col md:flex-row items-center gap-8">
       <div class="flex-1">
+        <!-- Hero brand logo: official mark centered above the main heading for
+             a strong visual identity (moved here from the navbar). Sized at
+             110px wide via .hero-logo in styles.css. Keeps id="siteLogo" so the
+             double-click admin shortcut in main.js keeps working. -->
+        <img id="siteLogo" class="hero-logo" src="logo.png" alt="Pack &amp; Sip logo" />
         <h1 class="text-3xl font-extrabold text-slate-900">Wholesale Boxes of Cups & Lids</h1>
         <p class="mt-4 text-slate-700">High-volume eco-friendly disposable drinkware and food containers powered by Dabba. Direct warehouse pricing for businesses and events.</p>
         <ul class="mt-4 text-sm font-medium text-slate-700">
@@ -168,8 +177,9 @@
         <p class="hidden sm:block text-sm font-medium text-slate-700">Bulk boxes of 100</p>
       </div>
       <!-- Microwavable cards are injected by main.js renderCatalog() in INCREASING
-           size/capacity order (RE 500 -> RE 750 -> RE 1000 -> RE 1600 -> RE 2500
-           -> RE 3200, then RO 10 -> RO 16 -> RO 30) via compareMicrowavableAsc.
+           size/capacity order (RO 10 -> RO 16 -> RO 30, then RE 500 -> RE 750
+           -> RE 1000 -> RE 1600 -> RE 2500 -> RE 3200, with RE 1250 / RE 1450
+           / RE 1650 slotting in by capacity if added) via compareMicrowavableAsc.
            Do not hardcode product cards here; keep that ascending sequence. -->
       <div id="microwavableList" class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4"></div>
     </section>
@@ -455,6 +465,20 @@
                  limit. The options (zone id, base rate + reservation window)
                  come from app.py LALAMOVE_ZONE_OPTIONS so the storefront and
                  the server always agree. -->
+            <!-- City Location explainer: Lucide 'info' banner shown ONLY for
+                 Lalamove Delivery (hidden for Self-Booking / Pick-up via
+                 updateDeliveryAddressVisibility in main.js). Explains in clear
+                 Business English that the rate depends on the distance from the
+                 Bagumbayan, Taguig City warehouse plus parcel volume. Static
+                 markup — refreshIcons() on load + openCart + updateSummary
+                 converts the <i data-lucide> placeholder. -->
+            <div class="delivery-zone-info" id="deliveryZoneInfo" role="note" aria-label="Why select your City / Location">
+              <i data-lucide="info" class="h-4 w-4" aria-hidden="true"></i>
+              <div class="delivery-zone-info-text">
+                <strong>Why select your City / Location?</strong>
+                <span>Estimated shipping rates are calculated based on the distance between your delivery location and our Warehouse in <strong>Bagumbayan, Taguig City</strong>, as well as the overall parcel volume.</span>
+              </div>
+            </div>
             <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
               <label for="deliveryZone" class="block text-sm font-medium text-slate-700">City / Location</label>
               <select id="deliveryZone" name="delivery_zone" onchange="calculate()" title="City / Location — Lalamove shipping origin: Taguig" class="payment-type-select">
@@ -505,21 +529,21 @@
                   <i data-lucide="bike" class="h-4 w-4" aria-hidden="true"></i>
                   <div class="delivery-guide-item-text">
                     <strong>Motorcycle</strong>
-                    <span>Best for small orders (1&ndash;2 boxes) that fit in a standard delivery box.</span>
+                    <span>Best for small orders (1&ndash;2 boxes of cups/lids that fit standard insulated bags).</span>
                   </div>
                 </li>
                 <li class="delivery-guide-item">
                   <i data-lucide="car" class="h-4 w-4" aria-hidden="true"></i>
                   <div class="delivery-guide-item-text">
-                    <strong>Sedan</strong>
-                    <span>Best for medium orders (3&ndash;5 boxes) that need trunk space.</span>
+                    <strong>Sedan / MPV</strong>
+                    <span>Required for medium orders or 1&ndash;3 boxes of bulky Microwavable Containers.</span>
                   </div>
                 </li>
                 <li class="delivery-guide-item">
                   <i data-lucide="truck" class="h-4 w-4" aria-hidden="true"></i>
                   <div class="delivery-guide-item-text">
-                    <strong>L300 / Van</strong>
-                    <span>Best for bulk orders (6+ boxes). Choose this for full-box wholesale checkouts.</span>
+                    <strong>L300 / Van / Closed Van</strong>
+                    <span>Required for bulk wholesale orders (4+ boxes).</span>
                   </div>
                 </li>
               </ul>

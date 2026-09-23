@@ -1214,12 +1214,12 @@ def init_db():
     cursor.execute('SELECT COUNT(*) FROM products')
     if cursor.fetchone()[0] == 0:
         initial_products = [
-            ('cup-12oz', 'cup', 'Cups — 12 oz (Box of 1,250)', '12oz', None, 1250, 2860.0, 50, 'Durable 12oz disposable cups.'),
-            ('cup-16oz', 'cup', 'Cups — 16 oz (Box of 1,250)', '16oz', None, 1250, 2960.0, 40, 'Classic 16oz disposable cups.'),
-            ('cup-22oz', 'cup', 'Cups — 22 oz (Box of 1,250)', '22oz', None, 1250, 3840.0, 25, 'Large 22oz disposable cups.'),
-            ('lid-strawless', 'lid', 'Lids — Strawless (Box of 1,250)', None, 'Strawless', 1250, 1150.0, 60, 'Strawless lids — universal fit.'),
-            ('lid-dome', 'lid', 'Lids — Dome (Box of 1,250)', None, 'Dome', 1250, 1300.0, 30, 'Dome lids — universal fit.'),
-            ('lid-flat', 'lid', 'Lids — Flat (Box of 1,250)', None, 'Flat', 1250, 1150.0, 15, 'Flat lids — universal fit.')
+            ('cup-12oz', 'cup', 'Cups — 12 oz (Box of 1,250)', '12oz', None, 1250, 2860.0, 50, 'High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.'),
+            ('cup-16oz', 'cup', 'Cups — 16 oz (Box of 1,250)', '16oz', None, 1250, 2960.0, 40, 'High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.'),
+            ('cup-22oz', 'cup', 'Cups — 22 oz (Box of 1,250)', '22oz', None, 1250, 3840.0, 25, 'High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.'),
+            ('lid-strawless', 'lid', 'Lids — Strawless (Box of 1,250)', None, 'Strawless', 1250, 1150.0, 60, 'Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.'),
+            ('lid-dome', 'lid', 'Lids — Dome (Box of 1,250)', None, 'Dome', 1250, 1300.0, 30, 'Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.'),
+            ('lid-flat', 'lid', 'Lids — Flat (Box of 1,250)', None, 'Flat', 1250, 1150.0, 15, 'Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.')
         ]
         cursor.executemany('''
             INSERT INTO products (id, type, name, size, style, quantity_per_box, price_per_box, stock_boxes, description)
@@ -1228,15 +1228,15 @@ def init_db():
         conn.commit()
 
     microwavable_products = [
-        ('container-re-3200', 'microwavable', 'RE 3200 Rectangular Container (3,200ml)', '3,200ml', 'RE Series', 100, 1800.0, 20, 'Authentic GoUp high-grade microwavable rectangular container with a 3,200ml capacity.'),
-        ('container-re-2500', 'microwavable', 'RE 2500 Rectangular Container (2,500ml)', '2,500ml', 'RE Series', 100, 1600.0, 20, 'Authentic GoUp high-grade microwavable rectangular container with a 2,500ml capacity.'),
-        ('container-re-1600', 'microwavable', 'RE 1600 Rectangular Container (1,600ml)', '1,600ml', 'RE Series', 100, 1400.0, 20, 'Authentic GoUp high-grade microwavable rectangular container with a 1,600ml capacity.'),
-        ('container-re-1000', 'microwavable', 'RE 1000 Rectangular Container (1,000ml)', '1,000ml', 'RE Series', 100, 1650.0, 20, 'Authentic GoUp high-grade microwavable rectangular container with a 1,000ml capacity.'),
-        ('container-re-750', 'microwavable', 'RE 750 Rectangular Container (750ml)', '750ml', 'RE Series', 100, 1450.0, 20, 'Authentic GoUp high-grade microwavable rectangular container with a 750ml capacity.'),
-        ('container-re-500', 'microwavable', 'RE 500 Rectangular Container (500ml)', '500ml', 'RE Series', 100, 1250.0, 20, 'Authentic GoUp high-grade microwavable rectangular container with a 500ml capacity.'),
-        ('container-ro-30', 'microwavable', 'RO 30 Round Container (30 oz)', '30oz', 'RO Series', 100, 1230.0, 20, 'Authentic GoUp high-grade microwavable round container with a 30oz capacity.'),
-        ('container-ro-16', 'microwavable', 'RO 16 Round Container (16 oz)', '16oz', 'RO Series', 100, 960.0, 20, 'Authentic GoUp high-grade microwavable round container with a 16oz capacity.'),
-        ('container-ro-10', 'microwavable', 'RO 10 Round Container (10 oz)', '10oz', 'RO Series', 100, 820.0, 20, 'Authentic GoUp high-grade microwavable round container with a 10oz capacity.')
+        ('container-re-3200', 'microwavable', 'RE 3200 Rectangular Container (3,200ml)', '3,200ml', 'RE Series', 100, 1800.0, 20, 'Extra-large heavy-duty food packaging. Excellent for full-sized platter meals and catering takeaways.'),
+        ('container-re-2500', 'microwavable', 'RE 2500 Rectangular Container (2,500ml)', '2,500ml', 'RE Series', 100, 1600.0, 20, 'Large capacity food containers designed for family shares, party trays, and bulk food orders.'),
+        ('container-re-1600', 'microwavable', 'RE 1600 Rectangular Container (1,600ml)', '1,600ml', 'RE Series', 100, 1400.0, 20, 'Medium-sized durable food containers with tight-fitting lids. Perfect for standard meals and pasta dishes.'),
+        ('container-re-1000', 'microwavable', 'RE 1000 Rectangular Container (1,000ml)', '1,000ml', 'RE Series', 100, 1650.0, 20, 'Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.'),
+        ('container-re-750', 'microwavable', 'RE 750 Rectangular Container (750ml)', '750ml', 'RE Series', 100, 1450.0, 20, 'Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.'),
+        ('container-re-500', 'microwavable', 'RE 500 Rectangular Container (500ml)', '500ml', 'RE Series', 100, 1250.0, 20, 'Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.'),
+        ('container-ro-30', 'microwavable', 'RO 30 Round Container (30 oz)', '30oz', 'RO Series', 100, 1230.0, 20, 'Large capacity round food containers designed for family shares, party trays, and bulk food orders.'),
+        ('container-ro-16', 'microwavable', 'RO 16 Round Container (16 oz)', '16oz', 'RO Series', 100, 960.0, 20, 'Medium-sized durable round food containers with tight-fitting lids. Perfect for standard meals and pasta dishes.'),
+        ('container-ro-10', 'microwavable', 'RO 10 Round Container (10 oz)', '10oz', 'RO Series', 100, 820.0, 20, 'Compact food-grade microwaveable round containers. Ideal for rice meals, side dishes, and small take-out servings.')
     ]
     cursor.executemany('''
         INSERT OR IGNORE INTO products (id, type, name, size, style, quantity_per_box, price_per_box, stock_boxes, description)
@@ -1298,44 +1298,55 @@ def init_db():
         )
         conn.commit()
 
-    # GoUp supplier branding: every microwavable card description now names
-    # the authentic GoUp high-grade containers (pairs with the GoUp badge
-    # above the Microwavable Containers section on the storefront). Databases
-    # seeded before this change carry the legacy one-line copy, so backfill
-    # them here; guarded by an exact match on the legacy text so we only write
-    # while the old copy is still present — fresh databases are seeded
-    # directly with the GoUp wording and any admin-edited descriptions are
+    # Professional catalog copy: cups, lids, and microwavable containers use
+    # complete marketing descriptions (pairs with the Dabba/GoUp badges above
+    # each section on the storefront). Databases seeded before this change
+    # carry the legacy one-line copy, so backfill them here; each UPDATE is
+    # guarded by an exact match on a known legacy text so we only write while
+    # the old copy is still present — fresh databases are seeded directly
+    # with the professional wording and any admin-edited descriptions are
     # left untouched.
-    goup_description_backfill = (
-        ('Authentic GoUp high-grade microwavable rectangular container with a 3,200ml capacity.',
-         'container-re-3200', 'Microwavable rectangular container with a 3,200ml capacity.'),
-        ('Authentic GoUp high-grade microwavable rectangular container with a 2,500ml capacity.',
-         'container-re-2500', 'Microwavable rectangular container with a 2,500ml capacity.'),
-        ('Authentic GoUp high-grade microwavable rectangular container with a 1,600ml capacity.',
-         'container-re-1600', 'Microwavable rectangular container with a 1,600ml capacity.'),
-        ('Authentic GoUp high-grade microwavable rectangular container with a 1,000ml capacity.',
-         'container-re-1000', 'Microwavable rectangular container with a 1,000ml capacity.'),
-        ('Authentic GoUp high-grade microwavable rectangular container with a 750ml capacity.',
-         'container-re-750', 'Microwavable rectangular container with a 750ml capacity.'),
-        ('Authentic GoUp high-grade microwavable rectangular container with a 500ml capacity.',
-         'container-re-500', 'Microwavable rectangular container with a 500ml capacity.'),
-        ('Authentic GoUp high-grade microwavable round container with a 30oz capacity.',
-         'container-ro-30', 'Microwavable round container with a 30oz capacity.'),
-        ('Authentic GoUp high-grade microwavable round container with a 16oz capacity.',
-         'container-ro-16', 'Microwavable round container with a 16oz capacity.'),
-        ('Authentic GoUp high-grade microwavable round container with a 10oz capacity.',
-         'container-ro-10', 'Microwavable round container with a 10oz capacity.'),
+    professional_description_backfill = (
+        ('High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.',
+         'cup-12oz', 'Durable 12oz disposable cups.'),
+        ('High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.',
+         'cup-16oz', 'Classic 16oz disposable cups.'),
+        ('High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.',
+         'cup-22oz', 'Large 22oz disposable cups.'),
+        ('Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.',
+         'lid-strawless', 'Strawless lids — universal fit.'),
+        ('Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.',
+         'lid-dome', 'Dome lids — universal fit.'),
+        ('Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.',
+         'lid-flat', 'Flat lids — universal fit.'),
+        ('Extra-large heavy-duty food packaging. Excellent for full-sized platter meals and catering takeaways.',
+         'container-re-3200', 'Authentic GoUp high-grade microwavable rectangular container with a 3,200ml capacity.'),
+        ('Large capacity food containers designed for family shares, party trays, and bulk food orders.',
+         'container-re-2500', 'Authentic GoUp high-grade microwavable rectangular container with a 2,500ml capacity.'),
+        ('Medium-sized durable food containers with tight-fitting lids. Perfect for standard meals and pasta dishes.',
+         'container-re-1600', 'Authentic GoUp high-grade microwavable rectangular container with a 1,600ml capacity.'),
+        ('Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.',
+         'container-re-1000', 'Authentic GoUp high-grade microwavable rectangular container with a 1,000ml capacity.'),
+        ('Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.',
+         'container-re-750', 'Authentic GoUp high-grade microwavable rectangular container with a 750ml capacity.'),
+        ('Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.',
+         'container-re-500', 'Authentic GoUp high-grade microwavable rectangular container with a 500ml capacity.'),
+        ('Large capacity round food containers designed for family shares, party trays, and bulk food orders.',
+         'container-ro-30', 'Authentic GoUp high-grade microwavable round container with a 30oz capacity.'),
+        ('Medium-sized durable round food containers with tight-fitting lids. Perfect for standard meals and pasta dishes.',
+         'container-ro-16', 'Authentic GoUp high-grade microwavable round container with a 16oz capacity.'),
+        ('Compact food-grade microwaveable round containers. Ideal for rice meals, side dishes, and small take-out servings.',
+         'container-ro-10', 'Authentic GoUp high-grade microwavable round container with a 10oz capacity.'),
     )
-    legacy_goup_descriptions = tuple(row[2] for row in goup_description_backfill)
-    legacy_goup_count = cursor.execute(
-        "SELECT COUNT(*) FROM products WHERE type = 'microwavable' "
-        "AND description IN (%s)" % ','.join('?' * len(legacy_goup_descriptions)),
-        legacy_goup_descriptions
+    legacy_professional_descriptions = tuple(row[2] for row in professional_description_backfill)
+    legacy_professional_count = cursor.execute(
+        "SELECT COUNT(*) FROM products WHERE description IN (%s)" % ','.join('?' * len(legacy_professional_descriptions)),
+        legacy_professional_descriptions
     ).fetchone()[0]
-    if legacy_goup_count > 0:
+    if legacy_professional_count > 0:
         cursor.executemany('''
             UPDATE products SET description = ? WHERE id = ? AND description = ?
-        ''', goup_description_backfill)
+        ''', professional_description_backfill)
         conn.commit()
 
 
