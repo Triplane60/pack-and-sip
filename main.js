@@ -540,6 +540,28 @@ function resetDeliveryZone(){
   if(select) select.value = '';
 }
 
+// Show or hide the shipping price tag (" — ₱XX.XX") attached to every
+// City / Location <option>. Customer Self-Booking / Warehouse Pick-up never
+// charges a courier fee, so the per-city price tags are stripped from the
+// dropdown; Lalamove Delivery restores them. The price-free base label is
+// cached on the first run (data-base-label) so toggling back and forth never
+// loses text, and option.selected/value are untouched because only the text
+// node is rewritten.
+function updateDeliveryZonePriceTags(selfBooking){
+  const select = getDeliveryZoneSelect();
+  if(!select) return;
+  Array.from(select.options).forEach(option => {
+    const rate = parseFloat(option.dataset.rate || '');
+    // The placeholder "Select your city / area" option carries no rate/price.
+    if(!Number.isFinite(rate)) return;
+    if(!option.dataset.baseLabel){
+      option.dataset.baseLabel = String(option.textContent).split(' — ')[0].trim();
+    }
+    const label = option.dataset.baseLabel;
+    option.textContent = selfBooking ? label : `${label} — ${formatPrice(rate)}`;
+  });
+}
+
 // Read the currently selected Delivery Method radio (defaults to Standard).
 function getSelectedDeliveryMethod(){
   const selected = document.querySelector('input[name="delivery_method"]:checked');
@@ -586,6 +608,9 @@ function updateDeliveryAddressVisibility(selfBooking){
     zone.removeAttribute('disabled');
     zone.disabled = false;
   }
+  // Strip the per-city shipping price tags from the dropdown while
+  // Self-Booking / Pick-up is active (shipping is P0.00); Lalamove restores them.
+  updateDeliveryZonePriceTags(selfBooking);
   const zoneNote = document.getElementById('deliveryZoneNote');
   if(zoneNote){
     zoneNote.textContent = selfBooking
@@ -661,6 +686,13 @@ function updateCheckoutTotals() {
   const total = parseFloat(totalStr) || 0;
   const paymentType = document.getElementById('payment-type-select').value;
 
+  // Estimated Shipping Fee line item in the Order Summary breakdown box. The
+  // value mirrors `shipping` — already ₱0.00 for Customer Self-Booking /
+  // Warehouse Pick-up, and the live courier estimate for Lalamove Delivery —
+  // so the row stays in sync alongside Amount Due Now / Balance upon Delivery.
+  const estimatedShippingAmount = document.getElementById('estimated-shipping-amount');
+  if (estimatedShippingAmount) estimatedShippingAmount.innerText = formatPrice(shipping);
+
   // FULL shipping fee is always charged upfront, even for 50% downpayment:
   // Initial Due = (Subtotal * 50%) + Full Shipping; Balance = Subtotal * 50%.
   let dueNow = total;
@@ -731,10 +763,28 @@ async function clearCartItems(){
 }
 
 
+// ---------------------------------------------------------------------------
+// GCash payment details for the checkout drawer's Payment Instructions box
+// (#gcashAccountName / #gcashAccountNumber). Mirrors app.py's
+// GCASH_ACCOUNT_NAME / GCASH_ACCOUNT_NUMBER so the drawer, PDF receipt and
+// confirmation email always show the same wallet details.
+// ---------------------------------------------------------------------------
+const GCASH_ACCOUNT_NAME = 'Rhea E.';
+const GCASH_ACCOUNT_NUMBER = '0928 181 5599';
+
+function renderGcashInstructions(){
+  const nameEl = document.getElementById('gcashAccountName');
+  if(nameEl) nameEl.textContent = GCASH_ACCOUNT_NAME;
+  const numberEl = document.getElementById('gcashAccountNumber');
+  if(numberEl) numberEl.textContent = GCASH_ACCOUNT_NUMBER;
+}
+
 // Event wiring
 document.addEventListener('DOMContentLoaded', () => {
   resetConfigurator();
   fetchProducts();
+  // Push the GCash account details into the drawer's Payment Instructions box.
+  renderGcashInstructions();
   document.getElementById('customerPhone').addEventListener('input', function(){
     this.value = this.value.replace(/[^0-9]/g, '');
     if(this.value.length > 0 && !this.value.startsWith('09')){
@@ -1603,7 +1653,7 @@ async function openConfirmationModal(){
   const reservationNote = document.getElementById('confirmOrderReservationNote');
   if (reservationNote) {
     reservationNote.textContent = getSelectedDeliveryZone()
-      ? `⏳ Reserved for ${reservationWindowLabel(selectedZoneReservationMinutes())} from confirmation (${deliveryZoneLabel()}) — send your GCash / bank transfer payment within this window.`
+      ? `⏳ Reserved for ${reservationWindowLabel(selectedZoneReservationMinutes())} from confirmation (${deliveryZoneLabel()}) — send your GCash payment within this window.`
       : '';
   }
 
@@ -1638,8 +1688,8 @@ async function openConfirmationModal(){
     downpaymentRow.classList.add('is-hidden-row');
     document.getElementById('confirmOrderRequiredPayment').textContent = formatPrice(totalAmount);
     paymentNote.textContent = selfBooking
-      ? `Full payment (${formatPrice(subtotalAmount)} items) required via GCash/Maya. ${SELF_BOOKING_NOTE}`
-      : `Full payment (${formatPrice(subtotalAmount)} items + ${formatPrice(shippingAmount)} ${shippingLabel} shipping) required via GCash/Maya.`;
+      ? `Full payment (${formatPrice(subtotalAmount)} items) required via GCash. ${SELF_BOOKING_NOTE}`
+      : `Full payment (${formatPrice(subtotalAmount)} items + ${formatPrice(shippingAmount)} ${shippingLabel} shipping) required via GCash.`;
   } else {
     // 50% Downpayment: Due = (Subtotal*50%) + FULL shipping; Balance = Subtotal*50%.
     fullRow.classList.remove('is-flex-row');
@@ -1653,8 +1703,8 @@ async function openConfirmationModal(){
       ? 'Required Initial (50% items + ₱0.00 shipping)'
       : `Required Initial (50% items + full ${shippingLabel} shipping)`;
     paymentNote.textContent = selfBooking
-      ? `A ${formatPrice(downBase)} downpayment (50% of items) = ${formatPrice(confirmDownpayment)} is required via GCash/Maya. The remaining ${formatPrice(downBase)} balance will be paid upon pick-up. ${SELF_BOOKING_NOTE}`
-      : `A ${formatPrice(downBase)} downpayment (50% of items) + ${formatPrice(shippingAmount)} full ${shippingLabel} shipping = ${formatPrice(confirmDownpayment)} is required via GCash/Maya. The remaining ${formatPrice(downBase)} balance will be paid upon delivery.`;
+      ? `A ${formatPrice(downBase)} downpayment (50% of items) = ${formatPrice(confirmDownpayment)} is required via GCash. The remaining ${formatPrice(downBase)} balance will be paid upon pick-up. ${SELF_BOOKING_NOTE}`
+      : `A ${formatPrice(downBase)} downpayment (50% of items) + ${formatPrice(shippingAmount)} full ${shippingLabel} shipping = ${formatPrice(confirmDownpayment)} is required via GCash. The remaining ${formatPrice(downBase)} balance will be paid upon delivery.`;
   }
 
   const modal = document.getElementById('confirmOrderModal');

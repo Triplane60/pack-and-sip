@@ -24,7 +24,14 @@
        Confirm Order UI. main.js calls lucide.createIcons() again whenever it
        injects new markup; a blocked CDN only costs the icons, never ordering. -->
   <script src="https://unpkg.com/lucide@1.47.0/dist/umd/lucide.min.js" defer></script>
-  <link rel="icon" type="image/png" sizes="32x32" href="logo.png">
+  <!-- Browser tab favicon: logo.png is oblong (1408x768), so reusing it made
+       an oblong tab icon that page CSS cannot reach (favicons are not in the
+       DOM). favicon.png is the same artwork contain-fitted into a strict 1:1
+       square canvas with transparent padding (the file-level equivalent of
+       object-fit: contain in a square container), so the tab icon renders
+       crisp and square — undistorted — on desktop and mobile browsers. -->
+  <link rel="icon" type="image/png" sizes="512x512" href="favicon.png">
+
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-slate-50 text-slate-800">
@@ -52,7 +59,7 @@
 
   <header id="top" class="bg-white shadow">
     <!-- Container padding mirrors the #top > div rule in styles.css
-         (padding: 10px 24px; min-height: 85px) so the enlarged 80px
+         (padding: 10px 24px; min-height: 85px) so the enlarged 70px
          .nav-logo fits the taller bar while the "About" and
          "Login / Register" links stay vertically centered against it. -->
     <div class="max-w-6xl mx-auto px-6 py-2.5 flex items-center justify-between">
@@ -224,11 +231,11 @@
         <span>Required 50% Downpayment</span>
         <span id="confirmOrderDownpayment">₱0.00</span>
       </div>
-      <p id="confirmOrderPaymentNote" class="mt-4 text-xs leading-5 text-slate-500">A 50% downpayment is required via GCash/Maya to process your order. The remaining balance will be paid upon Lalamove delivery.</p>
+      <p id="confirmOrderPaymentNote" class="mt-4 text-xs leading-5 text-slate-500">A 50% downpayment is required via GCash to process your order. The remaining balance will be paid upon Lalamove delivery.</p>
       <!-- Payment instructions: Lucide 'camera' for the email proof-of-payment. -->
       <p class="mt-2 flex items-start gap-2 text-xs leading-5 text-slate-600">
         <i data-lucide="camera" class="mt-0.5 h-3.5 w-3.5 text-indigo-600" aria-hidden="true"></i>
-        <span>After paying via GCash / bank transfer, REPLY directly to your email receipt with your payment screenshot/reference number.</span>
+        <span>After paying via GCash, REPLY directly to your email receipt with your payment screenshot/reference number.</span>
       </p>
       <!-- Operating hours (always shown) + the City-based payment reservation
            window, which main.js refreshes from the selected City / Location. -->
@@ -474,10 +481,30 @@
             </div>
 
             <div id="payment-breakdown" class="payment-breakdown">
+              <!-- Estimated Shipping Fee line item in the Order Summary breakdown
+                   box, shown above Amount Due Now / Balance upon Delivery.
+                   ₱0.00 for Customer Self-Booking / Warehouse Pick-up (no courier
+                   fee is ever added), or the live Lalamove courier estimate when
+                   Lalamove Delivery is selected. main.js refreshes the value in
+                   updateCheckoutTotals() on every calculation. -->
+              <p class="breakdown-row" id="estimated-shipping-row"><strong>Estimated Shipping Fee:</strong> <span id="estimated-shipping-amount">₱0.00</span></p>
+
               <p class="breakdown-row"><strong>Amount Due Now:</strong> <span id="due-now-amount" class="due-now-amount">₱0.00</span></p>
               <p class="breakdown-row-secondary" id="remaining-balance-row"><strong>Balance upon Delivery:</strong> <span id="remaining-balance-amount">₱0.00</span></p>
             </div>
 
+            <!-- Payment Instructions: GCash wallet shown in the checkout drawer
+                 before Place Order - GCash is the only payment method (the
+                 other channels are temporarily hidden). The values are pushed
+                 by main.js (GCASH_ACCOUNT_NAME / GCASH_ACCOUNT_NUMBER) and
+                 mirror app.py's receipt/email constants: Rhea E. / 0928 181 5599. -->
+            <div class="border border-slate-300 rounded-lg p-3 space-y-1.5">
+              <p class="payment-type-label">Payment Instructions</p>
+              <p class="text-sm font-semibold text-slate-700">Pay via GCash:</p>
+              <p class="text-sm text-slate-700">Account: <strong id="gcashAccountName">Rhea E.</strong></p>
+              <p class="text-sm text-slate-700">Number: <strong id="gcashAccountNumber">0928 181 5599</strong></p>
+              <p class="delivery-method-hint">After paying, reply to your email receipt with the payment screenshot / reference number.</p>
+            </div>
 
             <!-- Cart payload hidden fields; populated by main.js before submission -->
             <input type="hidden" id="checkoutCupId" name="cup_id" value="" title="Checkout cup ID" />

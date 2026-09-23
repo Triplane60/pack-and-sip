@@ -228,10 +228,16 @@ SELF_BOOKING_ALIASES = {
 # Payment channels, proof-of-payment instructions and operating hours printed
 # on the invoice/receipt and repeated in the customer's email receipt.
 # The account numbers are environment-driven so they can be rotated without a
-# code change; the GCash default matches the storefront contact number.
+# code change. The GCash defaults are the live wallet used across the site
+# (Rhea E. / 0928 181 5599 - same line as the footer's +63 928 181 5599)
+# and feed the PDF "PAYMENT INSTRUCTIONS" box, the text/HTML receipt emails
+# and the checkout drawer in index.html (via main.js).
+# TEMPORARY: only GCash is displayed everywhere (checkout drawer, receipts,
+# confirmation emails); the other payment channels are hidden for now. Their
+# BANK_TRANSFER_* constants are kept below so the options are easy to restore.
 # ---------------------------------------------------------------------------
-GCASH_ACCOUNT_NAME = os.getenv('GCASH_ACCOUNT_NAME', 'Pack & Sip')
-GCASH_ACCOUNT_NUMBER = os.getenv('GCASH_ACCOUNT_NUMBER', '09221815599')
+GCASH_ACCOUNT_NAME = os.getenv('GCASH_ACCOUNT_NAME', 'Rhea E.')
+GCASH_ACCOUNT_NUMBER = os.getenv('GCASH_ACCOUNT_NUMBER', '0928 181 5599')
 BANK_TRANSFER_BANK = os.getenv('BANK_TRANSFER_BANK', 'BDO')
 BANK_TRANSFER_ACCOUNT_NAME = os.getenv('BANK_TRANSFER_ACCOUNT_NAME', 'Pack & Sip')
 BANK_TRANSFER_ACCOUNT_NUMBER = (os.getenv('BANK_TRANSFER_ACCOUNT_NUMBER') or '').strip()
@@ -612,10 +618,11 @@ def build_customer_receipt_email(order, subtotal, shipping_fee, total_due,
                                  upload_link=None):
     """Return (subject, text_body, html_body) for the customer's order receipt.
 
-    The receipt repeats every payment channel (GCash + bank transfer), the
-    camera-icon screenshot instruction and the DYNAMIC payment reservation
-    window for the chosen City / Location, so the customer can pay straight from
-    the email without opening the PDF attachment.
+    The receipt shows GCash as the only payment channel (the other channels
+    are temporarily hidden), plus the camera-icon screenshot instruction and
+    the DYNAMIC payment reservation window for the chosen City / Location, so
+    the customer can pay straight from the email without opening the PDF
+    attachment.
     """
     order_id = order['id']
     customer_name = order['customer_name'] or 'Customer'
@@ -671,7 +678,6 @@ Payment Terms     : {payment_terms}
 
 PAYMENT CHANNELS
 GCash             : {GCASH_ACCOUNT_NAME} - {GCASH_ACCOUNT_NUMBER}
-Bank Transfer     : {BANK_TRANSFER_BANK} - {BANK_TRANSFER_ACCOUNT_NAME} - {bank_account_display}
 
 {PAYMENT_PROOF_INSTRUCTION}
 {('Upload your receipt here: ' + upload_link) if upload_link else ''}
@@ -731,18 +737,13 @@ Thank you for choosing Pack & Sip."""
       <p style="margin:18px 0 6px;font-size:12px;font-weight:bold;color:#4f46e5;letter-spacing:1px;">PAYMENT CHANNELS</p>
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <tr>
-          <td style="width:50%;vertical-align:top;padding-right:8px;">
+          <td style="width:100%;vertical-align:top;">
             <div style="border:1px solid #e2e8f0;padding:10px 12px;">
               <p style="margin:0 0 4px;font-weight:bold;color:#4f46e5;">GCash</p>
               <p style="margin:0;color:#334155;">Account Name: {html.escape(GCASH_ACCOUNT_NAME)}<br />Account No.: {html.escape(GCASH_ACCOUNT_NUMBER)}</p>
             </div>
           </td>
-          <td style="width:50%;vertical-align:top;">
-            <div style="border:1px solid #e2e8f0;padding:10px 12px;">
-              <p style="margin:0 0 4px;font-weight:bold;color:#4f46e5;">Bank Transfer ({html.escape(BANK_TRANSFER_BANK)})</p>
-              <p style="margin:0;color:#334155;">Account Name: {html.escape(BANK_TRANSFER_ACCOUNT_NAME)}<br />Account No.: {html.escape(bank_account_display)}</p>
-            </div>
-          </td>
+          <!-- Non-GCash payment cards temporarily hidden: GCash is the only payment method. -->
         </tr>
       </table>
 
@@ -768,6 +769,8 @@ Thank you for choosing Pack & Sip."""
 # xhtml2pdf supports a limited CSS subset, so layout uses tables
 # (no flexbox / grid). Rounded corners are approximated with
 # bordered padded blocks which xhtml2pdf renders reliably.
+# TEMPORARY: only the GCash pay-card is shown - the second (non-GCash) card
+# is hidden in the pay-box table for now.
 INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
 <html>
 <head>
@@ -809,7 +812,7 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
   .pay-box { border: 1px dashed #4f46e5; background-color: #f8fafc; padding: 12px 14px; margin-bottom: 12px; }
   .pay-title { font-size: 11px; font-weight: bold; color: #0f172a; margin: 0 0 8px 0; letter-spacing: 1px; }
   .pay-cards { width: 100%; }
-  .pay-cards td { width: 50%; vertical-align: top; padding-right: 8px; }
+  .pay-cards td { width: 100%; vertical-align: top; padding-right: 0; }
   .pay-cards .last { padding-right: 0; }
   .pay-card { background-color: #ffffff; border: 1px solid #e2e8f0; padding: 9px 10px; }
   .pay-card-title { font-size: 11px; font-weight: bold; color: #4f46e5; margin: 0 0 4px 0; }
@@ -909,8 +912,7 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
     <p class="pay-title">PAYMENT INSTRUCTIONS — PAY P{{ "%.2f"|format(amount_due_now) }} NOW</p>
     <table class="pay-cards">
       <tr>
-        <td><div class="pay-card"><p class="pay-card-title">GCash</p><p>Account Name: {{ gcash_account_name }}<br />Account No.: {{ gcash_account_number }}</p></div></td>
-        <td class="last"><div class="pay-card"><p class="pay-card-title">Bank Transfer ({{ bank_transfer_bank }})</p><p>Account Name: {{ bank_transfer_account_name }}<br />Account No.: {{ bank_transfer_account_display }}</p></div></td>
+        <td class="last"><div class="pay-card"><p class="pay-card-title">GCash</p><p>Account Name: {{ gcash_account_name }}<br />Account No.: {{ gcash_account_number }}</p></div></td>
       </tr>
     </table>
     <p class="proof-note">{{ payment_proof_instruction }}</p>
@@ -1145,8 +1147,9 @@ def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None,
             downpayment_base=downpayment_base,
             amount_due_now=amount_due_now,
             remaining_balance=remaining_balance,
-            # Payment channels (GCash + bank transfer), the proof-of-payment
-            # instruction and the location-based reservation window.
+            # Payment channels (GCash only; the other channels are temporarily
+            # hidden), the proof-of-payment instruction and the location-based
+            # reservation window.
             gcash_account_name=GCASH_ACCOUNT_NAME,
             gcash_account_number=GCASH_ACCOUNT_NUMBER,
             bank_transfer_bank=BANK_TRANSFER_BANK,
@@ -2184,9 +2187,9 @@ def process_checkout():
         print(f"Invoice PDF Error: {e}")
         invoice_pdf_bytes = None
 
-    # Customer receipt: HTML + plain-text versions carrying the payment channels
-    # (GCash + bank transfer), the camera-icon screenshot instruction and the
-    # location-based payment reservation window.
+    # Customer receipt: HTML + plain-text versions carrying the GCash payment
+    # channel (the other channels are temporarily hidden), the camera-icon
+    # screenshot instruction and the location-based payment reservation window.
     email_subject, email_body, email_html = build_customer_receipt_email(
         order,
         subtotal=subtotal,
@@ -2300,7 +2303,7 @@ def upload_receipt():
         <body class="bg-slate-50 flex items-center justify-center min-h-screen p-4">
             <div class="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
                 <h1 class="text-2xl font-bold mb-4 text-indigo-700">Upload Payment Receipt</h1>
-                <p class="text-slate-700 font-medium mb-6 text-sm">Please upload your GCash/Maya screenshot for Order #{{ order_id }}</p>
+                <p class="text-slate-700 font-medium mb-6 text-sm">Please upload your GCash screenshot for Order #{{ order_id }}</p>
                 <form method="POST" enctype="multipart/form-data" class="space-y-4">
                     <input type="hidden" name="order_id" value="{{ order_id }}">
                     <div>

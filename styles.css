@@ -5,24 +5,28 @@
 /* Navigation brand logo: the transparent PNG composites cleanly on the white
    header, so no blending workarounds are applied here. A fixed height keeps
    it optically aligned with the nav links inside the flex header; width:auto
-   preserves the circular aspect ratio. Height is 80px on desktop (was 56px)
-   so the "PACK & SIP" text inside the logo circle is large and readable, and
-   max-height is explicitly cleared so nothing can clip the enlarged art. */
+   preserves the original (1408x768) aspect ratio and object-fit: contain
+   guarantees the artwork is never stretched even if a future rule constrains
+   its width. Height is 70px on desktop (was 56px) so the "PACK & SIP" mark is
+   large and prominent, and max-height is explicitly cleared so nothing can
+   clip the enlarged art. (The nav logo is a plain <img> — there is no separate
+   logo SVG/icon button in the header to size.) */
 .nav-logo {
   display: block;
-  height: 80px;
+  height: 70px;
   width: auto;
   max-height: none;
+  object-fit: contain;
 }
 
 /* Navbar container — the flex row inside <header id="top"> that holds the
    logo, the nav links, and the cart (Order History) button.
-   - padding: 10px 24px frames the enlarged 80px logo with even breathing
+   - padding: 10px 24px frames the enlarged 70px logo with even breathing
      room and matches the px-6 / py-2.5 utilities on the same element in
      index.html.
    - min-height: 85px (border-box via Tailwind preflight) guarantees a tall
-     bar; with the 80px logo the row naturally reaches ~100px, so the bigger
-     logo visibly enlarges the header instead of just filling it.
+     bar; with the 70px logo the row naturally reaches ~90px, so the bigger
+     logo fits comfortably without clutter.
    - align-items: center keeps the logo, the "About" / "Login / Register"
      links, and the cart button optically centered on the vertical axis of
      the taller logo.
