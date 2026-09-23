@@ -36,18 +36,31 @@
   margin-top: 2px;
 }
 
-/* Hero brand logo: official mark above "Wholesale Boxes of Cups & Lids".
-   Prominent 110px width (within the requested 90-120px range), auto height
-   + object-fit: contain so the 1408x768 artwork never distorts, 12px bottom
-   margin separating it from the headline, left-aligned with the heading on
-   desktop and centered on small screens via the media query below. */
+/* Hero brand logo: official mark above the "Wholesale Boxes of Cups, Lids &
+   Microwavable Containers" headline. Prominent 140px width + auto height
+   + object-fit: contain so the 1408x768 artwork never distorts, centered
+   above the headline with a 16px bottom margin. The .hero-copy rule below
+   centers the logo with the heading on both desktop and mobile. */
 .hero-logo {
   display: block;
-  width: 110px;
+  width: 140px;
   height: auto;
   max-width: 100%;
   object-fit: contain;
-  margin-bottom: 12px;
+  margin: 0 auto 16px auto;
+}
+
+/* Hero text block: logo, headline, subdescription, and bullets are centered
+   as one group on both desktop and mobile for a balanced banner identity.
+   The bullets list keeps left-aligned text inside its centered box so the
+   two short lines read neatly rather than staggering. */
+.hero-copy {
+  text-align: center;
+}
+
+.hero-copy ul {
+  display: inline-block;
+  text-align: left;
 }
 
 /* Navigation brand logo: the transparent PNG composites cleanly on the white
@@ -738,10 +751,10 @@ body.drawer-open #cartDrawer {
     font-size: 1.35rem !important;
   }
 
-  /* Hero logo on mobile — centered above the heading for a strong,
-     balanced identity on small screens. */
+  /* Hero logo on mobile — keeps the centered 140px desktop sizing so the
+     mark stays prominent on small screens. */
   .hero-logo {
-    width: 100px !important;
+    width: 140px !important;
     margin-left: auto !important;
     margin-right: auto !important;
   }
