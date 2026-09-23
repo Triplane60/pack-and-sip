@@ -2,11 +2,15 @@
   --brand-indigo:#4f46e5;
 }
 
-/* Drawer default off-screen handled with inline transform class; provide will-change for smoothness */
+/* Drawer default off-screen handled with inline transform class; provide will-change for smoothness.
+   position + z-index keep the panel above the .cart-overlay backdrop so the
+   dimmed area around it stays clickable while the panel itself stays usable. */
 #drawerPanel { 
   will-change: transform; 
   max-height: 100vh;
   overflow-y: auto;
+  position: relative;
+  z-index: 2;
 }
 
 /* Hide FAB when drawer/modals are open */
@@ -210,18 +214,36 @@ input[type="number"] {
   transform: translateX(100%) !important;
 }
 
-/* Cart drawer backdrop: dim the page behind the Order Summary panel while it
-   is open. The container keeps pointer-events (it is pointer-events-none by
-   default) so tapping/clicking the background closes the drawer instead of
-   falling through to the page; main.js wires the click-to-dismiss handler. */
+/* Cart drawer backdrop (#cartOverlay.cart-overlay)
+   - Sits above the page but BELOW the Order Summary panel (z-index 1 vs 2), so
+     the dimmed area is clickable while the panel keeps its own events.
+   - pointer-events stays 'none' while the drawer is closed (the backdrop must
+     never block the page) and flips to 'auto' while it is open, which is what
+     makes "click outside the panel to dismiss" work.
+   - main.js attaches the click listener to this exact element. */
 #cartDrawer {
   background-color: transparent;
-  transition: background-color 300ms ease;
 }
 
+.cart-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-color: rgba(15, 23, 42, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+
+body.drawer-open .cart-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Fallback: while the drawer is open the container also blocks page clicks, so
+   its own listener can close the panel even if the overlay element is absent. */
 body.drawer-open #cartDrawer {
   pointer-events: auto;
-  background-color: rgba(15, 23, 42, 0.45);
 }
 
 /* ---------------------------------------------------------------------------
@@ -281,6 +303,22 @@ body.drawer-open #cartDrawer {
   font-size: 12px;
   font-weight: 600;
   line-height: 1.45;
+}
+
+/* Official Dabba attribution badge shown above the catalog section. */
+.catalog-dabba-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid #a7f3d0;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
 }
 
 /* Lucide icons: keep the SVG from being squeezed inside flex rows. */

@@ -757,9 +757,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('closeCart').addEventListener('click', closeCart);
   // "Clear All" resets every quantity to 0 and zeroes the Order Summary totals.
   document.getElementById('clearCartBtn').addEventListener('click', clearCartItems);
-  // Backdrop dismiss: tapping/clicking the background overlay outside the
-  // Order Summary panel closes the drawer (clicks inside the panel keep
-  // their own handlers and must not close it).
+  // Explicit backdrop overlay dismiss: the dimmed .cart-overlay element sits
+  // below the panel and only accepts pointer events while the drawer is open,
+  // so tapping/clicking ANYWHERE outside the Order Summary panel closes it.
+  const cartOverlay = document.getElementById('cartOverlay');
+  if (cartOverlay) {
+    cartOverlay.addEventListener('click', (e) => {
+      // Stop the click from also bubbling into the container fallback below.
+      e.stopPropagation();
+      closeCart();
+    });
+  }
+  // Fallback dismiss: if the overlay element is missing (or its CSS failed to
+  // load) the container itself is still a valid click target while open.
   const cartDrawer = document.getElementById('cartDrawer');
   if (cartDrawer) {
     cartDrawer.addEventListener('click', (e) => {

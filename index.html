@@ -83,7 +83,7 @@
     <section id="configurator" class="bg-gradient-to-r from-indigo-50 to-slate-50 rounded-lg p-8 flex flex-col md:flex-row items-center gap-8">
       <div class="flex-1">
         <h1 class="text-3xl font-extrabold text-slate-900">Wholesale Boxes of Cups & Lids</h1>
-        <p class="mt-4 text-slate-700">High-volume eco-friendly disposable drinkware. Bulk pricing for businesses and events.</p>
+        <p class="mt-4 text-slate-700">High-volume eco-friendly disposable drinkware and food containers powered by Dabba. Direct warehouse pricing for businesses and events.</p>
         <ul class="mt-4 text-sm font-medium text-slate-700">
           <li>• Boxes contain 1,250 units each</li>
           <li>• Lalamove courier delivery from our Taguig warehouse</li>
@@ -111,7 +111,7 @@
             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg></span>
             <span>
               <strong class="block text-slate-900">B2B Wholesale Rates</strong>
-              <span class="font-medium text-slate-700">Direct warehouse pricing</span>
+              <span class="font-medium text-slate-700">Direct warehouse pricing for authentic Dabba packaging products.</span>
             </span>
           </li>
           <li class="flex items-start gap-3 rounded-md bg-slate-50 p-3">
@@ -129,7 +129,12 @@
     <section id="catalog" class="mt-8">
       <div class="flex items-end justify-between gap-4">
         <div>
-          <p class="text-sm font-semibold uppercase tracking-wide text-indigo-600">Bulk essentials</p>
+          <!-- Official Dabba attribution: subtle badge above the catalog. -->
+          <span class="catalog-dabba-badge">
+            <i data-lucide="badge-check" class="h-3.5 w-3.5" aria-hidden="true"></i>
+            <span>Official Supplier of Authentic Dabba Packaging Essentials</span>
+          </span>
+          <p class="mt-3 text-sm font-semibold uppercase tracking-wide text-indigo-600">Bulk essentials</p>
           <h2 class="text-2xl font-semibold">Catalog</h2>
         </div>
         <div class="flex items-center gap-4">
@@ -212,6 +217,20 @@
         <span id="confirmOrderDownpayment">₱0.00</span>
       </div>
       <p id="confirmOrderPaymentNote" class="mt-4 text-xs leading-5 text-slate-500">A 50% downpayment is required via GCash/Maya to process your order. The remaining balance will be paid upon Lalamove delivery.</p>
+      <!-- Payment instructions: Lucide 'camera' for the email proof-of-payment. -->
+      <p class="mt-2 flex items-start gap-2 text-xs leading-5 text-slate-600">
+        <i data-lucide="camera" class="mt-0.5 h-3.5 w-3.5 text-indigo-600" aria-hidden="true"></i>
+        <span>After paying via GCash / bank transfer, REPLY directly to your email receipt with your payment screenshot/reference number.</span>
+      </p>
+      <!-- Operating hours (always shown) + the City-based payment reservation
+           window, which main.js refreshes from the selected City / Location. -->
+      <div class="mt-3 rounded-md border border-amber-100 bg-amber-50 p-2.5 text-xs leading-5 text-amber-800">
+        <p id="confirmOrderOperatingHours" class="flex items-start gap-2">
+          <i data-lucide="clock" class="mt-0.5 h-3.5 w-3.5" aria-hidden="true"></i>
+          <span>Operating hours: 7:00 AM – 7:00 PM daily. Orders confirmed after 7:00 PM are dispatched the next morning.</span>
+        </p>
+        <p id="confirmOrderReservationNote" class="mt-1"></p>
+      </div>
       <div class="mt-6 grid grid-cols-2 gap-3">
         <button id="addMoreItemsBtn" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-50">Add More Items</button>
         <button id="confirmOrderBtn" type="button" class="rounded-md bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700">Yes, Place Order</button>
@@ -359,10 +378,24 @@
 
     <!-- Cart Drawer -->
   <div id="cartDrawer" class="fixed inset-0 flex justify-end pointer-events-none">
+    <!-- Dimmed backdrop behind the Order Summary panel. This element owns the
+         click-to-dismiss behaviour: tapping/clicking anywhere outside the panel
+         closes it (see .cart-overlay in styles.css and the listener in main.js).
+         It sits at z-index 1, below the panel (z-index 2), and only accepts
+         pointer events while the drawer is open. -->
+    <div id="cartOverlay" class="cart-overlay" aria-hidden="true"></div>
     <div id="drawerPanel" class="max-w-sm w-full bg-white shadow-xl transform translate-x-full pointer-events-auto transition-transform duration-300 flex flex-col drawer-closed-state" aria-hidden="true">
             <div class="p-4 flex items-center justify-between gap-2 border-b shrink-0">
         <h3 class="text-lg font-semibold">Order Summary</h3>
-        <button id="closeCart" class="text-slate-500" aria-label="Close cart summary">Close</button>
+        <div class="flex items-center gap-1.5">
+          <button id="clearCartBtn" type="button" class="drawer-action-btn" title="Reset every item quantity to 0" aria-label="Clear all items in the cart">
+            <i data-lucide="trash-2" class="h-4 w-4" aria-hidden="true"></i>
+            <span>Clear All</span>
+          </button>
+          <button id="closeCart" type="button" class="drawer-icon-btn" title="Close order summary" aria-label="Close cart summary">
+            <i data-lucide="x" class="h-4 w-4" aria-hidden="true"></i>
+          </button>
+        </div>
       </div>
 
             <form id="checkoutForm" action="/checkout" method="POST" novalidate autocomplete="off" class="contents-display">
