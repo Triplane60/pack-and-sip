@@ -47,15 +47,10 @@ ADMIN_NOTIFICATION_EMAIL = (os.getenv('ADMIN_NOTIFICATION_EMAIL') or 'legolandcr
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-# Accept the standard MAIL_USERNAME / MAIL_PASSWORD names (as shipped in .env).
-# MAIL_USERNAME must be the Gmail address that owns the App Password — it
-# defaults to the sender (jambyletesa@gmail.com) so SMTP auth matches the From.
+app.config['MAIL_USE_SSL'] = False
 app.config['MAIL_USERNAME'] = 'jambyletesa@gmail.com'
-app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD') or 'fxzhrrvwiueqwunn'
-# Every receipt needs a sender: default to SENDER_EMAIL (jambyletesa@gmail.com)
-# so mail.send() never fails with an empty From address.
-app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER') or SENDER_EMAIL or 'jambyletesa@gmail.com'
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['MAIL_PASSWORD'] = 'fxzhrrvwiueqwunn'
+app.config['MAIL_DEFAULT_SENDER'] = ('Pack & Sip Accounts', 'jambyletesa@gmail.com')
 mail = Mail(app)
 
 

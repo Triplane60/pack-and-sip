@@ -341,19 +341,16 @@ input[type="number"] {
   line-height: 1.5;
 }
 
-/* Lalamove Guide container — combined box DIRECTLY ABOVE the City / Location
-   dropdown holding BOTH the "Why select your City / Location?" explainer and
-   the Delivery Packaging Guide. main.js updateLalamoveGuideVisibility()
-   toggles display block (Lalamove Delivery) / none (Self-Booking) based on
-   the Delivery Method radios, synced on handleDeliveryMethodChange() + openCart().
-   Matches the Delivery Packaging Guide palette so the two banners read as
-   one family; hidden state keeps them out of the pick-up flow entirely. */
+/* Lalamove location explainer container — "Why select your City / Location?"
+   banner directly above the City / Location dropdown.
+   main.js updateLalamoveGuideVisibility() toggles display block
+   (Lalamove Delivery) / none (Self-Booking) based on the Delivery Method
+   radios, synced on handleDeliveryMethodChange() + openCart(). */
 #lalamove-guide-container {
   margin: 12px 0;
 }
-/* City / Location explainer — Lucide 'info' banner (top half of the combined
-   Lalamove Guide box). Visibility is controlled solely by the parent
-   #lalamove-guide-container (display block/none). */
+/* City / Location explainer — Lucide 'info' banner. Visibility is controlled
+   solely by the parent #lalamove-guide-container (display block/none). */
 .delivery-zone-info {
   display: flex;
   align-items: flex-start;
@@ -390,92 +387,6 @@ input[type="number"] {
   margin-bottom: 2px;
   font-size: 1rem;
   line-height: 1.6;
-}
-
-.delivery-zone-info.is-hidden-banner {
-  display: none !important;
-}
-
-/* Delivery Packaging Guide — styled alert box in the checkout drawer
-   (Delivery Method section) with Lucide vehicle icons. Crisp icon alignment
-   comes from the shared .lucide flex-shrink rule; each row pairs a 20px
-   icon with a bold vehicle label + guideline copy. Text is sized at
-   0.95rem/1rem with a roomy 1.6 line-height, and each vehicle option box
-   carries 16px padding so items never feel cramped. */
-.delivery-guide-box {
-  margin: 12px 0;
-  padding: 16px 18px;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  background: #eff6ff;
-  color: #1e3a8a;
-}
-
-.delivery-guide-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 10px;
-  font-size: 1.05rem;
-  font-weight: 700;
-  line-height: 1.5;
-  color: #1e40af;
-}
-
-.delivery-guide-title .lucide {
-  width: 20px;
-  height: 20px;
-  color: #1d4ed8;
-}
-
-.delivery-guide-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.delivery-guide-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 16px;
-  border: 1px solid #dbeafe;
-  border-radius: 6px;
-  background: #ffffff;
-}
-
-.delivery-guide-item .lucide {
-  width: 20px;
-  height: 20px;
-  margin-top: 2px;
-  color: #1d4ed8;
-}
-
-.delivery-guide-item-text {
-  display: block;
-  font-size: 0.95rem;
-  line-height: 1.6;
-  color: #1e3a8a;
-}
-
-.delivery-guide-item-text strong {
-  display: block;
-  margin-bottom: 2px;
-  font-size: 1rem;
-  font-weight: 700;
-  line-height: 1.6;
-  color: #1e40af;
-}
-
-.delivery-guide-foot {
-  margin: 10px 0 0;
-  font-size: 0.85rem;
-  line-height: 1.5;
-  font-weight: 500;
-  color: #3b82f6;
 }
 
 .payment-breakdown {
@@ -1174,20 +1085,14 @@ body.drawer-open #cartDrawer {
     line-height: 1.6 !important;
   }
 
-  /* 2c. Delivery Packaging Guide important info: bold + slightly enlarged. */
-  .delivery-guide-title,
-  .delivery-guide-title span,
-  .delivery-guide-item-text strong,
+  /* 2c. City / Location explainer heading: bold + slightly enlarged. */
   .delivery-zone-info-text > strong {
     font-weight: 700 !important;
     font-size: 1.15rem !important;
     line-height: 1.6 !important;
   }
 
-  /* 3. Readability: roomier line-height for guide descriptions + hints. */
-  .delivery-guide-item-text,
-  .delivery-guide-item-text span,
-  .delivery-guide-foot,
+  /* 3. Readability: roomier line-height for explainer + hints. */
   .delivery-zone-info-text,
   .delivery-zone-info-text span,
   .delivery-method-hint,
@@ -1196,10 +1101,8 @@ body.drawer-open #cartDrawer {
     line-height: 1.6 !important;
   }
 
-  .delivery-guide-item-text span,
   .delivery-method-hint,
-  #drawerPanel .delivery-method-hint,
-  .delivery-guide-foot {
+  #drawerPanel .delivery-method-hint {
     font-size: 18px !important;
   }
 

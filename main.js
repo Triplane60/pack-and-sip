@@ -349,7 +349,7 @@ async function calculate(){
   //    included in the current calculation.
   syncCategoryTotals();
   // Delivery-radios can be changed programmatically (for example by a reset),
-  // so keep hidden/required address fields + the Lalamove guide box aligned
+  // so keep hidden/required address fields + the Lalamove location explainer aligned
   // before totals are calculated.
   updateLalamoveGuideVisibility(getSelectedDeliveryMethod() === DELIVERY_METHOD_SELF_BOOKING);
   updateDeliveryAddressVisibility(getSelectedDeliveryMethod() === DELIVERY_METHOD_SELF_BOOKING);
@@ -623,21 +623,20 @@ function deliveryMethodLabel(method){
 // Keep delivery address, fee UI and location notes in sync with the chosen
 // delivery method.
 //   - Self-Booking / Warehouse Pick-up: hides ONLY the Shipping Address field
-//     and the combined Lalamove guide box (#lalamove-guide-container:
-//     "Why select your City / Location?" + Delivery Packaging Guide),
-//     keeps shipping at P0.00 and relaxes address validation.
+//     and the Lalamove location explainer (#lalamove-guide-container), keeps
+//     shipping at P0.00 and relaxes address validation.
 //   - Lalamove Delivery: restores the address field, validation, the
-//     location + box surcharge fee, and the combined Lalamove guide box
+//     location + box surcharge fee, and the Lalamove location explainer
 //     (display: block).
 // City / Location stays visible and enabled for BOTH methods because it also
 // sets the dynamic payment reservation window.
 function getDeliveryAddressFields(){
   return document.getElementById('deliveryAddressFields');
 }
-// Dedicated visibility toggle for the combined Lalamove-only guide box
-// (#lalamove-guide-container holds BOTH the "Why select your City / Location?"
-// explainer and the Delivery Packaging Guide, placed DIRECTLY ABOVE the
-// City / Location dropdown). Lalamove Delivery -> display: block,
+// Dedicated visibility toggle for the Lalamove-only location explainer.
+// #lalamove-guide-container holds the "Why select your City / Location?"
+// explainer directly above the City / Location dropdown.
+// Lalamove Delivery -> display: block,
 // Customer Self-Booking / Warehouse Pick-up -> display: none.
 function updateLalamoveGuideVisibility(selfBooking){
   const container = document.getElementById('lalamove-guide-container');
@@ -654,10 +653,8 @@ function updateDeliveryAddressVisibility(selfBooking){
   const fields = getDeliveryAddressFields();
   const address = document.getElementById('customerAddress');
   const zone = getDeliveryZoneSelect();
-  // #deliveryZoneInfo ("Why select your City / Location?") now lives INSIDE
-  // #lalamove-guide-container together with the Delivery Packaging Guide, so
-  // its visibility is controlled solely by updateLalamoveGuideVisibility()
-  // (container display block/none). Do NOT toggle it separately here.
+  // The location explainer is controlled solely by the parent container
+  // (display block/none), so do not toggle it separately here.
   if(selfBooking && fields){
     fields.classList.add('hidden');
     fields.setAttribute('aria-hidden', 'true');
@@ -685,11 +682,10 @@ function updateDeliveryAddressVisibility(selfBooking){
 }
 
 // Delivery Method radio change: refresh fee totals first, then show or hide
-// the Lalamove-specific address inputs + the combined Lalamove guide box
+// the Lalamove-specific address inputs + the location explainer
 // (#lalamove-guide-container: block for Lalamove, none for Self-Booking).
-// The guide itself is static markup, so no DOM rewrite is needed — but re-run
-// lucide.createIcons() (via refreshIcons()) so the vehicle icons render
-// correctly when the guide is shown again.
+// The explainer is static markup, so no DOM rewrite is needed; re-run
+// lucide.createIcons() via refreshIcons() for the info icon.
 function handleDeliveryMethodChange(){
   const selfBooking = isSelfBookingSelected();
   updateLalamoveGuideVisibility(selfBooking);
@@ -806,14 +802,13 @@ function openCart(){
   document.body.classList.add('drawer-open');
   updateBackToTopButton();
   updateCheckoutTotals();
-  // Sync the combined Lalamove guide box with the CURRENT radio selection
+  // Sync the Lalamove location explainer with the CURRENT radio selection
   // immediately upon opening so the initial state is always accurate
   // (Lalamove -> display block, Self-Booking -> display none).
   updateLalamoveGuideVisibility(isSelfBookingSelected());
   updateDeliveryAddressVisibility(isSelfBookingSelected());
-  // The drawer holds static Lucide placeholders (Delivery Packaging Guide
-  // icons); convert them on every open in case the CDN loaded after the
-  // initial page render.
+  // The drawer holds static Lucide placeholders; convert them on every open in
+  // case the CDN loaded after the initial page render.
   refreshIcons();
   if(window.lucide && typeof window.lucide.createIcons === 'function'){
     try { window.lucide.createIcons(); } catch(err) { /* decorative only */ }
