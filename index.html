@@ -54,8 +54,7 @@
     <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <img id="siteLogo" class="nav-logo" src="logo.png" alt="Pack &amp; Sip" />
-                <nav class="hidden md:flex gap-4 text-sm font-medium text-slate-700">
-          <a href="#catalog" class="hover:text-slate-900">Catalog</a>
+        <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-700">
           <a href="#about" id="aboutLink" class="hover:text-slate-900">About</a>
           <button id="authBtn" class="hover:text-slate-900">Login / Register</button>
           <button id="logoutBtn" class="hidden hover:text-slate-900">Logout</button>
@@ -63,7 +62,7 @@
 
       </div>
       <div class="flex items-center gap-4">
-        <button id="nav-orders-btn" onclick="handleNavOrdersClick()" aria-label="Order History" title="Order History" class="p-2 bg-indigo-600 text-white rounded-md"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6">
+        <button id="nav-orders-btn" onclick="handleNavOrdersClick()" aria-label="Order History" title="Order History" class="p-3 bg-indigo-600 text-white rounded-lg shadow-sm transition-all hover:bg-indigo-700"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-7 w-7">
   <path d="m7.5 4.27 9 5.15"/>
   <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
   <path d="m3.3 7 8.7 5 8.7-5"/>
@@ -123,7 +122,6 @@
             </span>
           </li>
         </ul>
-        <button type="button" onclick="scrollToCatalog(event)" class="mt-5 w-full rounded-md bg-indigo-600 py-2 font-semibold text-white transition hover:bg-indigo-700">Browse Catalog Below</button>
       </div>
     </section>
 
@@ -161,11 +159,11 @@
   <button id="backToTopBtn" onclick="scrollToTop(event)" class="fixed bottom-6 right-6 bg-indigo-600 text-white p-3 rounded-full shadow-lg hidden hover:bg-indigo-700 transition-all z-40" aria-label="Back to top"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></button>
 
   <!-- Fixed floating cart button (sits just left of the scroll-to-top button) -->
-  <button id="floating-cart-btn" onclick="openCartModal()" class="fixed bottom-6 right-20 bg-indigo-600 text-white p-3 rounded-full shadow-2xl hover:bg-indigo-700 transition-all z-40" aria-label="Open cart"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6">
+  <button id="floating-cart-btn" onclick="openCartModal()" class="fixed bottom-6 right-20 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-2xl transition-all hover:bg-indigo-700 z-40" aria-label="Open cart"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-7 w-7">
   <circle cx="8" cy="21" r="1"/>
   <circle cx="19" cy="21" r="1"/>
   <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>
-</svg><span id="floating-cart-badge" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full px-1">0</span></button>
+</svg><span id="floating-cart-badge" class="absolute -top-2 -right-2 flex h-[22px] min-w-[22px] items-center justify-center rounded-full border-2 border-white bg-red-500 px-1.5 text-sm font-bold leading-none text-white">0</span></button>
 
   <!-- Pending order modal -->
   <div id="orderPendingModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/60 p-4 opacity-0 transition-opacity duration-300" role="dialog" aria-modal="true" aria-labelledby="orderPendingTitle">

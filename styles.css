@@ -34,6 +34,58 @@ body.modal-open #floating-cart-btn {
   pointer-events: none !important;
 }
 
+/* ----------------------------------------------------------------------------
+   Enlarged cart controls (tap-friendly on mobile & desktop)
+   - #floating-cart-btn: fixed 56x56 FAB with a 28px glyph so it is an easy
+     touch target; #floating-cart-badge scales up to a 22px pill with 14px bold
+     text (plus a white ring) so the count stays legible at a glance.
+   - #nav-orders-btn: the header's top-right cart/action button gets generous
+     padding and a 28px glyph (~52x52 total) so it is clearly visible.
+   These ID selectors deliberately out-specify the Tailwind utility classes on
+   the markup (same trick as .catalog-dabba-badge below), so the sizing holds
+   even though the Tailwind CDN injects its styles at runtime.
+   ---------------------------------------------------------------------------- */
+#floating-cart-btn {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#floating-cart-btn svg {
+  width: 28px;
+  height: 28px;
+}
+
+#floating-cart-badge {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  border: 2px solid #ffffff;
+}
+
+#nav-orders-btn {
+  min-width: 48px;
+  min-height: 48px;
+  padding: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#nav-orders-btn svg {
+  width: 28px;
+  height: 28px;
+}
+
 /* Hide native number input spinners (WebKit/Blink) */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
