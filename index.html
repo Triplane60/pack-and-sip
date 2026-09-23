@@ -458,27 +458,58 @@
               <label for="customerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
               <textarea id="customerAddress" name="address" autocomplete="off" required title="Shipping Address" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
             </div>
-            <!-- City / Location: ALWAYS enabled and visible — directly above the
-                 Phone Number — for BOTH Lalamove Delivery and Customer
-                 Self-Booking / Warehouse Pick-up. It drives the Lalamove
-                 destination base rate and the dynamic payment reservation
-                 limit. The options (zone id, base rate + reservation window)
-                 come from app.py LALAMOVE_ZONE_OPTIONS so the storefront and
-                 the server always agree. -->
-            <!-- City Location explainer: Lucide 'info' banner shown ONLY for
-                 Lalamove Delivery (hidden for Self-Booking / Pick-up via
-                 updateDeliveryAddressVisibility in main.js). Explains in clear
-                 Business English that the rate depends on the distance from the
-                 Bagumbayan, Taguig City warehouse plus parcel volume. Static
-                 markup — refreshIcons() on load + openCart + updateSummary
-                 converts the <i data-lucide> placeholder. -->
-            <div class="delivery-zone-info" id="deliveryZoneInfo" role="note" aria-label="Why select your City / Location">
-              <i data-lucide="info" class="h-4 w-4" aria-hidden="true"></i>
-              <div class="delivery-zone-info-text">
-                <strong>Why select your City / Location?</strong>
-                <span>Estimated shipping rates are calculated based on the distance between your delivery location and our Warehouse in <strong>Bagumbayan, Taguig City</strong>, as well as the overall parcel volume.</span>
+            <!-- Lalamove Guide (Lalamove-only): Delivery Packaging Guide + "Why select
+                 your City / Location?" explainer combined in ONE box DIRECTLY ABOVE
+                 the City / Location dropdown. Visibility toggled via
+                 #lalamove-guide-container (display block/none) in main.js
+                 handleDeliveryMethodChange() + openCart(). Static markup —
+                 refreshIcons() converts the <i data-lucide> placeholders. -->
+            <div id="lalamove-guide-container">
+              <div class="delivery-zone-info" id="deliveryZoneInfo" role="note" aria-label="Why select your City / Location">
+                <i data-lucide="info" class="h-4 w-4" aria-hidden="true"></i>
+                <div class="delivery-zone-info-text">
+                  <strong>Why select your City / Location?</strong>
+                  <span>Estimated shipping rates are calculated based on the distance between your delivery location and our Warehouse in <strong>Bagumbayan, Taguig City</strong>, as well as the overall parcel volume.</span>
+                </div>
+              </div>
+              <div class="delivery-guide-box" role="note" aria-label="Delivery packaging guide">
+                <p class="delivery-guide-title">
+                  <i data-lucide="package" class="h-4 w-4" aria-hidden="true"></i>
+                  <span>Delivery Packaging Guide</span>
+                </p>
+                <ul class="delivery-guide-list">
+                  <li class="delivery-guide-item">
+                    <i data-lucide="bike" class="h-4 w-4" aria-hidden="true"></i>
+                    <div class="delivery-guide-item-text">
+                      <strong>Motorcycle</strong>
+                      <span>Best for small orders (1&ndash;2 boxes of cups/lids that fit standard insulated bags).</span>
+                    </div>
+                  </li>
+                  <li class="delivery-guide-item">
+                    <i data-lucide="car" class="h-4 w-4" aria-hidden="true"></i>
+                    <div class="delivery-guide-item-text">
+                      <strong>Sedan / MPV</strong>
+                      <span>Required for medium orders or 1&ndash;3 boxes of bulky Microwavable Containers.</span>
+                    </div>
+                  </li>
+                  <li class="delivery-guide-item">
+                    <i data-lucide="truck" class="h-4 w-4" aria-hidden="true"></i>
+                    <div class="delivery-guide-item-text">
+                      <strong>L300 / Van / Closed Van</strong>
+                      <span>Required for bulk wholesale orders (4+ boxes).</span>
+                    </div>
+                  </li>
+                </ul>
+                <p class="delivery-guide-foot">Our team confirms the right vehicle before booking your Lalamove delivery.</p>
               </div>
             </div>
+            <!-- City / Location: ALWAYS enabled and visible — directly BELOW the
+                 Lalamove Guide box and directly above the Phone Number — for BOTH
+                 Lalamove Delivery and Customer Self-Booking / Warehouse Pick-up.
+                 It drives the Lalamove destination base rate and the dynamic
+                 payment reservation limit. The options (zone id, base rate +
+                 reservation window) come from app.py LALAMOVE_ZONE_OPTIONS so the
+                 storefront and the server always agree. -->
             <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
               <label for="deliveryZone" class="block text-sm font-medium text-slate-700">City / Location</label>
               <select id="deliveryZone" name="delivery_zone" onchange="calculate()" title="City / Location — Lalamove shipping origin: Taguig" class="payment-type-select">
@@ -514,41 +545,6 @@
                 </span>
               </label>
             </fieldset>
-
-            <!-- Delivery Packaging Guide: styled alert box with Lucide icons so
-                 customers pick the right Lalamove vehicle for their box count.
-                 Static markup — main.js refreshIcons() (on load + openCart +
-                 updateSummary) converts the <i data-lucide> placeholders. -->
-            <div class="delivery-guide-box" role="note" aria-label="Delivery packaging guide">
-              <p class="delivery-guide-title">
-                <i data-lucide="package" class="h-4 w-4" aria-hidden="true"></i>
-                <span>Delivery Packaging Guide</span>
-              </p>
-              <ul class="delivery-guide-list">
-                <li class="delivery-guide-item">
-                  <i data-lucide="bike" class="h-4 w-4" aria-hidden="true"></i>
-                  <div class="delivery-guide-item-text">
-                    <strong>Motorcycle</strong>
-                    <span>Best for small orders (1&ndash;2 boxes of cups/lids that fit standard insulated bags).</span>
-                  </div>
-                </li>
-                <li class="delivery-guide-item">
-                  <i data-lucide="car" class="h-4 w-4" aria-hidden="true"></i>
-                  <div class="delivery-guide-item-text">
-                    <strong>Sedan / MPV</strong>
-                    <span>Required for medium orders or 1&ndash;3 boxes of bulky Microwavable Containers.</span>
-                  </div>
-                </li>
-                <li class="delivery-guide-item">
-                  <i data-lucide="truck" class="h-4 w-4" aria-hidden="true"></i>
-                  <div class="delivery-guide-item-text">
-                    <strong>L300 / Van / Closed Van</strong>
-                    <span>Required for bulk wholesale orders (4+ boxes).</span>
-                  </div>
-                </li>
-              </ul>
-              <p class="delivery-guide-foot">Our team confirms the right vehicle before booking your Lalamove delivery.</p>
-            </div>
 
             <div class="payment-option-group">
               <label for="payment-type-select" class="payment-type-label">Payment Option</label>

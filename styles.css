@@ -341,10 +341,19 @@ input[type="number"] {
   line-height: 1.5;
 }
 
-/* City / Location explainer — Lucide 'info' banner shown only for Lalamove
-   Delivery (Self-Booking hides it via updateDeliveryAddressVisibility).
+/* Lalamove Guide container — combined box DIRECTLY ABOVE the City / Location
+   dropdown holding BOTH the "Why select your City / Location?" explainer and
+   the Delivery Packaging Guide. main.js updateLalamoveGuideVisibility()
+   toggles display block (Lalamove Delivery) / none (Self-Booking) based on
+   the Delivery Method radios, synced on handleDeliveryMethodChange() + openCart().
    Matches the Delivery Packaging Guide palette so the two banners read as
-   one family; hidden state keeps it out of the pick-up flow entirely. */
+   one family; hidden state keeps them out of the pick-up flow entirely. */
+#lalamove-guide-container {
+  margin: 12px 0;
+}
+/* City / Location explainer — Lucide 'info' banner (top half of the combined
+   Lalamove Guide box). Visibility is controlled solely by the parent
+   #lalamove-guide-container (display block/none). */
 .delivery-zone-info {
   display: flex;
   align-items: flex-start;
@@ -1072,6 +1081,150 @@ body.drawer-open #cartDrawer {
     font-size: 1rem !important;
     font-weight: 500 !important;
     line-height: 1.45 !important;
+  }
+}
+
+/* ============================================================
+   Mobile typography + readability (max-width: 768px)
+   NOTE: the desktop-only restriction above hides the main UI at
+   <=768px behind #mobile-overlay. This block still matters for
+   phones/tablets rendering the site in "Desktop site" mode and for
+   any future responsive layout — it enlarges body text, bolds key
+   labels/totals, and loosens line-height for small screens.
+   Placed AFTER the restriction block so its rules win in the
+   cascade (same specificity + later order, with !important where
+   Tailwind utilities or earlier max-width:1024px rules compete).
+   ============================================================ */
+@media (max-width: 768px) {
+  /* 1. Enlarge all mobile body text to ~18px. */
+  body {
+    font-size: 18px !important;
+    line-height: 1.6 !important;
+  }
+
+  body p,
+  body li,
+  body input,
+  body select,
+  body textarea,
+  body label,
+  #productList p,
+  #productList li,
+  #microwavableList p,
+  #microwavableList li,
+  .product-card-desc,
+  #cartContent p,
+  #cartContent li,
+  #drawerPanel p,
+  #drawerPanel li,
+  #drawerPanel input,
+  #drawerPanel select,
+  #drawerPanel textarea,
+  #drawerPanel label,
+  #confirmOrderModal p,
+  #confirmOrderModal li {
+    font-size: 18px !important;
+    line-height: 1.6 !important;
+  }
+
+  /* 2a. Product titles + section headings: bold. */
+  .product-card-title,
+  .product-card-media-label,
+  .delivery-method-title,
+  .payment-type-label,
+  #drawerPanel .payment-type-label,
+  #drawerPanel label,
+  #cartDrawer h3,
+  #drawerPanel h3 {
+    font-weight: 700 !important;
+  }
+
+  .product-card-title,
+  .product-card-media-label {
+    font-size: 1.25rem !important;
+    line-height: 1.6 !important;
+  }
+
+  .delivery-method-title,
+  .payment-type-label {
+    font-size: 18px !important;
+    line-height: 1.6 !important;
+  }
+
+  /* 2b. Order Summary totals + fee labels: bold. */
+  #cartContent .pt-3,
+  #cartContent .pt-3 > div,
+  #payment-breakdown,
+  .payment-breakdown,
+  .breakdown-row,
+  .breakdown-row strong,
+  .breakdown-row span,
+  #estimated-shipping-row,
+  #estimated-shipping-row strong,
+  #estimated-shipping-amount,
+  .breakdown-row-secondary,
+  .breakdown-row-secondary strong,
+  #remaining-balance-row,
+  #remaining-balance-row strong,
+  #remaining-balance-amount,
+  .due-now-amount,
+  #due-now-amount {
+    font-weight: 700 !important;
+    font-size: 18px !important;
+    line-height: 1.6 !important;
+  }
+
+  /* 2c. Delivery Packaging Guide important info: bold + slightly enlarged. */
+  .delivery-guide-title,
+  .delivery-guide-title span,
+  .delivery-guide-item-text strong,
+  .delivery-zone-info-text > strong {
+    font-weight: 700 !important;
+    font-size: 1.15rem !important;
+    line-height: 1.6 !important;
+  }
+
+  /* 3. Readability: roomier line-height for guide descriptions + hints. */
+  .delivery-guide-item-text,
+  .delivery-guide-item-text span,
+  .delivery-guide-foot,
+  .delivery-zone-info-text,
+  .delivery-zone-info-text span,
+  .delivery-method-hint,
+  #drawerPanel .delivery-method-hint,
+  .product-card-desc {
+    line-height: 1.6 !important;
+  }
+
+  .delivery-guide-item-text span,
+  .delivery-method-hint,
+  #drawerPanel .delivery-method-hint,
+  .delivery-guide-foot {
+    font-size: 18px !important;
+  }
+
+  /* 3b. Inputs, selects, and product name tags stay tappable + readable. */
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  select,
+  textarea,
+  .payment-type-select,
+  #drawerPanel input,
+  #drawerPanel select,
+  #drawerPanel textarea,
+  #drawerPanel .payment-type-select {
+    font-size: 18px !important;
+    line-height: 1.6 !important;
+    min-height: 48px !important;
+    padding: 12px 14px !important;
+    box-sizing: border-box !important;
+  }
+
+  .product-card-media-label {
+    padding: 12px 16px 0 !important;
   }
 }
 

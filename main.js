@@ -171,6 +171,7 @@ function resetConfigurator(){
   // order starts from an explicit location choice again.
   resetDeliveryZone();
   resetDeliveryMethod();
+  updateLalamoveGuideVisibility(false);
   updateDeliveryAddressVisibility(false);
   syncCategoryTotals();
   updateReservationLimitNote();
@@ -348,7 +349,9 @@ async function calculate(){
   //    included in the current calculation.
   syncCategoryTotals();
   // Delivery-radios can be changed programmatically (for example by a reset),
-  // so keep hidden/required address fields aligned before totals are calculated.
+  // so keep hidden/required address fields + the Lalamove guide box aligned
+  // before totals are calculated.
+  updateLalamoveGuideVisibility(getSelectedDeliveryMethod() === DELIVERY_METHOD_SELF_BOOKING);
   updateDeliveryAddressVisibility(getSelectedDeliveryMethod() === DELIVERY_METHOD_SELF_BOOKING);
 
   // Aggregate every independently-ordered catalog item (12oz/16oz/22oz cups,
@@ -619,32 +622,42 @@ function deliveryMethodLabel(method){
 
 // Keep delivery address, fee UI and location notes in sync with the chosen
 // delivery method.
-//   - Self-Booking / Warehouse Pick-up: hides ONLY the Shipping Address field,
-//     keeps shipping at P0.00 and relaxes address validation. It also hides
-//     the City / Location 'info' explainer banner (Lalamove-only context).
+//   - Self-Booking / Warehouse Pick-up: hides ONLY the Shipping Address field
+//     and the combined Lalamove guide box (#lalamove-guide-container:
+//     "Why select your City / Location?" + Delivery Packaging Guide),
+//     keeps shipping at P0.00 and relaxes address validation.
 //   - Lalamove Delivery: restores the address field, validation, the
-//     location + box surcharge fee, and the 'info' explainer banner.
+//     location + box surcharge fee, and the combined Lalamove guide box
+//     (display: block).
 // City / Location stays visible and enabled for BOTH methods because it also
 // sets the dynamic payment reservation window.
 function getDeliveryAddressFields(){
   return document.getElementById('deliveryAddressFields');
+}
+// Dedicated visibility toggle for the combined Lalamove-only guide box
+// (#lalamove-guide-container holds BOTH the "Why select your City / Location?"
+// explainer and the Delivery Packaging Guide, placed DIRECTLY ABOVE the
+// City / Location dropdown). Lalamove Delivery -> display: block,
+// Customer Self-Booking / Warehouse Pick-up -> display: none.
+function updateLalamoveGuideVisibility(selfBooking){
+  const container = document.getElementById('lalamove-guide-container');
+  if(!container) return;
+  container.style.display = selfBooking ? 'none' : 'block';
+  if(selfBooking){
+    container.setAttribute('aria-hidden', 'true');
+  }else{
+    container.removeAttribute('aria-hidden');
+  }
 }
 
 function updateDeliveryAddressVisibility(selfBooking){
   const fields = getDeliveryAddressFields();
   const address = document.getElementById('customerAddress');
   const zone = getDeliveryZoneSelect();
-  // City / Location explainer banner: Lalamove-only context. Hide it for
-  // Self-Booking / Pick-up, restore it for Lalamove Delivery.
-  const zoneInfo = document.getElementById('deliveryZoneInfo');
-  if(zoneInfo){
-    zoneInfo.classList.toggle('is-hidden-banner', !!selfBooking);
-    if(selfBooking){
-      zoneInfo.setAttribute('aria-hidden', 'true');
-    }else{
-      zoneInfo.removeAttribute('aria-hidden');
-    }
-  }
+  // #deliveryZoneInfo ("Why select your City / Location?") now lives INSIDE
+  // #lalamove-guide-container together with the Delivery Packaging Guide, so
+  // its visibility is controlled solely by updateLalamoveGuideVisibility()
+  // (container display block/none). Do NOT toggle it separately here.
   if(selfBooking && fields){
     fields.classList.add('hidden');
     fields.setAttribute('aria-hidden', 'true');
@@ -672,13 +685,19 @@ function updateDeliveryAddressVisibility(selfBooking){
 }
 
 // Delivery Method radio change: refresh fee totals first, then show or hide
-// the Lalamove-specific address inputs for that same selection. The banner
-// itself is static markup, so no DOM rewrite is needed — but re-run
-// refreshIcons() so the 'info'/vehicle Lucide placeholders render crisply
-// even if the icon CDN finished loading after the initial page render.
+// the Lalamove-specific address inputs + the combined Lalamove guide box
+// (#lalamove-guide-container: block for Lalamove, none for Self-Booking).
+// The guide itself is static markup, so no DOM rewrite is needed — but re-run
+// lucide.createIcons() (via refreshIcons()) so the vehicle icons render
+// correctly when the guide is shown again.
 function handleDeliveryMethodChange(){
-  updateDeliveryAddressVisibility(isSelfBookingSelected());
+  const selfBooking = isSelfBookingSelected();
+  updateLalamoveGuideVisibility(selfBooking);
+  updateDeliveryAddressVisibility(selfBooking);
   refreshIcons();
+  if(window.lucide && typeof window.lucide.createIcons === 'function'){
+    try { window.lucide.createIcons(); } catch(err) { /* decorative only */ }
+  }
   calculate();
 }
 
@@ -686,6 +705,7 @@ function handleDeliveryMethodChange(){
 function resetDeliveryMethod(){
   const standard = document.getElementById('deliveryMethodStandard');
   if(standard) standard.checked = true;
+  updateLalamoveGuideVisibility(false);
   updateDeliveryAddressVisibility(false);
 }
 
@@ -786,10 +806,18 @@ function openCart(){
   document.body.classList.add('drawer-open');
   updateBackToTopButton();
   updateCheckoutTotals();
+  // Sync the combined Lalamove guide box with the CURRENT radio selection
+  // immediately upon opening so the initial state is always accurate
+  // (Lalamove -> display block, Self-Booking -> display none).
+  updateLalamoveGuideVisibility(isSelfBookingSelected());
+  updateDeliveryAddressVisibility(isSelfBookingSelected());
   // The drawer holds static Lucide placeholders (Delivery Packaging Guide
   // icons); convert them on every open in case the CDN loaded after the
   // initial page render.
   refreshIcons();
+  if(window.lucide && typeof window.lucide.createIcons === 'function'){
+    try { window.lucide.createIcons(); } catch(err) { /* decorative only */ }
+  }
 }
 
 function closeCart(){
