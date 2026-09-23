@@ -13,6 +13,15 @@ from flask_mail import Mail, Message
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+# Load local environment variables from .env when python-dotenv is available.
+# Deployments normally inject the same values through the platform dashboard, so
+# the import is optional and never blocks startup.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
 app = Flask(__name__, template_folder='.')
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'pack-sip-development-secret')
 CORS(app, supports_credentials=True)
@@ -28,9 +37,19 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.getenv('legolandcreator@gmail.com')
-app.config['MAIL_PASSWORD'] = os.getenv('edci nmxcxpxknrnv')
-app.config['MAIL_DEFAULT_SENDER'] = os.getenv('legolandcreator@gmail.com')
+# Accept the standard MAIL_USERNAME / MAIL_PASSWORD names (as shipped in .env)
+# while keeping the legacy address-keyed names working for existing deployments.
+app.config['MAIL_USERNAME'] = (
+    os.getenv('MAIL_USERNAME') or os.getenv('legolandcreator@gmail.com')
+)
+app.config['MAIL_PASSWORD'] = (
+    os.getenv('MAIL_PASSWORD') or os.getenv('edci nmxcxpxknrnv')
+)
+# Every receipt needs a sender: fall back to the authenticated SMTP account so
+# mail.send() never fails with an empty From address.
+app.config['MAIL_DEFAULT_SENDER'] = (
+    os.getenv('MAIL_DEFAULT_SENDER') or app.config['MAIL_USERNAME']
+)
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 mail = Mail(app)
 
@@ -86,37 +105,52 @@ LALAMOVE_ZONE_METRO_MANILA = 'metro_manila'
 LALAMOVE_ZONE_NEARBY_PROVINCES = 'nearby_provinces'
 LALAMOVE_ZONE_OUTER_PROVINCIAL = 'outer_provincial'
 LALAMOVE_DEFAULT_ZONE = LALAMOVE_ZONE_TAGUIG
+# Each zone carries the destination base rate AND the dynamic payment
+# reservation window (in minutes) shown on the storefront, the Confirm Order
+# modal, the invoice and the email receipt:
+#   Taguig City                      30 minutes
+#   Nearby NCR cities                1 hour
+#   Provincial (nearby + outer)      2 hours or more
 LALAMOVE_ZONE_OPTIONS = [
-    {'id': LALAMOVE_ZONE_TAGUIG, 'label': 'Taguig City', 'short': 'Taguig City', 'rate': 60.0},
+    {'id': LALAMOVE_ZONE_TAGUIG, 'label': 'Taguig City', 'short': 'Taguig City', 'rate': 60.0,
+     'reservation_minutes': 30},
     {
         'id': LALAMOVE_ZONE_NEIGHBORING,
         'label': 'Neighboring Cities (Makati, Pasig, Pateros)',
         'short': 'Neighboring Cities',
         'rate': 90.0,
+        'reservation_minutes': 60,
     },
     {
         'id': LALAMOVE_ZONE_METRO_MANILA,
         'label': 'Rest of Metro Manila',
         'short': 'Rest of Metro Manila',
         'rate': 150.0,
+        'reservation_minutes': 60,
     },
     {
         'id': LALAMOVE_ZONE_NEARBY_PROVINCES,
         'label': 'Nearby Provinces (Rizal, Cavite, Laguna, Bulacan)',
         'short': 'Nearby Provinces',
         'rate': 280.0,
+        'reservation_minutes': 120,
     },
     {
         'id': LALAMOVE_ZONE_OUTER_PROVINCIAL,
         'label': 'Outer Provincial',
         'short': 'Outer Provincial',
         'rate': 450.0,
+        'reservation_minutes': 180,
     },
 ]
 LALAMOVE_ZONE_RATES = {zone['id']: zone['rate'] for zone in LALAMOVE_ZONE_OPTIONS}
 LALAMOVE_ZONE_LABELS = {zone['id']: zone['label'] for zone in LALAMOVE_ZONE_OPTIONS}
 # Compact labels used in fee/summary lines (e.g. 'Lalamove (Neighboring Cities)').
 LALAMOVE_ZONE_SHORT_LABELS = {zone['id']: zone['short'] for zone in LALAMOVE_ZONE_OPTIONS}
+# Dynamic payment reservation window per destination zone, in minutes.
+LALAMOVE_ZONE_RESERVATION_MINUTES = {
+    zone['id']: zone.get('reservation_minutes', 60) for zone in LALAMOVE_ZONE_OPTIONS
+}
 # Free-text city/area fallbacks so a typed location still lands in the right
 # zone (legacy orders stored the address only, without a zone id).
 LALAMOVE_ZONE_ALIASES = {
@@ -190,6 +224,31 @@ SELF_BOOKING_ALIASES = {
     'customer_pickup', 'customer_self_booking',
 }
 
+# ---------------------------------------------------------------------------
+# Payment channels, proof-of-payment instructions and operating hours printed
+# on the invoice/receipt and repeated in the customer's email receipt.
+# The account numbers are environment-driven so they can be rotated without a
+# code change; the GCash default matches the storefront contact number.
+# ---------------------------------------------------------------------------
+GCASH_ACCOUNT_NAME = os.getenv('GCASH_ACCOUNT_NAME', 'Pack & Sip')
+GCASH_ACCOUNT_NUMBER = os.getenv('GCASH_ACCOUNT_NUMBER', '09221815599')
+BANK_TRANSFER_BANK = os.getenv('BANK_TRANSFER_BANK', 'BDO')
+BANK_TRANSFER_ACCOUNT_NAME = os.getenv('BANK_TRANSFER_ACCOUNT_NAME', 'Pack & Sip')
+BANK_TRANSFER_ACCOUNT_NUMBER = (os.getenv('BANK_TRANSFER_ACCOUNT_NUMBER') or '').strip()
+# Shown on the receipt until BANK_TRANSFER_ACCOUNT_NUMBER is configured.
+BANK_TRANSFER_ACCOUNT_FALLBACK = 'Reply to this email to request the account number'
+
+# Lucide camera icon (📸) + the proof-of-payment instruction repeated on every
+# receipt so the customer knows how to send their payment screenshot.
+PAYMENT_PROOF_INSTRUCTION = (
+    '📸 REPLY directly to this email with your payment screenshot/reference number.'
+)
+OPERATING_HOURS_NOTE = (
+    'Operating hours: 7:00 AM - 7:00 PM daily. Orders confirmed after 7:00 PM '
+    'are dispatched the next morning.'
+)
+WAREHOUSE_PICKUP_ADDRESS = '175 M.L.Q. St. Bagumbayan, Taguig City'
+
 
 def normalize_delivery_method(value):
     """Return the canonical Delivery Method key (defaults to Lalamove Delivery)."""
@@ -244,6 +303,24 @@ def delivery_zone_label(value):
 def delivery_zone_short_label(value):
     """Compact zone label used in fee/summary lines."""
     return LALAMOVE_ZONE_SHORT_LABELS[normalize_delivery_zone(value)]
+
+
+def reservation_window_minutes(value):
+    """Dynamic payment reservation window (minutes) for a destination zone.
+
+    Taguig City = 30 minutes, nearby NCR cities = 1 hour and provincial
+    addresses = 2 hours or more, mirroring LALAMOVE_ZONE_RESERVATION_MINUTES.
+    """
+    return LALAMOVE_ZONE_RESERVATION_MINUTES[normalize_delivery_zone(value)]
+
+
+def reservation_window_label(value):
+    """Human-readable reservation window, e.g. '30 minutes' or '1 hour'."""
+    minutes = reservation_window_minutes(value)
+    if minutes and minutes % 60 == 0:
+        hours = minutes // 60
+        return '%d hour%s' % (hours, '' if hours == 1 else 's')
+    return '%d minutes' % minutes
 
 
 def cup_box_surcharge(cup_boxes):
@@ -527,6 +604,166 @@ def _admin_order_alert_html(order_id, customer_name, customer_email, customer_ph
 </body>
 </html>"""
 
+
+def build_customer_receipt_email(order, subtotal, shipping_fee, total_due,
+                                 amount_due_now, remaining_balance, payment_type,
+                                 delivery_method, delivery_zone,
+                                 shipping_label=None, shipping_breakdown=None,
+                                 upload_link=None):
+    """Return (subject, text_body, html_body) for the customer's order receipt.
+
+    The receipt repeats every payment channel (GCash + bank transfer), the
+    camera-icon screenshot instruction and the DYNAMIC payment reservation
+    window for the chosen City / Location, so the customer can pay straight from
+    the email without opening the PDF attachment.
+    """
+    order_id = order['id']
+    customer_name = order['customer_name'] or 'Customer'
+    customer_address = order['customer_address'] or '(not provided)'
+    self_booking = is_self_booking(delivery_method)
+    method_label = delivery_method_label(delivery_method)
+    zone_label = delivery_zone_label(delivery_zone)
+    reservation_window = reservation_window_label(delivery_zone)
+    bank_account_display = BANK_TRANSFER_ACCOUNT_NUMBER or BANK_TRANSFER_ACCOUNT_FALLBACK
+    shipping_display = (
+        'P%.2f (Customer Self-Booking)' % shipping_fee if self_booking
+        else 'P%.2f' % shipping_fee
+    )
+    shipping_caption = (
+        'Shipping Fee (Customer Self-Booking)' if self_booking else 'Shipping Fee'
+    )
+    shipping_detail = '' if self_booking else shipping_breakdown_text(shipping_breakdown)
+    shipping_detail_line = ('\nShipping Detail   : %s' % shipping_detail) if shipping_detail else ''
+    balance_timing = 'pick-up' if self_booking else 'delivery'
+    if payment_type == '50_percent':
+        payment_terms = (
+            '50% Downpayment: P{:,.2f} due now (downpayment + full shipping); '
+            'P{:,.2f} balance on {}.'.format(
+                round(amount_due_now, 2), round(remaining_balance, 2), balance_timing
+            )
+        )
+    else:
+        payment_terms = 'Full Payment: P{:,.2f} due now.'.format(round(amount_due_now, 2))
+    address_label = 'Warehouse Pick-up Address' if self_booking else 'Shipping Address'
+    address_value = WAREHOUSE_PICKUP_ADDRESS if self_booking else customer_address
+
+    subject = 'Order Received - Pack & Sip'
+
+    text_body = f"""Hello {customer_name},
+
+Thank you for ordering from Pack & Sip. Your official order receipt is attached as a PDF and summarised below.
+
+ORDER #{order_id}
+{order_items_text(order)}
+
+DELIVERY
+Delivery Method   : {method_label}
+City / Location   : {zone_label}
+{address_label:<18}: {address_value}
+{shipping_caption:<18}: {shipping_display}{shipping_detail_line}
+
+PAYMENT
+Subtotal          : P{subtotal:,.2f}
+Grand Total       : P{total_due:,.2f}
+Amount Due Now    : P{amount_due_now:,.2f}
+Remaining Balance : P{remaining_balance:,.2f}
+Payment Terms     : {payment_terms}
+
+PAYMENT CHANNELS
+GCash             : {GCASH_ACCOUNT_NAME} - {GCASH_ACCOUNT_NUMBER}
+Bank Transfer     : {BANK_TRANSFER_BANK} - {BANK_TRANSFER_ACCOUNT_NAME} - {bank_account_display}
+
+{PAYMENT_PROOF_INSTRUCTION}
+{('Upload your receipt here: ' + upload_link) if upload_link else ''}
+
+PAYMENT RESERVATION LIMIT
+Your items and quoted pricing are reserved for {reservation_window} from order confirmation (City / Location: {zone_label}).
+{OPERATING_HOURS_NOTE}
+
+Thank you for choosing Pack & Sip."""
+
+    item_rows_html = ''.join(
+        f'<li style="margin:2px 0;">{html.escape(line)}</li>'
+        for line in order_items_text(order).splitlines()
+    )
+    upload_paragraph = (
+        '<p style="margin:8px 0 0;font-size:12px;color:#475569;">Upload it here: '
+        f'<a href="{html.escape(upload_link)}">{html.escape(upload_link)}</a></p>'
+        if upload_link else ''
+    )
+    shipping_row_html = (
+        ''
+        if not shipping_detail
+        else f'<p style="margin:4px 0 0;font-size:12px;color:#64748b;">{html.escape(shipping_detail)}</p>'
+    )
+    html_body = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:24px;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#1e293b;">
+  <div style="max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;">
+    <div style="background-color:#4f46e5;padding:18px 24px;">
+      <p style="margin:0;color:#ffffff;font-size:20px;font-weight:bold;">Pack &amp; Sip — Order Received</p>
+      <p style="margin:4px 0 0;color:#c7d2fe;font-size:12px;">Official receipt for order #{order_id}</p>
+    </div>
+    <div style="padding:20px 24px;">
+      <p style="margin:0 0 10px;font-size:14px;">Hello {html.escape(customer_name)},</p>
+      <p style="margin:0 0 14px;font-size:14px;color:#475569;">Thank you for ordering from Pack &amp; Sip. Your official receipt is attached as a PDF.</p>
+
+      <div style="padding:14px 16px;background-color:#eef2ff;border-radius:8px;font-size:14px;">
+        <p style="margin:0 0 6px;"><strong>Amount Due Now:</strong> ₱{amount_due_now:,.2f}</p>
+        <p style="margin:0 0 6px;"><strong>Grand Total:</strong> ₱{total_due:,.2f}</p>
+        <p style="margin:0 0 6px;"><strong>Remaining Balance:</strong> ₱{remaining_balance:,.2f}</p>
+        <p style="margin:0;"><strong>Payment Terms:</strong> {html.escape(payment_terms)}</p>
+      </div>
+
+      <p style="margin:18px 0 6px;font-size:12px;font-weight:bold;color:#4f46e5;letter-spacing:1px;">ITEMS</p>
+      <ul style="margin:0;padding-left:18px;font-size:14px;">{item_rows_html}</ul>
+
+      <p style="margin:18px 0 6px;font-size:12px;font-weight:bold;color:#4f46e5;letter-spacing:1px;">DELIVERY</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr><td style="padding:4px 0;width:180px;color:#64748b;">Delivery Method</td><td style="padding:4px 0;font-weight:bold;">{html.escape(method_label)}</td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">City / Location</td><td style="padding:4px 0;">{html.escape(zone_label)}</td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">{html.escape(address_label)}</td><td style="padding:4px 0;">{html.escape(address_value)}</td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">{html.escape(shipping_caption)}</td><td style="padding:4px 0;">{html.escape(shipping_display)}</td></tr>
+      </table>
+      {shipping_row_html}
+
+      <p style="margin:18px 0 6px;font-size:12px;font-weight:bold;color:#4f46e5;letter-spacing:1px;">PAYMENT CHANNELS</p>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tr>
+          <td style="width:50%;vertical-align:top;padding-right:8px;">
+            <div style="border:1px solid #e2e8f0;padding:10px 12px;">
+              <p style="margin:0 0 4px;font-weight:bold;color:#4f46e5;">GCash</p>
+              <p style="margin:0;color:#334155;">Account Name: {html.escape(GCASH_ACCOUNT_NAME)}<br />Account No.: {html.escape(GCASH_ACCOUNT_NUMBER)}</p>
+            </div>
+          </td>
+          <td style="width:50%;vertical-align:top;">
+            <div style="border:1px solid #e2e8f0;padding:10px 12px;">
+              <p style="margin:0 0 4px;font-weight:bold;color:#4f46e5;">Bank Transfer ({html.escape(BANK_TRANSFER_BANK)})</p>
+              <p style="margin:0;color:#334155;">Account Name: {html.escape(BANK_TRANSFER_ACCOUNT_NAME)}<br />Account No.: {html.escape(bank_account_display)}</p>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <div style="margin-top:16px;padding:12px 14px;background-color:#fffbeb;border-radius:8px;font-size:14px;">
+        <p style="margin:0;font-weight:bold;">{html.escape(PAYMENT_PROOF_INSTRUCTION)}</p>
+        {upload_paragraph}
+      </div>
+
+      <div style="margin-top:12px;padding:12px 14px;background-color:#ecfdf5;border-radius:8px;font-size:13px;">
+        <p style="margin:0 0 4px;"><strong>Payment reservation limit:</strong> {html.escape(reservation_window)} from order confirmation (City / Location: {html.escape(zone_label)}).</p>
+        <p style="margin:0;color:#475569;">{html.escape(OPERATING_HOURS_NOTE)}</p>
+      </div>
+
+      <p style="margin:16px 0 0;font-size:11px;color:#94a3b8;">Pack &amp; Sip · Official order receipt for order #{order_id}.</p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    return subject, text_body, html_body
+
 # Inline HTML/CSS template for the official B2B sales invoice PDF.
 # xhtml2pdf supports a limited CSS subset, so layout uses tables
 # (no flexbox / grid). Rounded corners are approximated with
@@ -572,11 +809,14 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
   .pay-box { border: 1px dashed #4f46e5; background-color: #f8fafc; padding: 12px 14px; margin-bottom: 12px; }
   .pay-title { font-size: 11px; font-weight: bold; color: #0f172a; margin: 0 0 8px 0; letter-spacing: 1px; }
   .pay-cards { width: 100%; }
-  .pay-cards td { width: 33%; vertical-align: top; padding-right: 8px; }
+  .pay-cards td { width: 50%; vertical-align: top; padding-right: 8px; }
   .pay-cards .last { padding-right: 0; }
   .pay-card { background-color: #ffffff; border: 1px solid #e2e8f0; padding: 9px 10px; }
   .pay-card-title { font-size: 11px; font-weight: bold; color: #4f46e5; margin: 0 0 4px 0; }
   .pay-card p { margin: 0; font-size: 11px; color: #334155; }
+  .proof-note { font-size: 11px; font-weight: bold; color: #0f172a; margin: 10px 0 0 0; }
+  .reservation-note { font-size: 10px; color: #475569; margin: 4px 0 0 0; }
+  .hours-note { font-size: 10px; color: #475569; margin: 4px 0 0 0; }
   .delivery-note { font-size: 10px; color: #475569; margin: 0 0 12px 0; }
   .footer { margin-top: 16px; border-top: 1px solid #cbd5e1; padding-top: 8px; font-size: 10px; color: #64748b; text-align: center; }
 </style>
@@ -666,14 +906,16 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
   <p class="delivery-note">{{ delivery_note }}</p>
   {% endif %}
   <div class="pay-box">
-    <p class="pay-title">PAYMENT INSTRUCTIONS</p>
+    <p class="pay-title">PAYMENT INSTRUCTIONS — PAY P{{ "%.2f"|format(amount_due_now) }} NOW</p>
     <table class="pay-cards">
       <tr>
-        <td><div class="pay-card"><p class="pay-card-title">GCash</p><p>Account: Pack &amp; Sip<br />09221815599</p></div></td>
-        <td><div class="pay-card"><p class="pay-card-title">Maya</p><p>&nbsp;</p></div></td>
-        <td class="last"><div class="pay-card"><p class="pay-card-title">BDO Bank Transfer</p><p>&nbsp;</p></div></td>
+        <td><div class="pay-card"><p class="pay-card-title">GCash</p><p>Account Name: {{ gcash_account_name }}<br />Account No.: {{ gcash_account_number }}</p></div></td>
+        <td class="last"><div class="pay-card"><p class="pay-card-title">Bank Transfer ({{ bank_transfer_bank }})</p><p>Account Name: {{ bank_transfer_account_name }}<br />Account No.: {{ bank_transfer_account_display }}</p></div></td>
       </tr>
     </table>
+    <p class="proof-note">{{ payment_proof_instruction }}</p>
+    <p class="reservation-note">Payment reservation limit: {{ reservation_window }} from order confirmation (City / Location: {{ delivery_zone_label }}).</p>
+    <p class="hours-note">{{ operating_hours_note }}</p>
   </div>
   <p class="footer">Thank you for ordering from Pack &amp; Sip. This is your official order receipt.</p>
 </body>
@@ -893,13 +1135,29 @@ def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None,
             delivery_zone_label=delivery_zone_label(delivery_zone),
             is_self_booking=self_booking,
             fulfillment_mode=(SELF_BOOKING_DELIVERY_LABEL if self_booking else 'Lalamove Local Courier'),
-            delivery_note=(SELF_BOOKING_NOTE if self_booking else ''),
+            delivery_note=(
+                'Warehouse Pick-up Address: %s. %s' % (WAREHOUSE_PICKUP_ADDRESS, SELF_BOOKING_NOTE)
+                if self_booking else ''
+            ),
             tax_fee=tax_fee,
             total_due=total_due,
             payment_option=payment_option,
             downpayment_base=downpayment_base,
             amount_due_now=amount_due_now,
             remaining_balance=remaining_balance,
+            # Payment channels (GCash + bank transfer), the proof-of-payment
+            # instruction and the location-based reservation window.
+            gcash_account_name=GCASH_ACCOUNT_NAME,
+            gcash_account_number=GCASH_ACCOUNT_NUMBER,
+            bank_transfer_bank=BANK_TRANSFER_BANK,
+            bank_transfer_account_name=BANK_TRANSFER_ACCOUNT_NAME,
+            bank_transfer_account_display=(
+                BANK_TRANSFER_ACCOUNT_NUMBER or BANK_TRANSFER_ACCOUNT_FALLBACK
+            ),
+            payment_proof_instruction=PAYMENT_PROOF_INSTRUCTION,
+            reservation_minutes=reservation_window_minutes(delivery_zone),
+            reservation_window=reservation_window_label(delivery_zone),
+            operating_hours_note=OPERATING_HOURS_NOTE,
         )
 
 
@@ -1685,6 +1943,8 @@ def calculate_cart():
         "delivery_method_label": delivery_method_label(delivery_method),
         "delivery_zone": delivery_zone,
         "delivery_zone_label": delivery_zone_label(delivery_zone),
+        "reservation_minutes": reservation_window_minutes(delivery_zone),
+        "reservation_window": reservation_window_label(delivery_zone),
         "total": total
     })
 
@@ -1860,7 +2120,6 @@ def process_checkout():
 
     conn.close()
 
-    email_subject = "Order Received - Pack & Sip"
     # Construct base URL for the receipt upload link (SITE_URL-aware, falls
     # back to the incoming request host).
     base_url = get_site_base_url()
@@ -1885,7 +2144,23 @@ def process_checkout():
         print(f"Invoice PDF Error: {e}")
         invoice_pdf_bytes = None
 
-    email_body = "Thank you for ordering from Pack & Sip. Your official order receipt is attached below as a PDF."
+    # Customer receipt: HTML + plain-text versions carrying the payment channels
+    # (GCash + bank transfer), the camera-icon screenshot instruction and the
+    # location-based payment reservation window.
+    email_subject, email_body, email_html = build_customer_receipt_email(
+        order,
+        subtotal=subtotal,
+        shipping_fee=shipping,
+        total_due=total,
+        amount_due_now=downpayment_amount,
+        remaining_balance=remaining_balance,
+        payment_type=payment_type,
+        delivery_method=delivery_method,
+        delivery_zone=delivery_zone,
+        shipping_label=shipping_label,
+        shipping_breakdown=shipping_breakdown,
+        upload_link=upload_link,
+    )
 
     # Send the order confirmation email asynchronously in a background thread.
     # This keeps the checkout response snappy: the DB insert commits and the
@@ -1899,7 +2174,8 @@ def process_checkout():
                 msg = Message(
                     subject=email_subject,
                     recipients=[order['email']],
-                    body=email_body
+                    body=email_body,
+                    html=email_html
                 )
                 if invoice_pdf_bytes:
                     msg.attach(invoice_filename, 'application/pdf', invoice_pdf_bytes)
@@ -1942,6 +2218,8 @@ def process_checkout():
         "delivery_method_label": delivery_method_label(delivery_method),
         "delivery_zone": delivery_zone,
         "delivery_zone_label": delivery_zone_label(delivery_zone),
+        "reservation_minutes": reservation_window_minutes(delivery_zone),
+        "reservation_window": reservation_window_label(delivery_zone),
         "shipping_breakdown": shipping_breakdown_text(shipping_breakdown),
         "shipping": shipping,
         "total": total,

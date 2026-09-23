@@ -3,3 +3,4 @@ gunicorn
 xhtml2pdf
 flask-cors
 Flask-Mail
+python-dotenv

@@ -2,11 +2,25 @@
   --brand-indigo:#4f46e5;
 }
 
-/* Drawer default off-screen handled with inline transform class; provide will-change for smoothness */
+/* Navigation brand logo: the transparent PNG composites cleanly on the white
+   header, so no blending workarounds are applied here. A fixed height keeps
+   it optically aligned with the nav links inside the flex header; width:auto
+   preserves the aspect ratio. */
+.nav-logo {
+  display: block;
+  height: 42px;
+  width: auto;
+}
+
+/* Drawer default off-screen handled with inline transform class; provide will-change for smoothness.
+   position + z-index keep the panel above the .cart-overlay backdrop so the
+   dimmed area around it stays clickable while the panel itself stays usable. */
 #drawerPanel { 
   will-change: transform; 
   max-height: 100vh;
   overflow-y: auto;
+  position: relative;
+  z-index: 2;
 }
 
 /* Hide FAB when drawer/modals are open */
@@ -208,6 +222,131 @@ input[type="number"] {
 
 #drawerPanel.drawer-closed-state {
   transform: translateX(100%) !important;
+}
+
+/* Cart drawer backdrop (#cartOverlay.cart-overlay)
+   - Sits above the page but BELOW the Order Summary panel (z-index 1 vs 2), so
+     the dimmed area is clickable while the panel keeps its own events.
+   - pointer-events stays 'none' while the drawer is closed (the backdrop must
+     never block the page) and flips to 'auto' while it is open, which is what
+     makes "click outside the panel to dismiss" work.
+   - main.js attaches the click listener to this exact element. */
+#cartDrawer {
+  background-color: transparent;
+}
+
+.cart-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-color: rgba(15, 23, 42, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+
+body.drawer-open .cart-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Fallback: while the drawer is open the container also blocks page clicks, so
+   its own listener can close the panel even if the overlay element is absent. */
+body.drawer-open #cartDrawer {
+  pointer-events: auto;
+}
+
+/* ---------------------------------------------------------------------------
+   Order Summary header actions (Clear All + Close) — Lucide icon buttons
+   --------------------------------------------------------------------------- */
+.drawer-action-btn,
+.drawer-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.drawer-action-btn {
+  padding: 7px 10px;
+}
+
+.drawer-icon-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.drawer-action-btn:hover,
+.drawer-icon-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.drawer-action-btn:focus-visible,
+.drawer-icon-btn:focus-visible {
+  outline: 2px solid var(--brand-indigo);
+  outline-offset: 1px;
+}
+
+/* Wholesale-only notice inside the Confirm Order modal (Lucide 'package'). */
+.wholesale-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+/* Official Dabba attribution badge shown above the catalog section.
+   Enlarged for prominence: 1rem bold text, 10px/18px padding, a 2px rounded
+   border, a larger check icon, and extra bottom margin so it stands out
+   clearly above the "Bulk essentials" / Catalog section title. */
+.catalog-dabba-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 10px 18px;
+  border: 2px solid #34d399;
+  border-radius: 12px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  box-shadow: 0 1px 3px rgba(4, 120, 87, 0.15);
+}
+
+/* Scale the badge's check icon with the larger badge text. The two-class
+   selector out-specifies Tailwind's h-* / w-* utilities on the icon markup,
+   so the icon stays 20px regardless of stylesheet order. */
+.catalog-dabba-badge .lucide {
+  width: 20px;
+  height: 20px;
+}
+
+/* Lucide icons: keep the SVG from being squeezed inside flex rows. */
+.lucide {
+  flex-shrink: 0;
 }
 
 /* Cart toast positioning (replaces inline toast.style.* assignments) */
@@ -416,6 +555,80 @@ input[type="number"] {
     bottom: 24px !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
+  }
+}
+
+/* ============================================================
+   Mobile responsive Order Summary panel (#drawerPanel)
+   Reduce padding and font sizes slightly so the panel takes up
+   less vertical height. The desktop-only restriction below hides
+   the whole page (and drawer) at <=768px, so this targets the
+   range up to 1024px — small windows and phones in "Desktop site"
+   mode (~980px viewport) — where the panel is actually rendered.
+   ============================================================ */
+@media (max-width: 1024px) {
+  #drawerPanel .p-4 {
+    padding: 0.75rem;
+  }
+
+  #drawerPanel .p-3 {
+    padding: 0.625rem;
+  }
+
+  #drawerPanel .text-lg {
+    font-size: 1rem;
+  }
+
+  #drawerPanel .text-sm {
+    font-size: 0.8125rem;
+  }
+
+  #drawerPanel .text-xs {
+    font-size: 0.6875rem;
+  }
+
+  #drawerPanel .delivery-method-hint {
+    font-size: 11px;
+  }
+
+  #drawerPanel .payment-option-group {
+    margin: 10px 0;
+  }
+
+  #drawerPanel .payment-breakdown {
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+
+  #drawerPanel .delivery-method-option {
+    padding: 8px;
+  }
+
+  /* Compact the header actions and the checkout footer so the panel's fixed
+     chrome costs less vertical space on short screens. */
+  #drawerPanel .drawer-action-btn {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  #drawerPanel .drawer-icon-btn {
+    width: 26px;
+    height: 26px;
+  }
+
+  /* Tighter cart line items + totals block inside the Order Summary. */
+  #cartContent .py-2 {
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+  }
+
+  #cartContent .pt-3 {
+    padding-top: 0.5rem;
+  }
+
+  /* Tighter vertical spacing between the checkout fields. */
+  #customerForm > * + * {
+    margin-top: 0.5rem;
   }
 }
 

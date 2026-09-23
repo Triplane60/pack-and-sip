@@ -20,6 +20,11 @@
   <meta name="twitter:title" content="Pack &amp; Sip | Wholesale Disposable Cups &amp; Lids Supplier" />
   <meta name="twitter:description" content="Order B2B wholesale disposable cups, lids, and packaging solutions with fast delivery in Metro Manila." />
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide icons (version-pinned UMD build) power the Order Summary and
+       Confirm Order UI. main.js calls lucide.createIcons() again whenever it
+       injects new markup; a blocked CDN only costs the icons, never ordering. -->
+  <script src="https://unpkg.com/lucide@1.47.0/dist/umd/lucide.min.js" defer></script>
+  <link rel="icon" type="image/png" href="logo.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-slate-50 text-slate-800">
@@ -48,7 +53,7 @@
   <header id="top" class="bg-white shadow">
     <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
       <div class="flex items-center gap-4">
-        <div id="siteLogo" class="text-indigo-600 font-bold text-xl">Pack & Sip</div>
+        <img id="siteLogo" class="nav-logo" src="logo.png" alt="Pack &amp; Sip" />
                 <nav class="hidden md:flex gap-4 text-sm font-medium text-slate-700">
           <a href="#catalog" class="hover:text-slate-900">Catalog</a>
           <a href="#about" id="aboutLink" class="hover:text-slate-900">About</a>
@@ -79,7 +84,7 @@
     <section id="configurator" class="bg-gradient-to-r from-indigo-50 to-slate-50 rounded-lg p-8 flex flex-col md:flex-row items-center gap-8">
       <div class="flex-1">
         <h1 class="text-3xl font-extrabold text-slate-900">Wholesale Boxes of Cups & Lids</h1>
-        <p class="mt-4 text-slate-700">High-volume eco-friendly disposable drinkware. Bulk pricing for businesses and events.</p>
+        <p class="mt-4 text-slate-700">High-volume eco-friendly disposable drinkware and food containers powered by Dabba. Direct warehouse pricing for businesses and events.</p>
         <ul class="mt-4 text-sm font-medium text-slate-700">
           <li>• Boxes contain 1,250 units each</li>
           <li>• Lalamove courier delivery from our Taguig warehouse</li>
@@ -107,7 +112,7 @@
             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg></span>
             <span>
               <strong class="block text-slate-900">B2B Wholesale Rates</strong>
-              <span class="font-medium text-slate-700">Direct warehouse pricing</span>
+              <span class="font-medium text-slate-700">Direct warehouse pricing for authentic Dabba packaging products.</span>
             </span>
           </li>
           <li class="flex items-start gap-3 rounded-md bg-slate-50 p-3">
@@ -125,7 +130,12 @@
     <section id="catalog" class="mt-8">
       <div class="flex items-end justify-between gap-4">
         <div>
-          <p class="text-sm font-semibold uppercase tracking-wide text-indigo-600">Bulk essentials</p>
+          <!-- Official Dabba attribution: prominent badge above the catalog. -->
+          <span class="catalog-dabba-badge">
+            <i data-lucide="badge-check" class="h-5 w-5" aria-hidden="true"></i>
+            <span>Official Supplier of Authentic Dabba Packaging Essentials</span>
+          </span>
+          <p class="mt-3 text-sm font-semibold uppercase tracking-wide text-indigo-600">Bulk essentials</p>
           <h2 class="text-2xl font-semibold">Catalog</h2>
         </div>
         <div class="flex items-center gap-4">
@@ -174,6 +184,11 @@
       <div class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-indigo-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></div>
       <h2 id="confirmOrderTitle" class="mt-4 text-2xl font-bold text-slate-900">Confirm Your Order</h2>
       <p class="mt-2 text-slate-600">Is this everything you'd like to order?</p>
+      <!-- Wholesale-only notice: Lucide 'package' icon + by-the-box reminder. -->
+      <div class="wholesale-notice" role="note">
+        <i data-lucide="package" class="h-4 w-4" aria-hidden="true"></i>
+        <span>Note: We only sell by boxes and not by retail.</span>
+      </div>
       <div id="confirmOrderItems" class="mt-5 space-y-2 rounded-lg bg-slate-50 p-4 text-sm text-slate-700"></div>
       <div class="mt-4 flex items-center justify-between border-t border-slate-200 pt-4 font-bold text-slate-900">
         <span>Total</span>
@@ -187,6 +202,13 @@
         <span>Delivery Area</span>
         <span id="confirmOrderDeliveryZone" class="font-semibold text-slate-800">—</span>
       </div>
+      <!-- Address line: Taguig Warehouse Pick-up Address (Lucide 'map-pin') when
+           Customer Self-Booking is selected, otherwise the customer's Shipping
+           Address (hidden when empty). Populated by main.js. -->
+      <div class="mt-3 flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm leading-5 text-slate-700 is-hidden-row" id="confirmOrderAddressRow">
+        <i data-lucide="map-pin" class="mt-0.5 h-4 w-4 text-indigo-600" aria-hidden="true"></i>
+        <span id="confirmOrderAddressText"></span>
+      </div>
       <div class="mt-2 flex items-center justify-between text-sm font-semibold text-amber-700" id="confirmOrderFullRow">
         <span>Required Payment</span>
         <span id="confirmOrderRequiredPayment">₱0.00</span>
@@ -195,7 +217,21 @@
         <span>Required 50% Downpayment</span>
         <span id="confirmOrderDownpayment">₱0.00</span>
       </div>
-      <p id="confirmOrderPaymentNote" class="mt-4 text-xs font-medium leading-5 text-slate-700">A 50% downpayment is required via GCash/Maya to process your order. The remaining balance will be paid upon Lalamove delivery.</p>
+      <p id="confirmOrderPaymentNote" class="mt-4 text-xs leading-5 text-slate-500">A 50% downpayment is required via GCash/Maya to process your order. The remaining balance will be paid upon Lalamove delivery.</p>
+      <!-- Payment instructions: Lucide 'camera' for the email proof-of-payment. -->
+      <p class="mt-2 flex items-start gap-2 text-xs leading-5 text-slate-600">
+        <i data-lucide="camera" class="mt-0.5 h-3.5 w-3.5 text-indigo-600" aria-hidden="true"></i>
+        <span>After paying via GCash / bank transfer, REPLY directly to your email receipt with your payment screenshot/reference number.</span>
+      </p>
+      <!-- Operating hours (always shown) + the City-based payment reservation
+           window, which main.js refreshes from the selected City / Location. -->
+      <div class="mt-3 rounded-md border border-amber-100 bg-amber-50 p-2.5 text-xs leading-5 text-amber-800">
+        <p id="confirmOrderOperatingHours" class="flex items-start gap-2">
+          <i data-lucide="clock" class="mt-0.5 h-3.5 w-3.5" aria-hidden="true"></i>
+          <span>Operating hours: 7:00 AM – 7:00 PM daily. Orders confirmed after 7:00 PM are dispatched the next morning.</span>
+        </p>
+        <p id="confirmOrderReservationNote" class="mt-1"></p>
+      </div>
       <div class="mt-6 grid grid-cols-2 gap-3">
         <button id="addMoreItemsBtn" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-50">Add More Items</button>
         <button id="confirmOrderBtn" type="button" class="rounded-md bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700">Yes, Place Order</button>
@@ -343,10 +379,24 @@
 
     <!-- Cart Drawer -->
   <div id="cartDrawer" class="fixed inset-0 flex justify-end pointer-events-none">
+    <!-- Dimmed backdrop behind the Order Summary panel. This element owns the
+         click-to-dismiss behaviour: tapping/clicking anywhere outside the panel
+         closes it (see .cart-overlay in styles.css and the listener in main.js).
+         It sits at z-index 1, below the panel (z-index 2), and only accepts
+         pointer events while the drawer is open. -->
+    <div id="cartOverlay" class="cart-overlay" aria-hidden="true"></div>
     <div id="drawerPanel" class="max-w-sm w-full bg-white shadow-xl transform translate-x-full pointer-events-auto transition-transform duration-300 flex flex-col drawer-closed-state" aria-hidden="true">
-            <div class="p-4 flex items-center justify-between border-b shrink-0">
+            <div class="p-4 flex items-center justify-between gap-2 border-b shrink-0">
         <h3 class="text-lg font-semibold">Order Summary</h3>
-        <button id="closeCart" class="font-medium text-slate-700" aria-label="Close cart summary">Close</button>
+        <div class="flex items-center gap-1.5">
+          <button id="clearCartBtn" type="button" class="drawer-action-btn" title="Reset every item quantity to 0" aria-label="Clear all items in the cart">
+            <i data-lucide="trash-2" class="h-4 w-4" aria-hidden="true"></i>
+            <span>Clear All</span>
+          </button>
+          <button id="closeCart" type="button" class="drawer-icon-btn" title="Close order summary" aria-label="Close cart summary">
+            <i data-lucide="x" class="h-4 w-4" aria-hidden="true"></i>
+          </button>
+        </div>
       </div>
 
             <form id="checkoutForm" action="/checkout" method="POST" novalidate autocomplete="off" class="contents-display">
@@ -364,17 +414,24 @@
             <div class="border border-slate-300 rounded-lg p-3 space-y-2.5" id="deliveryAddressFields">
               <label for="customerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
               <textarea id="customerAddress" name="address" autocomplete="off" required title="Shipping Address" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
-              <!-- City / Location: drives the Lalamove destination base rate. The
-                   options (zone id + base rate) are rendered from app.py
-                   LALAMOVE_ZONE_OPTIONS so storefront and server always agree. -->
+            </div>
+            <!-- City / Location: ALWAYS enabled and visible — directly above the
+                 Phone Number — for BOTH Lalamove Delivery and Customer
+                 Self-Booking / Warehouse Pick-up. It drives the Lalamove
+                 destination base rate and the dynamic payment reservation
+                 limit. The options (zone id, base rate + reservation window)
+                 come from app.py LALAMOVE_ZONE_OPTIONS so the storefront and
+                 the server always agree. -->
+            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
               <label for="deliveryZone" class="block text-sm font-medium text-slate-700">City / Location</label>
               <select id="deliveryZone" name="delivery_zone" onchange="calculate()" title="City / Location — Lalamove shipping origin: Taguig" class="payment-type-select">
                 <option value="" disabled selected>Select your city / area</option>
                 {% for zone in lalamove_zones %}
-                <option value="{{ zone.id }}" data-rate="{{ '%.2f'|format(zone.rate) }}" data-short="{{ zone.short }}">{{ zone.label }} — ₱{{ '%.2f'|format(zone.rate) }}</option>
+                <option value="{{ zone.id }}" data-rate="{{ '%.2f'|format(zone.rate) }}" data-short="{{ zone.short }}" data-reservation="{{ zone.reservation_minutes }}">{{ zone.label }} — ₱{{ '%.2f'|format(zone.rate) }}</option>
                 {% endfor %}
               </select>
               <p class="delivery-method-hint" id="deliveryZoneNote">Estimated shipping rate calculated based on your location from Taguig + box quantity.</p>
+              <p class="delivery-method-hint" id="reservationLimitNote">Select your City / Location to see how long your payment reservation is held.</p>
             </div>
             <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
               <label for="customerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
