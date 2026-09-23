@@ -229,14 +229,14 @@ SELF_BOOKING_ALIASES = {
 # on the invoice/receipt and repeated in the customer's email receipt.
 # The account numbers are environment-driven so they can be rotated without a
 # code change. The GCash defaults are the live wallet used across the site
-# (Rhea E. / 0928 181 5599 - same line as the footer's +63 928 181 5599)
+# (RH••A E. / 0928 181 5599 - same line as the footer's +63 928 181 5599)
 # and feed the PDF "PAYMENT INSTRUCTIONS" box, the text/HTML receipt emails
 # and the checkout drawer in index.html (via main.js).
 # TEMPORARY: only GCash is displayed everywhere (checkout drawer, receipts,
 # confirmation emails); the other payment channels are hidden for now. Their
 # BANK_TRANSFER_* constants are kept below so the options are easy to restore.
 # ---------------------------------------------------------------------------
-GCASH_ACCOUNT_NAME = os.getenv('GCASH_ACCOUNT_NAME', 'Rhea E.')
+GCASH_ACCOUNT_NAME = os.getenv('GCASH_ACCOUNT_NAME', 'RH••A E.')
 GCASH_ACCOUNT_NUMBER = os.getenv('GCASH_ACCOUNT_NUMBER', '0928 181 5599')
 BANK_TRANSFER_BANK = os.getenv('BANK_TRANSFER_BANK', 'BDO')
 BANK_TRANSFER_ACCOUNT_NAME = os.getenv('BANK_TRANSFER_ACCOUNT_NAME', 'Pack & Sip')
@@ -677,7 +677,8 @@ Remaining Balance : P{remaining_balance:,.2f}
 Payment Terms     : {payment_terms}
 
 PAYMENT CHANNELS
-GCash             : {GCASH_ACCOUNT_NAME} - {GCASH_ACCOUNT_NUMBER}
+Account Name      : {GCASH_ACCOUNT_NAME}
+GCash Number      : {GCASH_ACCOUNT_NUMBER}
 
 {PAYMENT_PROOF_INSTRUCTION}
 {('Upload your receipt here: ' + upload_link) if upload_link else ''}
@@ -740,7 +741,7 @@ Thank you for choosing Pack & Sip."""
           <td style="width:100%;vertical-align:top;">
             <div style="border:1px solid #e2e8f0;padding:10px 12px;">
               <p style="margin:0 0 4px;font-weight:bold;color:#4f46e5;">GCash</p>
-              <p style="margin:0;color:#334155;">Account Name: {html.escape(GCASH_ACCOUNT_NAME)}<br />Account No.: {html.escape(GCASH_ACCOUNT_NUMBER)}</p>
+              <p style="margin:0;color:#334155;">Account Name: {html.escape(GCASH_ACCOUNT_NAME)}<br />GCash Number: {html.escape(GCASH_ACCOUNT_NUMBER)}</p>
             </div>
           </td>
           <!-- Non-GCash payment cards temporarily hidden: GCash is the only payment method. -->
@@ -912,7 +913,7 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
     <p class="pay-title">PAYMENT INSTRUCTIONS — PAY P{{ "%.2f"|format(amount_due_now) }} NOW</p>
     <table class="pay-cards">
       <tr>
-        <td class="last"><div class="pay-card"><p class="pay-card-title">GCash</p><p>Account Name: {{ gcash_account_name }}<br />Account No.: {{ gcash_account_number }}</p></div></td>
+        <td class="last"><div class="pay-card"><p class="pay-card-title">GCash</p><p>Account Name: {{ gcash_account_name }}<br />GCash Number: {{ gcash_account_number }}</p></div></td>
       </tr>
     </table>
     <p class="proof-note">{{ payment_proof_instruction }}</p>
@@ -1230,7 +1231,7 @@ def init_db():
         ('container-re-3200', 'microwavable', 'RE 3200 Rectangular Container (3,200ml)', '3,200ml', 'RE Series', 100, 1800.0, 20, 'Authentic GoUp high-grade microwavable rectangular container with a 3,200ml capacity.'),
         ('container-re-2500', 'microwavable', 'RE 2500 Rectangular Container (2,500ml)', '2,500ml', 'RE Series', 100, 1600.0, 20, 'Authentic GoUp high-grade microwavable rectangular container with a 2,500ml capacity.'),
         ('container-re-1600', 'microwavable', 'RE 1600 Rectangular Container (1,600ml)', '1,600ml', 'RE Series', 100, 1400.0, 20, 'Authentic GoUp high-grade microwavable rectangular container with a 1,600ml capacity.'),
-        ('container-re-1000', 'microwavable', 'RE 1000 Rectangular Container (1,000ml)', '1,000ml', 'RE Series', 100, 1200.0, 20, 'Authentic GoUp high-grade microwavable rectangular container with a 1,000ml capacity.'),
+        ('container-re-1000', 'microwavable', 'RE 1000 Rectangular Container (1,000ml)', '1,000ml', 'RE Series', 100, 1650.0, 20, 'Authentic GoUp high-grade microwavable rectangular container with a 1,000ml capacity.'),
         ('container-re-750', 'microwavable', 'RE 750 Rectangular Container (750ml)', '750ml', 'RE Series', 100, 1450.0, 20, 'Authentic GoUp high-grade microwavable rectangular container with a 750ml capacity.'),
         ('container-re-500', 'microwavable', 'RE 500 Rectangular Container (500ml)', '500ml', 'RE Series', 100, 1250.0, 20, 'Authentic GoUp high-grade microwavable rectangular container with a 500ml capacity.'),
         ('container-ro-30', 'microwavable', 'RO 30 Round Container (30 oz)', '30oz', 'RO Series', 100, 1230.0, 20, 'Authentic GoUp high-grade microwavable round container with a 30oz capacity.'),
@@ -1279,6 +1280,22 @@ def init_db():
             (960.0, 'container-ro-16'),
             (820.0, 'container-ro-10'),
         ))
+        conn.commit()
+
+    # RE 1000 per-box price update: the 1,000ml rectangular container now
+    # sells for ₱1,650.00 per box (packs of 100). Databases seeded before
+    # this change carry the ₱1,200.00 rate, so backfill them here; guarded
+    # so we only write while the old price is still present (fresh databases
+    # are seeded directly with the new rate and any admin-updated price is
+    # left untouched).
+    re1000_current = cursor.execute(
+        "SELECT price_per_box FROM products WHERE id = 'container-re-1000'"
+    ).fetchone()
+    if re1000_current and float(re1000_current[0] or 0) == 1200.0:
+        cursor.execute(
+            "UPDATE products SET price_per_box = ? WHERE id = ?",
+            (1650.0, 'container-re-1000')
+        )
         conn.commit()
 
     # GoUp supplier branding: every microwavable card description now names

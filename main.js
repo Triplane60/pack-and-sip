@@ -730,6 +730,10 @@ function openCart(){
   document.body.classList.add('drawer-open');
   updateBackToTopButton();
   updateCheckoutTotals();
+  // The drawer holds static Lucide placeholders (Delivery Packaging Guide
+  // icons); convert them on every open in case the CDN loaded after the
+  // initial page render.
+  refreshIcons();
 }
 
 function closeCart(){
@@ -764,26 +768,32 @@ async function clearCartItems(){
 
 
 // ---------------------------------------------------------------------------
-// GCash payment details for the checkout drawer's Payment Instructions box
-// (#gcashAccountName / #gcashAccountNumber). Mirrors app.py's
-// GCASH_ACCOUNT_NAME / GCASH_ACCOUNT_NUMBER so the drawer, PDF receipt and
-// confirmation email always show the same wallet details.
+// GCash payment details for the Payment Instructions boxes in the checkout
+// drawer (#gcashAccountName / #gcashAccountNumber) and the Order Confirmation
+// Modal (#confirmGcashAccountName / #confirmGcashAccountNumber). Mirrors
+// app.py's GCASH_ACCOUNT_NAME / GCASH_ACCOUNT_NUMBER so the drawer, modal,
+// PDF receipt and confirmation email always show the same wallet details.
 // ---------------------------------------------------------------------------
-const GCASH_ACCOUNT_NAME = 'Rhea E.';
+const GCASH_ACCOUNT_NAME = 'RH••A E.';
 const GCASH_ACCOUNT_NUMBER = '0928 181 5599';
 
 function renderGcashInstructions(){
-  const nameEl = document.getElementById('gcashAccountName');
-  if(nameEl) nameEl.textContent = GCASH_ACCOUNT_NAME;
-  const numberEl = document.getElementById('gcashAccountNumber');
-  if(numberEl) numberEl.textContent = GCASH_ACCOUNT_NUMBER;
+  ['gcashAccountName', 'confirmGcashAccountName'].forEach((id) => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = GCASH_ACCOUNT_NAME;
+  });
+  ['gcashAccountNumber', 'confirmGcashAccountNumber'].forEach((id) => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = GCASH_ACCOUNT_NUMBER;
+  });
 }
 
 // Event wiring
 document.addEventListener('DOMContentLoaded', () => {
   resetConfigurator();
   fetchProducts();
-  // Push the GCash account details into the drawer's Payment Instructions box.
+  // Push the GCash account details into the drawer + confirmation modal
+  // Payment Instructions boxes.
   renderGcashInstructions();
   document.getElementById('customerPhone').addEventListener('input', function(){
     this.value = this.value.replace(/[^0-9]/g, '');
@@ -1484,6 +1494,8 @@ function showOrderPendingModal(email){
   modal.classList.remove('hidden');
   modal.classList.add('flex');
   requestAnimationFrame(() => modal.classList.remove('opacity-0'));
+  // Render the Lucide 'mail' icon in the Accounts Assistant email notice.
+  refreshIcons(modal);
 }
 
 function closeConfirmationModal(){

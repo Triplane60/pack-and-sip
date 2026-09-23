@@ -187,6 +187,12 @@
       <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-7 w-7"><path d="M20 6 9 17l-5-5"/></svg></div>
       <h2 id="orderPendingTitle" class="mt-4 text-2xl font-bold text-slate-900">Order Placed &amp; Pending</h2>
             <p class="mt-3 text-sm font-medium leading-6 text-slate-700">Your order has been received. Please check your Gmail <span id="modalEmail" class="font-semibold text-slate-900"></span> for shipping updates and receipt notifications once processed.</p>
+      <!-- Accounts Assistant email notice: Lucide 'mail' icon + PDF receipt
+           notice. Converted by refreshIcons() in showOrderPendingModal(). -->
+      <p class="mt-3 flex items-start gap-2 rounded-md border border-indigo-100 bg-indigo-50 p-3 text-left text-sm font-medium leading-6 text-slate-700">
+        <i data-lucide="mail" class="mt-1 h-4 w-4 shrink-0 text-indigo-600" aria-hidden="true"></i>
+        <span>A confirmation email with your PDF receipt has been sent by our Accounts Assistant, Jamby Letesa.</span>
+      </p>
 
       <button id="closeModalBtn" type="button" class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700">Done</button>
     </div>
@@ -237,6 +243,15 @@
         <i data-lucide="camera" class="mt-0.5 h-3.5 w-3.5 text-indigo-600" aria-hidden="true"></i>
         <span>After paying via GCash, REPLY directly to your email receipt with your payment screenshot/reference number.</span>
       </p>
+      <!-- Payment Instructions: GCash wallet shown in the Order Confirmation
+           Modal so customers can copy the account details before confirming.
+           Values are pushed by main.js (renderGcashInstructions) and mirror
+           the checkout drawer / app.py receipt constants: RH••A E. / 0928 181 5599. -->
+      <div class="payment-instructions-box mt-3 rounded-lg border border-slate-300 p-3 space-y-1.5 text-left">
+        <p class="payment-type-label">Payment Instructions</p>
+        <p class="gcash-detail">Account Name: <strong id="confirmGcashAccountName">RH••A E.</strong></p>
+        <p class="gcash-detail">GCash Number: <strong id="confirmGcashAccountNumber">0928 181 5599</strong></p>
+      </div>
       <!-- Operating hours (always shown) + the City-based payment reservation
            window, which main.js refreshes from the selected City / Location. -->
       <div class="mt-3 rounded-md border border-amber-100 bg-amber-50 p-2.5 text-xs leading-5 text-amber-800">
@@ -472,6 +487,41 @@
               </label>
             </fieldset>
 
+            <!-- Delivery Packaging Guide: styled alert box with Lucide icons so
+                 customers pick the right Lalamove vehicle for their box count.
+                 Static markup — main.js refreshIcons() (on load + openCart +
+                 updateSummary) converts the <i data-lucide> placeholders. -->
+            <div class="delivery-guide-box" role="note" aria-label="Delivery packaging guide">
+              <p class="delivery-guide-title">
+                <i data-lucide="package" class="h-4 w-4" aria-hidden="true"></i>
+                <span>Delivery Packaging Guide</span>
+              </p>
+              <ul class="delivery-guide-list">
+                <li class="delivery-guide-item">
+                  <i data-lucide="bike" class="h-4 w-4" aria-hidden="true"></i>
+                  <div class="delivery-guide-item-text">
+                    <strong>Motorcycle</strong>
+                    <span>Best for small orders (1&ndash;2 boxes) that fit in a standard delivery box.</span>
+                  </div>
+                </li>
+                <li class="delivery-guide-item">
+                  <i data-lucide="car" class="h-4 w-4" aria-hidden="true"></i>
+                  <div class="delivery-guide-item-text">
+                    <strong>Sedan</strong>
+                    <span>Best for medium orders (3&ndash;5 boxes) that need trunk space.</span>
+                  </div>
+                </li>
+                <li class="delivery-guide-item">
+                  <i data-lucide="truck" class="h-4 w-4" aria-hidden="true"></i>
+                  <div class="delivery-guide-item-text">
+                    <strong>L300 / Van</strong>
+                    <span>Best for bulk orders (6+ boxes). Choose this for full-box wholesale checkouts.</span>
+                  </div>
+                </li>
+              </ul>
+              <p class="delivery-guide-foot">Our team confirms the right vehicle before booking your Lalamove delivery.</p>
+            </div>
+
             <div class="payment-option-group">
               <label for="payment-type-select" class="payment-type-label">Payment Option</label>
               <select id="payment-type-select" name="payment_type" onchange="updateCheckoutTotals()" title="Payment Option" class="payment-type-select">
@@ -497,12 +547,12 @@
                  before Place Order - GCash is the only payment method (the
                  other channels are temporarily hidden). The values are pushed
                  by main.js (GCASH_ACCOUNT_NAME / GCASH_ACCOUNT_NUMBER) and
-                 mirror app.py's receipt/email constants: Rhea E. / 0928 181 5599. -->
-            <div class="border border-slate-300 rounded-lg p-3 space-y-1.5">
+                 mirror app.py's receipt/email constants: RH••A E. / 0928 181 5599. -->
+            <div class="payment-instructions-box border border-slate-300 rounded-lg p-3 space-y-1.5">
               <p class="payment-type-label">Payment Instructions</p>
               <p class="text-sm font-semibold text-slate-700">Pay via GCash:</p>
-              <p class="text-sm text-slate-700">Account: <strong id="gcashAccountName">Rhea E.</strong></p>
-              <p class="text-sm text-slate-700">Number: <strong id="gcashAccountNumber">0928 181 5599</strong></p>
+              <p class="gcash-detail text-sm text-slate-700">Account Name: <strong id="gcashAccountName">RH••A E.</strong></p>
+              <p class="gcash-detail text-sm text-slate-700">GCash Number: <strong id="gcashAccountNumber">0928 181 5599</strong></p>
               <p class="delivery-method-hint">After paying, reply to your email receipt with the payment screenshot / reference number.</p>
             </div>
 

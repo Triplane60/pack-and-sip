@@ -220,6 +220,92 @@ input[type="number"] {
   font-size: 14px;
 }
 
+/* Payment Instructions box — checkout drawer + Order Confirmation Modal.
+   Holds the GCash Account Name / Number that customers copy before paying. */
+.payment-instructions-box .gcash-detail {
+  display: block;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Delivery Packaging Guide — styled alert box in the checkout drawer
+   (Delivery Method section) with Lucide vehicle icons. Crisp icon alignment
+   comes from the shared .lucide flex-shrink rule; each row pairs a 16px
+   icon with a bold vehicle label + guideline copy. */
+.delivery-guide-box {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.delivery-guide-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #1e40af;
+}
+
+.delivery-guide-title .lucide {
+  width: 16px;
+  height: 16px;
+  color: #1d4ed8;
+}
+
+.delivery-guide-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.delivery-guide-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.delivery-guide-item .lucide {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: #1d4ed8;
+}
+
+.delivery-guide-item-text {
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #1e3a8a;
+}
+
+.delivery-guide-item-text strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.delivery-guide-foot {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: #3b82f6;
+}
+
 .payment-breakdown {
   background: #f8f9fa;
   padding: 12px;
@@ -769,6 +855,46 @@ body.drawer-open #cartDrawer {
   /* Show the mobile restriction overlay */
   #mobile-overlay {
     display: flex !important;
+  }
+}
+
+/* ============================================================
+   Mobile: enlarged Payment Instructions (GCash details)
+   The checkout drawer's and Order Confirmation Modal's
+   "Payment Instructions" box uses bigger text (1.1rem) and
+   roomier padding on phones/tablets so the GCash Account Name
+   and Number are easy to read and copy. 1024px also covers the
+   phones that render the drawer in "Desktop site" mode (~980px).
+   ============================================================ */
+@media (max-width: 1024px) {
+  #drawerPanel .payment-instructions-box,
+  #confirmOrderModal .payment-instructions-box {
+    padding: 16px 18px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* All copy inside the box scales up for readability. */
+  #drawerPanel .payment-instructions-box p,
+  #confirmOrderModal .payment-instructions-box p {
+    font-size: 1.1rem !important;
+    line-height: 1.5 !important;
+    margin-bottom: 6px !important;
+  }
+
+  /* GCash Account Name / Number — bold so they stand out for copying. */
+  #drawerPanel .payment-instructions-box .gcash-detail,
+  #drawerPanel .payment-instructions-box .gcash-detail strong,
+  #confirmOrderModal .payment-instructions-box .gcash-detail,
+  #confirmOrderModal .payment-instructions-box .gcash-detail strong {
+    font-weight: 700 !important;
+  }
+
+  /* Proof-of-payment hint: slightly smaller than the account details. */
+  #drawerPanel .payment-instructions-box .delivery-method-hint,
+  #confirmOrderModal .payment-instructions-box .delivery-method-hint {
+    font-size: 1rem !important;
+    font-weight: 500 !important;
+    line-height: 1.45 !important;
   }
 }
 
