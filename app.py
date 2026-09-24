@@ -1141,9 +1141,10 @@ def process_checkout():
         data = {key: request.form.get(key) for key in request.form}
 
     name = (data.get('name') or '').strip()
-    # Email is OPTIONAL: the storefront checkout is phone-first (Shopee-style),
-    # so no email address is collected. The field is kept for backward
-    # compatibility with account-based orders and older clients.
+    # Email is OPTIONAL: the storefront checkout identifies the customer by
+    # Full Name + Phone Number (collected first, no email address), so no email
+    # value is submitted. The field is kept for backward compatibility with
+    # account-based orders and older clients.
     email = (data.get('email') or '').strip()
     address = (data.get('address') or '').strip()
     phone = (data.get('phone') or '').strip()

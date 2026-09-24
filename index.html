@@ -444,16 +444,19 @@
             <p class="text-sm font-medium text-slate-700">No items in cart.</p>
           </div>
           <div class="p-4 border-t space-y-2.5" id="customerForm">
-            <!-- Phone Number first (Shopee-style): the phone is the primary
-                 contact channel — an SMS order update is sent to it. Required,
-                 digits only, PH mobile format 09123456789. -->
-            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
-              <label for="customerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
-              <input type="tel" id="customerPhone" name="phone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '');" required title="Phone Number" class="w-full rounded-md border-gray-200 p-1.5" />
-            </div>
+            <!-- Customer details, top to bottom:
+                 1. Full Name  2. Phone Number  3. Shipping Address  4. City / Location.
+                 Full Name leads the form (who is ordering); the phone follows
+                 directly below it and stays the primary contact channel — an SMS
+                 order update is sent to it. Required, digits only, PH mobile
+                 format 09123456789. -->
             <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
               <label for="customerName" class="block text-sm font-medium text-slate-700">Full Name</label>
               <input id="customerName" name="name" type="text" autocomplete="off" required title="Full Name" class="w-full rounded-md border-gray-200 p-1.5" />
+            </div>
+            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
+              <label for="customerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
+              <input type="tel" id="customerPhone" name="phone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '');" required title="Phone Number" class="w-full rounded-md border-gray-200 p-1.5" />
             </div>
             <div class="border border-slate-300 rounded-lg p-3 space-y-2.5" id="deliveryAddressFields">
               <label for="customerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
