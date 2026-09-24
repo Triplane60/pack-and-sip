@@ -849,9 +849,9 @@ async function clearCartItems(){
 // ---------------------------------------------------------------------------
 // GCash payment details for the Payment Instructions boxes in the checkout
 // drawer (#gcashAccountName / #gcashAccountNumber) and the Order Confirmation
-// Modal (#confirmGcashAccountName / #confirmGcashAccountNumber). Mirrors
-// app.py's GCASH_ACCOUNT_NAME / GCASH_ACCOUNT_NUMBER so the drawer, modal,
-// PDF receipt and confirmation email always show the same wallet details.
+// Modal (#confirmGcashAccountName / #confirmGcashAccountNumber). Defined once
+// here so the checkout drawer and the Order Confirmation Modal always show
+// the same wallet details.
 // ---------------------------------------------------------------------------
 const GCASH_ACCOUNT_NAME = 'RH••A E.';
 const GCASH_ACCOUNT_NUMBER = '0928 181 5599';
@@ -1227,11 +1227,10 @@ async function logout(){
   localStorage.clear();
   sessionStorage.clear();
 
-  // Explicitly clear the checkout input values (name, email, address, phone).
-  document.getElementById('customerName').value = '';
-  document.getElementById('customerEmail').value = '';
-  document.getElementById('customerAddress').value = '';
+  // Explicitly clear the checkout input values (phone, name, address).
   document.getElementById('customerPhone').value = '';
+  document.getElementById('customerName').value = '';
+  document.getElementById('customerAddress').value = '';
 
   // Hard-reset the UI back to the guest state.
   window.location.reload();
@@ -1293,16 +1292,10 @@ function unwrapUsernameAsOrdersButton(){
 function fillCustomerData(){
   if (currentUser) {
     const nameField = document.getElementById('customerName');
-    const emailField = document.getElementById('customerEmail');
     const addressField = document.getElementById('customerAddress');
     const phoneField = document.getElementById('customerPhone');
 
     if (nameField) nameField.value = currentUser.full_name || '';
-    if (emailField) {
-      emailField.value = currentUser.email || '';
-      emailField.readOnly = true;
-      emailField.classList.add('bg-slate-50', 'text-slate-500', 'cursor-not-allowed');
-    }
     if (addressField) addressField.value = currentUser.shipping_address || '';
     if (phoneField) phoneField.value = currentUser.phone || '';
   }
@@ -1561,14 +1554,15 @@ function closeOrderPendingModal(){
   }, 300);
   closeCart();
   resetConfigurator();
-  document.getElementById('customerName').value = '';
-  document.getElementById('customerEmail').value = '';
-  document.getElementById('customerAddress').value = '';
   document.getElementById('customerPhone').value = '';
+  document.getElementById('customerName').value = '';
+  document.getElementById('customerAddress').value = '';
 }
 
-function showOrderPendingModal(email){
-  document.getElementById('modalEmail').textContent = email;
+function showOrderPendingModal(phone){
+  // Inject the phone number the customer entered at checkout so the success
+  // popup reads: "...An order confirmation SMS will be sent to 09123456789."
+  document.getElementById('modalPhone').textContent = phone || '';
   const modal = document.getElementById('orderPendingModal');
   modal.classList.remove('hidden');
   modal.classList.add('flex');
@@ -1588,24 +1582,24 @@ function resetCheckoutState(){
   closeCart();
   resetConfigurator();
   resetDeliveryMethod();
-  document.getElementById('customerName').value = '';
-  document.getElementById('customerEmail').value = '';
-  document.getElementById('customerAddress').value = '';
   document.getElementById('customerPhone').value = '';
+  document.getElementById('customerName').value = '';
+  document.getElementById('customerAddress').value = '';
 }
 
 
 function validateCheckoutFields(){
   const name = document.getElementById('customerName').value.trim();
-  const email = document.getElementById('customerEmail').value.trim();
   const address = document.getElementById('customerAddress').value.trim();
   const phone = document.getElementById('customerPhone').value.trim();
   const selfBooking = isSelfBookingSelected();
 
-  if(!name || !email || !phone || (!selfBooking && !address)){
+  // Phone Number is the primary contact field (Shopee-style): it is required
+  // for every order and is where the SMS order update is sent.
+  if(!name || !phone || (!selfBooking && !address)){
     showCustomAlert(selfBooking
-      ? 'Please enter your name, email, and phone number.'
-      : 'Please enter your name, email, address, and phone number.');
+      ? 'Please enter your name and phone number.'
+      : 'Please enter your name, phone number, and shipping address.');
     return false;
   }
 
@@ -1814,6 +1808,15 @@ async function submitOrder(){
 
     const formData = new FormData(document.getElementById('checkoutForm'));
     const checkoutData = Object.fromEntries(formData.entries());
+    // Capture the customer's phone number before the form is reset — it is the
+    // value injected into the order success popup. FormData holds it as
+    // checkoutData.phone because the input carries name="phone"; reading the
+    // element directly is a safety fallback.
+    const customerPhone = (
+      checkoutData.phone ||
+      (document.getElementById('customerPhone') || {}).value ||
+      ''
+    ).trim();
 
     // Clear the local cart and close checkout before waiting for the network request.
     resetCheckoutState();
@@ -1828,7 +1831,7 @@ async function submitOrder(){
       showCustomAlert(data.error || 'Failed to place order');
       return;
     }
-    showOrderPendingModal(checkoutData.email);
+    showOrderPendingModal(customerPhone);
     // Refresh product list to reflect updated stock
     await fetchProducts();
   }catch(err){
@@ -1872,7 +1875,6 @@ function setupAboutModal(){
 
 function setupSecretAdminAccess(){
   const siteLogo = document.getElementById('siteLogo');
-  const siteBrand = document.getElementById('siteBrand');
   const openAdmin = () => { window.location.href = 'manage-orders-ps.html'; };
 
   document.addEventListener('keydown', event => {
@@ -1882,6 +1884,8 @@ function setupSecretAdminAccess(){
     }
   });
 
+  // The hero logo keeps the double-click admin shortcut. The "Pack & Sip"
+  // header brand (#siteBrand) is intentionally non-clickable, so no click or
+  // double-click handler is attached to it.
   if(siteLogo) siteLogo.addEventListener('dblclick', openAdmin);
-  if(siteBrand) siteBrand.addEventListener('dblclick', openAdmin);
 }

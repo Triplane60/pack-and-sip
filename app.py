@@ -1141,6 +1141,9 @@ def process_checkout():
         data = {key: request.form.get(key) for key in request.form}
 
     name = (data.get('name') or '').strip()
+    # Email is OPTIONAL: the storefront checkout is phone-first (Shopee-style),
+    # so no email address is collected. The field is kept for backward
+    # compatibility with account-based orders and older clients.
     email = (data.get('email') or '').strip()
     address = (data.get('address') or '').strip()
     phone = (data.get('phone') or '').strip()
@@ -1175,8 +1178,8 @@ def process_checkout():
     except Exception:
         return jsonify({"error": "Invalid quantities provided"}), 400
 
-    if not name or not email or not phone:
-        return jsonify({"error": "Customer name, email and phone are required."}), 400
+    if not name or not phone:
+        return jsonify({"error": "Customer name and phone number are required."}), 400
 
     self_booking = is_self_booking(delivery_method)
     if not address and not self_booking:

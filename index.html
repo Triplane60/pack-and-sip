@@ -65,9 +65,9 @@
     <div class="max-w-6xl mx-auto px-6 py-2.5 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <!-- Navbar brand: styled text (replaces the logo image, which now lives
-             in the hero banner above "Wholesale Boxes of Cups & Lids"). The
-             double-click admin shortcut is wired to #siteBrand in main.js
-             (setupSecretAdminAccess) alongside the hero logo. -->
+             in the hero banner above "Wholesale Boxes of Cups & Lids"). It is
+             intentionally non-clickable: no link and no click/double-click
+             handler is attached to #siteBrand (see main.js). -->
         <span id="siteBrand" class="nav-brand-text">Pack <span class="nav-brand-amp">&amp;</span> Sip<span class="nav-brand-sub">Wholesale</span></span>
         <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-700">
           <a href="#about" id="aboutLink" class="hover:text-slate-900">About</a>
@@ -201,7 +201,7 @@
       <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-7 w-7"><path d="M20 6 9 17l-5-5"/></svg></div>
       <h2 id="orderPendingTitle" class="mt-4 text-2xl font-bold text-slate-900">Order Placed &amp; Pending</h2>
       <p class="mt-3 text-sm font-medium leading-6 text-slate-700">
-        Your order was placed successfully and is now pending processing. A receipt notification has been dispatched to <span id="modalEmail" class="font-semibold text-slate-900"></span>.
+        Your order was placed successfully and is now pending processing. An order confirmation SMS will be sent to <span id="modalPhone" class="font-semibold text-slate-900"></span>.
       </p>
 
       <button id="closeModalBtn" type="button" class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700">Done</button>
@@ -256,7 +256,7 @@
       <!-- Payment Instructions: GCash wallet shown in the Order Confirmation
            Modal so customers can copy the account details before confirming.
            Values are pushed by main.js (renderGcashInstructions) and mirror
-           the checkout drawer / app.py receipt constants: RH••A E. / 0928 181 5599. -->
+           the checkout drawer values: RH••A E. / 0928 181 5599. -->
       <div class="payment-instructions-box mt-3 rounded-lg border border-slate-300 p-3 space-y-1.5 text-left">
         <p class="payment-type-label">Payment Instructions</p>
         <p class="gcash-detail">Account Name: <strong id="confirmGcashAccountName">RH••A E.</strong></p>
@@ -444,12 +444,17 @@
             <p class="text-sm font-medium text-slate-700">No items in cart.</p>
           </div>
           <div class="p-4 border-t space-y-2.5" id="customerForm">
+            <!-- Phone Number first (Shopee-style): the phone is the primary
+                 contact channel — an SMS order update is sent to it. Required,
+                 digits only, PH mobile format 09123456789. -->
+            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
+              <label for="customerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
+              <input type="tel" id="customerPhone" name="phone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '');" required title="Phone Number" class="w-full rounded-md border-gray-200 p-1.5" />
+            </div>
             <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
               <label for="customerName" class="block text-sm font-medium text-slate-700">Full Name</label>
               <input id="customerName" name="name" type="text" autocomplete="off" required title="Full Name" class="w-full rounded-md border-gray-200 p-1.5" />
             </div>
-            <label for="customerEmail" class="block text-sm font-medium text-slate-700">Email Address</label>
-            <input type="email" id="customerEmail" name="email" autocomplete="off" required placeholder="name@example.com" title="Email Address" class="w-full p-1.5 border rounded-md mb-2" />
             <div class="border border-slate-300 rounded-lg p-3 space-y-2.5" id="deliveryAddressFields">
               <label for="customerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
               <textarea id="customerAddress" name="address" autocomplete="off" required title="Shipping Address" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
@@ -470,8 +475,8 @@
               </div>
             </div>
             <!-- City / Location: ALWAYS enabled and visible — directly BELOW
-                 the Lalamove location explainer and directly above the Phone Number — for BOTH
-                 Lalamove Delivery and Customer Self-Booking / Warehouse Pick-up.
+                 the Lalamove location explainer, for BOTH Lalamove Delivery
+                 and Customer Self-Booking / Warehouse Pick-up.
                  It drives the Lalamove destination base rate and the dynamic
                  payment reservation limit. The options (zone id, base rate +
                  reservation window) come from app.py LALAMOVE_ZONE_OPTIONS so the
@@ -486,10 +491,6 @@
               </select>
               <p class="delivery-method-hint" id="deliveryZoneNote">Estimated shipping rate calculated based on your location from Taguig + box quantity.</p>
               <p class="delivery-method-hint" id="reservationLimitNote">Select your City / Location to see how long your payment reservation is held.</p>
-            </div>
-            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
-              <label for="customerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
-              <input type="tel" id="customerPhone" name="phone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '');" required title="Phone Number" class="w-full rounded-md border-gray-200 p-1.5" />
             </div>
 
             <!-- Delivery Method: Option A = Lalamove Delivery (local courier
@@ -537,7 +538,7 @@
                  before Place Order - GCash is the only payment method (the
                  other channels are temporarily hidden). The values are pushed
                  by main.js (GCASH_ACCOUNT_NAME / GCASH_ACCOUNT_NUMBER) and
-                 mirror app.py's receipt/email constants: RH••A E. / 0928 181 5599. -->
+                 mirror the Order Confirmation Modal values: RH••A E. / 0928 181 5599. -->
             <div class="payment-instructions-box border border-slate-300 rounded-lg p-3 space-y-1.5">
               <p class="payment-type-label">Payment Instructions</p>
               <p class="text-sm font-semibold text-slate-700">Pay via GCash:</p>
