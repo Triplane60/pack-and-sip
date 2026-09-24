@@ -38,6 +38,33 @@ function findProductById(id){
   return PRODUCTS.find(p => p.id === id);
 }
 
+// Parse a microwavable container capacity into millilitres so RE/RO sizes
+// (e.g. "500ml", "3,200ml", "10oz") can be compared numerically.
+function microwavableCapacityMl(product){
+  const raw = String((product && (product.size || product.name)) || '');
+  const m = raw.match(/([\d,]+(?:\.\d+)?)\s*(ml|oz)/i);
+  if(!m) return Number.MAX_SAFE_INTEGER;
+  const num = parseFloat(m[1].replace(/,/g, '')) || 0;
+  return m[2].toLowerCase() === 'oz' ? num * 29.5735 : num;
+}
+
+// Ascending comparator for the Microwavable Containers section: RO Series
+// (round) first in increasing capacity, then RE Series (rectangular) in
+// increasing capacity. Keeps each series contiguous per the requested
+// RO 10 -> RO 16 -> RO 30, then RE 500 -> RE 750 -> RE 1000
+// -> (RE 1250 / RE 1450 / RE 1650 when added) -> RE 1600 -> RE 2500
+// -> RE 3200 sequence. Capacity is parsed numerically (ml/oz) so future
+// sizes slot into the right position automatically on desktop and mobile.
+function compareMicrowavableAsc(a, b){
+  const aIsRE = /\bRE\b/i.test(String(a.style || '')) || /^container-re-/i.test(String(a.id || ''));
+  const bIsRE = /\bRE\b/i.test(String(b.style || '')) || /^container-re-/i.test(String(b.id || ''));
+  if(aIsRE !== bIsRE) return aIsRE ? 1 : -1;
+  const capA = microwavableCapacityMl(a);
+  const capB = microwavableCapacityMl(b);
+  if(capA !== capB) return capA - capB;
+  return String(a.name || '').localeCompare(String(b.name || ''));
+}
+
 function getProductImage(product){
   const label = product.type === 'cup' ? `${product.size} Cup` : product.type === 'lid' ? `${product.style} Lid` : `${product.name}`;
   const background = product.type === 'cup' ? 'e0e7ff' : product.type === 'lid' ? 'f1f5f9' : 'ecfdf5';
@@ -52,7 +79,17 @@ function renderCatalog(){
   list.innerHTML = '';
   microwavableList.innerHTML = '';
 
-  PRODUCTS.forEach(product => {
+  // Microwavable Containers are always displayed in INCREASING size/capacity
+  // order (RO 10 -> RO 16 -> RO 30, then RE 500 -> RE 750 -> RE 1000
+  // -> RE 1600 -> RE 2500 -> RE 3200, with RE 1250 / RE 1450 / RE 1650
+  // slotting in by capacity if added) so the section reads smallest-to-largest
+  // on both desktop and mobile. Sorting here (instead of relying on API/DB
+  // insertion order) guarantees the ascending sequence everywhere.
+  const microwavables = PRODUCTS.filter(p => p.type === 'microwavable').sort(compareMicrowavableAsc);
+  const others = PRODUCTS.filter(p => p.type !== 'microwavable');
+  const orderedProducts = [...others, ...microwavables];
+
+  orderedProducts.forEach(product => {
     const card = document.createElement('article');
     const stock = Number(product.stock_boxes || 0);
     const stockLabel = stock > 0 ? 'In Stock' : 'Out of Stock';
@@ -61,12 +98,15 @@ function renderCatalog(){
     card.innerHTML = `
       <div>
         <div class="flex items-start justify-between gap-3 p-5 pb-3">
-          <h3 class="font-semibold text-slate-900">${product.name}</h3>
+          <h3 class="product-card-title font-semibold text-slate-900">${product.name}</h3>
           <span class="shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${stockClasses}">${stockLabel}</span>
         </div>
-        <img src="${getProductImage(product)}" alt="${product.name} preview" class="h-40 w-full object-cover" />
+        <figure class="product-card-media">
+          <img src="${getProductImage(product)}" alt="${product.name} preview" class="h-40 w-full object-cover" />
+          <figcaption class="product-card-media-label">${product.name}</figcaption>
+        </figure>
         <div class="p-5 pt-4">
-          <p class="text-sm font-medium text-slate-700">${product.description}</p>
+          <p class="product-card-desc text-sm font-medium text-slate-700">${product.description}</p>
           <div class="mt-4 flex items-end justify-between gap-3">
             <div>
               <span class="cardPrice text-2xl font-bold text-indigo-700">${formatPrice(product.price_per_box)}</span>
@@ -131,6 +171,7 @@ function resetConfigurator(){
   // order starts from an explicit location choice again.
   resetDeliveryZone();
   resetDeliveryMethod();
+  updateLalamoveGuideVisibility(false);
   updateDeliveryAddressVisibility(false);
   syncCategoryTotals();
   updateReservationLimitNote();
@@ -308,7 +349,9 @@ async function calculate(){
   //    included in the current calculation.
   syncCategoryTotals();
   // Delivery-radios can be changed programmatically (for example by a reset),
-  // so keep hidden/required address fields aligned before totals are calculated.
+  // so keep hidden/required address fields + the Lalamove location explainer aligned
+  // before totals are calculated.
+  updateLalamoveGuideVisibility(getSelectedDeliveryMethod() === DELIVERY_METHOD_SELF_BOOKING);
   updateDeliveryAddressVisibility(getSelectedDeliveryMethod() === DELIVERY_METHOD_SELF_BOOKING);
 
   // Aggregate every independently-ordered catalog item (12oz/16oz/22oz cups,
@@ -540,6 +583,28 @@ function resetDeliveryZone(){
   if(select) select.value = '';
 }
 
+// Show or hide the shipping price tag (" — ₱XX.XX") attached to every
+// City / Location <option>. Customer Self-Booking / Warehouse Pick-up never
+// charges a courier fee, so the per-city price tags are stripped from the
+// dropdown; Lalamove Delivery restores them. The price-free base label is
+// cached on the first run (data-base-label) so toggling back and forth never
+// loses text, and option.selected/value are untouched because only the text
+// node is rewritten.
+function updateDeliveryZonePriceTags(selfBooking){
+  const select = getDeliveryZoneSelect();
+  if(!select) return;
+  Array.from(select.options).forEach(option => {
+    const rate = parseFloat(option.dataset.rate || '');
+    // The placeholder "Select your city / area" option carries no rate/price.
+    if(!Number.isFinite(rate)) return;
+    if(!option.dataset.baseLabel){
+      option.dataset.baseLabel = String(option.textContent).split(' — ')[0].trim();
+    }
+    const label = option.dataset.baseLabel;
+    option.textContent = selfBooking ? label : `${label} — ${formatPrice(rate)}`;
+  });
+}
+
 // Read the currently selected Delivery Method radio (defaults to Standard).
 function getSelectedDeliveryMethod(){
   const selected = document.querySelector('input[name="delivery_method"]:checked');
@@ -557,20 +622,39 @@ function deliveryMethodLabel(method){
 
 // Keep delivery address, fee UI and location notes in sync with the chosen
 // delivery method.
-//   - Self-Booking / Warehouse Pick-up: hides ONLY the Shipping Address field,
-//     keeps shipping at P0.00 and relaxes address validation.
-//   - Lalamove Delivery: restores the address field, validation, and the
-//     location + box surcharge fee.
+//   - Self-Booking / Warehouse Pick-up: hides ONLY the Shipping Address field
+//     and the Lalamove location explainer (#lalamove-guide-container), keeps
+//     shipping at P0.00 and relaxes address validation.
+//   - Lalamove Delivery: restores the address field, validation, the
+//     location + box surcharge fee, and the Lalamove location explainer
+//     (display: block).
 // City / Location stays visible and enabled for BOTH methods because it also
 // sets the dynamic payment reservation window.
 function getDeliveryAddressFields(){
   return document.getElementById('deliveryAddressFields');
+}
+// Dedicated visibility toggle for the Lalamove-only location explainer.
+// #lalamove-guide-container holds the "Why select your City / Location?"
+// explainer directly above the City / Location dropdown.
+// Lalamove Delivery -> display: block,
+// Customer Self-Booking / Warehouse Pick-up -> display: none.
+function updateLalamoveGuideVisibility(selfBooking){
+  const container = document.getElementById('lalamove-guide-container');
+  if(!container) return;
+  container.style.display = selfBooking ? 'none' : 'block';
+  if(selfBooking){
+    container.setAttribute('aria-hidden', 'true');
+  }else{
+    container.removeAttribute('aria-hidden');
+  }
 }
 
 function updateDeliveryAddressVisibility(selfBooking){
   const fields = getDeliveryAddressFields();
   const address = document.getElementById('customerAddress');
   const zone = getDeliveryZoneSelect();
+  // The location explainer is controlled solely by the parent container
+  // (display block/none), so do not toggle it separately here.
   if(selfBooking && fields){
     fields.classList.add('hidden');
     fields.setAttribute('aria-hidden', 'true');
@@ -586,6 +670,9 @@ function updateDeliveryAddressVisibility(selfBooking){
     zone.removeAttribute('disabled');
     zone.disabled = false;
   }
+  // Strip the per-city shipping price tags from the dropdown while
+  // Self-Booking / Pick-up is active (shipping is P0.00); Lalamove restores them.
+  updateDeliveryZonePriceTags(selfBooking);
   const zoneNote = document.getElementById('deliveryZoneNote');
   if(zoneNote){
     zoneNote.textContent = selfBooking
@@ -595,9 +682,18 @@ function updateDeliveryAddressVisibility(selfBooking){
 }
 
 // Delivery Method radio change: refresh fee totals first, then show or hide
-// the Lalamove-specific address inputs for that same selection.
+// the Lalamove-specific address inputs + the location explainer
+// (#lalamove-guide-container: block for Lalamove, none for Self-Booking).
+// The explainer is static markup, so no DOM rewrite is needed; re-run
+// lucide.createIcons() via refreshIcons() for the info icon.
 function handleDeliveryMethodChange(){
-  updateDeliveryAddressVisibility(isSelfBookingSelected());
+  const selfBooking = isSelfBookingSelected();
+  updateLalamoveGuideVisibility(selfBooking);
+  updateDeliveryAddressVisibility(selfBooking);
+  refreshIcons();
+  if(window.lucide && typeof window.lucide.createIcons === 'function'){
+    try { window.lucide.createIcons(); } catch(err) { /* decorative only */ }
+  }
   calculate();
 }
 
@@ -605,6 +701,7 @@ function handleDeliveryMethodChange(){
 function resetDeliveryMethod(){
   const standard = document.getElementById('deliveryMethodStandard');
   if(standard) standard.checked = true;
+  updateLalamoveGuideVisibility(false);
   updateDeliveryAddressVisibility(false);
 }
 
@@ -661,6 +758,13 @@ function updateCheckoutTotals() {
   const total = parseFloat(totalStr) || 0;
   const paymentType = document.getElementById('payment-type-select').value;
 
+  // Estimated Shipping Fee line item in the Order Summary breakdown box. The
+  // value mirrors `shipping` — already ₱0.00 for Customer Self-Booking /
+  // Warehouse Pick-up, and the live courier estimate for Lalamove Delivery —
+  // so the row stays in sync alongside Amount Due Now / Balance upon Delivery.
+  const estimatedShippingAmount = document.getElementById('estimated-shipping-amount');
+  if (estimatedShippingAmount) estimatedShippingAmount.innerText = formatPrice(shipping);
+
   // FULL shipping fee is always charged upfront, even for 50% downpayment:
   // Initial Due = (Subtotal * 50%) + Full Shipping; Balance = Subtotal * 50%.
   let dueNow = total;
@@ -698,6 +802,17 @@ function openCart(){
   document.body.classList.add('drawer-open');
   updateBackToTopButton();
   updateCheckoutTotals();
+  // Sync the Lalamove location explainer with the CURRENT radio selection
+  // immediately upon opening so the initial state is always accurate
+  // (Lalamove -> display block, Self-Booking -> display none).
+  updateLalamoveGuideVisibility(isSelfBookingSelected());
+  updateDeliveryAddressVisibility(isSelfBookingSelected());
+  // The drawer holds static Lucide placeholders; convert them on every open in
+  // case the CDN loaded after the initial page render.
+  refreshIcons();
+  if(window.lucide && typeof window.lucide.createIcons === 'function'){
+    try { window.lucide.createIcons(); } catch(err) { /* decorative only */ }
+  }
 }
 
 function closeCart(){
@@ -731,10 +846,34 @@ async function clearCartItems(){
 }
 
 
+// ---------------------------------------------------------------------------
+// GCash payment details for the Payment Instructions boxes in the checkout
+// drawer (#gcashAccountName / #gcashAccountNumber) and the Order Confirmation
+// Modal (#confirmGcashAccountName / #confirmGcashAccountNumber). Mirrors
+// app.py's GCASH_ACCOUNT_NAME / GCASH_ACCOUNT_NUMBER so the drawer, modal,
+// PDF receipt and confirmation email always show the same wallet details.
+// ---------------------------------------------------------------------------
+const GCASH_ACCOUNT_NAME = 'RH••A E.';
+const GCASH_ACCOUNT_NUMBER = '0928 181 5599';
+
+function renderGcashInstructions(){
+  ['gcashAccountName', 'confirmGcashAccountName'].forEach((id) => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = GCASH_ACCOUNT_NAME;
+  });
+  ['gcashAccountNumber', 'confirmGcashAccountNumber'].forEach((id) => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = GCASH_ACCOUNT_NUMBER;
+  });
+}
+
 // Event wiring
 document.addEventListener('DOMContentLoaded', () => {
   resetConfigurator();
   fetchProducts();
+  // Push the GCash account details into the drawer + confirmation modal
+  // Payment Instructions boxes.
+  renderGcashInstructions();
   document.getElementById('customerPhone').addEventListener('input', function(){
     this.value = this.value.replace(/[^0-9]/g, '');
     if(this.value.length > 0 && !this.value.startsWith('09')){
@@ -1434,6 +1573,8 @@ function showOrderPendingModal(email){
   modal.classList.remove('hidden');
   modal.classList.add('flex');
   requestAnimationFrame(() => modal.classList.remove('opacity-0'));
+  // Render the Lucide 'mail' icon in the Accounts Assistant email notice.
+  refreshIcons(modal);
 }
 
 function closeConfirmationModal(){
@@ -1603,7 +1744,7 @@ async function openConfirmationModal(){
   const reservationNote = document.getElementById('confirmOrderReservationNote');
   if (reservationNote) {
     reservationNote.textContent = getSelectedDeliveryZone()
-      ? `⏳ Reserved for ${reservationWindowLabel(selectedZoneReservationMinutes())} from confirmation (${deliveryZoneLabel()}) — send your GCash / bank transfer payment within this window.`
+      ? `⏳ Reserved for ${reservationWindowLabel(selectedZoneReservationMinutes())} from confirmation (${deliveryZoneLabel()}) — send your GCash payment within this window.`
       : '';
   }
 
@@ -1638,8 +1779,8 @@ async function openConfirmationModal(){
     downpaymentRow.classList.add('is-hidden-row');
     document.getElementById('confirmOrderRequiredPayment').textContent = formatPrice(totalAmount);
     paymentNote.textContent = selfBooking
-      ? `Full payment (${formatPrice(subtotalAmount)} items) required via GCash/Maya. ${SELF_BOOKING_NOTE}`
-      : `Full payment (${formatPrice(subtotalAmount)} items + ${formatPrice(shippingAmount)} ${shippingLabel} shipping) required via GCash/Maya.`;
+      ? `Full payment (${formatPrice(subtotalAmount)} items) required via GCash. ${SELF_BOOKING_NOTE}`
+      : `Full payment (${formatPrice(subtotalAmount)} items + ${formatPrice(shippingAmount)} ${shippingLabel} shipping) required via GCash.`;
   } else {
     // 50% Downpayment: Due = (Subtotal*50%) + FULL shipping; Balance = Subtotal*50%.
     fullRow.classList.remove('is-flex-row');
@@ -1653,8 +1794,8 @@ async function openConfirmationModal(){
       ? 'Required Initial (50% items + ₱0.00 shipping)'
       : `Required Initial (50% items + full ${shippingLabel} shipping)`;
     paymentNote.textContent = selfBooking
-      ? `A ${formatPrice(downBase)} downpayment (50% of items) = ${formatPrice(confirmDownpayment)} is required via GCash/Maya. The remaining ${formatPrice(downBase)} balance will be paid upon pick-up. ${SELF_BOOKING_NOTE}`
-      : `A ${formatPrice(downBase)} downpayment (50% of items) + ${formatPrice(shippingAmount)} full ${shippingLabel} shipping = ${formatPrice(confirmDownpayment)} is required via GCash/Maya. The remaining ${formatPrice(downBase)} balance will be paid upon delivery.`;
+      ? `A ${formatPrice(downBase)} downpayment (50% of items) = ${formatPrice(confirmDownpayment)} is required via GCash. The remaining ${formatPrice(downBase)} balance will be paid upon pick-up. ${SELF_BOOKING_NOTE}`
+      : `A ${formatPrice(downBase)} downpayment (50% of items) + ${formatPrice(shippingAmount)} full ${shippingLabel} shipping = ${formatPrice(confirmDownpayment)} is required via GCash. The remaining ${formatPrice(downBase)} balance will be paid upon delivery.`;
   }
 
   const modal = document.getElementById('confirmOrderModal');
@@ -1732,6 +1873,7 @@ function setupAboutModal(){
 
 function setupSecretAdminAccess(){
   const siteLogo = document.getElementById('siteLogo');
+  const siteBrand = document.getElementById('siteBrand');
   const openAdmin = () => { window.location.href = 'manage-orders-ps.html'; };
 
   document.addEventListener('keydown', event => {
@@ -1742,4 +1884,5 @@ function setupSecretAdminAccess(){
   });
 
   if(siteLogo) siteLogo.addEventListener('dblclick', openAdmin);
+  if(siteBrand) siteBrand.addEventListener('dblclick', openAdmin);
 }

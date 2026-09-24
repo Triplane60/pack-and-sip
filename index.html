@@ -24,7 +24,14 @@
        Confirm Order UI. main.js calls lucide.createIcons() again whenever it
        injects new markup; a blocked CDN only costs the icons, never ordering. -->
   <script src="https://unpkg.com/lucide@1.47.0/dist/umd/lucide.min.js" defer></script>
-  <link rel="icon" type="image/png" href="logo.png">
+  <!-- Browser tab favicon: logo.png is oblong (1408x768), so reusing it made
+       an oblong tab icon that page CSS cannot reach (favicons are not in the
+       DOM). favicon.png is the same artwork contain-fitted into a strict 1:1
+       square canvas with transparent padding (the file-level equivalent of
+       object-fit: contain in a square container), so the tab icon renders
+       crisp and square — undistorted — on desktop and mobile browsers. -->
+  <link rel="icon" type="image/png" sizes="512x512" href="favicon.png">
+
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-slate-50 text-slate-800">
@@ -51,9 +58,17 @@
   </div>
 
   <header id="top" class="bg-white shadow">
-    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+    <!-- Container padding mirrors the #top > div rule in styles.css
+         (padding: 12px 24px; min-height: 85px) so the "Pack & Sip
+         Wholesale" brand text and the "About" / "Login / Register" links
+         stay vertically centered in a spacious bar. -->
+    <div class="max-w-6xl mx-auto px-6 py-2.5 flex items-center justify-between">
       <div class="flex items-center gap-4">
-        <img id="siteLogo" class="nav-logo" src="logo.png" alt="Pack &amp; Sip" />
+        <!-- Navbar brand: styled text (replaces the logo image, which now lives
+             in the hero banner above "Wholesale Boxes of Cups & Lids"). The
+             double-click admin shortcut is wired to #siteBrand in main.js
+             (setupSecretAdminAccess) alongside the hero logo. -->
+        <a id="siteBrand" href="#top" class="nav-brand-text" title="Pack &amp; Sip — home">Pack <span class="nav-brand-amp">&amp;</span> Sip<span class="nav-brand-sub">Wholesale</span></a>
         <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-700">
           <a href="#about" id="aboutLink" class="hover:text-slate-900">About</a>
           <button id="authBtn" class="hover:text-slate-900">Login / Register</button>
@@ -81,9 +96,14 @@
       <div id="total">₱0.00</div>
     </div>
     <section id="configurator" class="bg-gradient-to-r from-indigo-50 to-slate-50 rounded-lg p-8 flex flex-col md:flex-row items-center gap-8">
-      <div class="flex-1">
-        <h1 class="text-3xl font-extrabold text-slate-900">Wholesale Boxes of Cups & Lids</h1>
-        <p class="mt-4 text-slate-700">High-volume eco-friendly disposable drinkware and food containers powered by Dabba. Direct warehouse pricing for businesses and events.</p>
+      <div class="flex-1 hero-copy">
+        <!-- Hero brand logo: official mark centered above the main heading for
+             a strong visual identity (moved here from the navbar). Sized at
+             140px wide via .hero-logo in styles.css. Keeps id="siteLogo" so the
+             double-click admin shortcut in main.js keeps working. -->
+        <img id="siteLogo" class="hero-logo" src="logo.png" alt="Pack &amp; Sip logo" />
+        <h1 class="text-3xl font-extrabold text-slate-900">Wholesale Boxes of Cups, Lids &amp; Microwavable Containers</h1>
+        <p class="mt-4 text-slate-700">High-volume eco-friendly disposable drinkware and food containers powered by Dabba and GoUp. Direct warehouse pricing for food businesses and events.</p>
         <ul class="mt-4 text-sm font-medium text-slate-700">
           <li>• Boxes contain 1,250 units each</li>
           <li>• Lalamove courier delivery from our Taguig warehouse</li>
@@ -146,11 +166,21 @@
     <section id="microwavable" class="mt-10">
       <div class="flex items-end justify-between gap-4">
         <div>
+          <!-- Official GoUp attribution: prominent badge above the microwavable section. -->
+          <span class="goup-supplier-badge">
+            <i data-lucide="badge-check" class="h-5 w-5" aria-hidden="true"></i>
+            <span>Official Supplier of Authentic GoUp Food Packaging Essentials</span>
+          </span>
           <p class="text-sm font-semibold uppercase tracking-wide text-indigo-600">Meal prep essentials</p>
           <h2 class="text-2xl font-semibold">Microwavable Containers</h2>
         </div>
         <p class="hidden sm:block text-sm font-medium text-slate-700">Bulk boxes of 100</p>
       </div>
+      <!-- Microwavable cards are injected by main.js renderCatalog() in INCREASING
+           size/capacity order (RO 10 -> RO 16 -> RO 30, then RE 500 -> RE 750
+           -> RE 1000 -> RE 1600 -> RE 2500 -> RE 3200, with RE 1250 / RE 1450
+           / RE 1650 slotting in by capacity if added) via compareMicrowavableAsc.
+           Do not hardcode product cards here; keep that ascending sequence. -->
       <div id="microwavableList" class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4"></div>
     </section>
 
@@ -171,6 +201,12 @@
       <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-7 w-7"><path d="M20 6 9 17l-5-5"/></svg></div>
       <h2 id="orderPendingTitle" class="mt-4 text-2xl font-bold text-slate-900">Order Placed &amp; Pending</h2>
             <p class="mt-3 text-sm font-medium leading-6 text-slate-700">Your order has been received. Please check your Gmail <span id="modalEmail" class="font-semibold text-slate-900"></span> for shipping updates and receipt notifications once processed.</p>
+      <!-- Accounts Assistant email notice: Lucide 'mail' icon + PDF receipt
+           notice. Converted by refreshIcons() in showOrderPendingModal(). -->
+      <p class="mt-3 flex items-start gap-2 rounded-md border border-indigo-100 bg-indigo-50 p-3 text-left text-sm font-medium leading-6 text-slate-700">
+        <i data-lucide="mail" class="mt-1 h-4 w-4 shrink-0 text-indigo-600" aria-hidden="true"></i>
+        <span>A confirmation email with your PDF receipt has been sent by our Accounts Assistant, Jamby Letesa.</span>
+      </p>
 
       <button id="closeModalBtn" type="button" class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700">Done</button>
     </div>
@@ -215,12 +251,21 @@
         <span>Required 50% Downpayment</span>
         <span id="confirmOrderDownpayment">₱0.00</span>
       </div>
-      <p id="confirmOrderPaymentNote" class="mt-4 text-xs leading-5 text-slate-500">A 50% downpayment is required via GCash/Maya to process your order. The remaining balance will be paid upon Lalamove delivery.</p>
+      <p id="confirmOrderPaymentNote" class="mt-4 text-xs leading-5 text-slate-500">A 50% downpayment is required via GCash to process your order. The remaining balance will be paid upon Lalamove delivery.</p>
       <!-- Payment instructions: Lucide 'camera' for the email proof-of-payment. -->
       <p class="mt-2 flex items-start gap-2 text-xs leading-5 text-slate-600">
         <i data-lucide="camera" class="mt-0.5 h-3.5 w-3.5 text-indigo-600" aria-hidden="true"></i>
-        <span>After paying via GCash / bank transfer, REPLY directly to your email receipt with your payment screenshot/reference number.</span>
+        <span>After paying via GCash, REPLY directly to your email receipt with your payment screenshot/reference number.</span>
       </p>
+      <!-- Payment Instructions: GCash wallet shown in the Order Confirmation
+           Modal so customers can copy the account details before confirming.
+           Values are pushed by main.js (renderGcashInstructions) and mirror
+           the checkout drawer / app.py receipt constants: RH••A E. / 0928 181 5599. -->
+      <div class="payment-instructions-box mt-3 rounded-lg border border-slate-300 p-3 space-y-1.5 text-left">
+        <p class="payment-type-label">Payment Instructions</p>
+        <p class="gcash-detail">Account Name: <strong id="confirmGcashAccountName">RH••A E.</strong></p>
+        <p class="gcash-detail">GCash Number: <strong id="confirmGcashAccountNumber">0928 181 5599</strong></p>
+      </div>
       <!-- Operating hours (always shown) + the City-based payment reservation
            window, which main.js refreshes from the selected City / Location. -->
       <div class="mt-3 rounded-md border border-amber-100 bg-amber-50 p-2.5 text-xs leading-5 text-amber-800">
@@ -413,13 +458,28 @@
               <label for="customerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
               <textarea id="customerAddress" name="address" autocomplete="off" required title="Shipping Address" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
             </div>
-            <!-- City / Location: ALWAYS enabled and visible — directly above the
-                 Phone Number — for BOTH Lalamove Delivery and Customer
-                 Self-Booking / Warehouse Pick-up. It drives the Lalamove
-                 destination base rate and the dynamic payment reservation
-                 limit. The options (zone id, base rate + reservation window)
-                 come from app.py LALAMOVE_ZONE_OPTIONS so the storefront and
-                 the server always agree. -->
+            <!-- Lalamove location explainer (Lalamove-only): "Why select your City / Location?"
+                 explainer directly above the City / Location dropdown.
+                 Visibility toggled via #lalamove-guide-container
+                 (display block/none) in main.js handleDeliveryMethodChange() +
+                 openCart(). Static markup — refreshIcons() converts the
+                 <i data-lucide> placeholder. -->
+            <div id="lalamove-guide-container">
+              <div class="delivery-zone-info" id="deliveryZoneInfo" role="note" aria-label="Why select your City / Location">
+                <i data-lucide="info" class="h-4 w-4" aria-hidden="true"></i>
+                <div class="delivery-zone-info-text">
+                  <strong>Why select your City / Location?</strong>
+                  <span>Estimated shipping rates are calculated based on the distance between your delivery location and our Warehouse in <strong>Bagumbayan, Taguig City</strong>, as well as the overall parcel volume.</span>
+                </div>
+              </div>
+            </div>
+            <!-- City / Location: ALWAYS enabled and visible — directly BELOW
+                 the Lalamove location explainer and directly above the Phone Number — for BOTH
+                 Lalamove Delivery and Customer Self-Booking / Warehouse Pick-up.
+                 It drives the Lalamove destination base rate and the dynamic
+                 payment reservation limit. The options (zone id, base rate +
+                 reservation window) come from app.py LALAMOVE_ZONE_OPTIONS so the
+                 storefront and the server always agree. -->
             <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
               <label for="deliveryZone" class="block text-sm font-medium text-slate-700">City / Location</label>
               <select id="deliveryZone" name="delivery_zone" onchange="calculate()" title="City / Location — Lalamove shipping origin: Taguig" class="payment-type-select">
@@ -465,10 +525,30 @@
             </div>
 
             <div id="payment-breakdown" class="payment-breakdown">
+              <!-- Estimated Shipping Fee line item in the Order Summary breakdown
+                   box, shown above Amount Due Now / Balance upon Delivery.
+                   ₱0.00 for Customer Self-Booking / Warehouse Pick-up (no courier
+                   fee is ever added), or the live Lalamove courier estimate when
+                   Lalamove Delivery is selected. main.js refreshes the value in
+                   updateCheckoutTotals() on every calculation. -->
+              <p class="breakdown-row" id="estimated-shipping-row"><strong>Estimated Shipping Fee:</strong> <span id="estimated-shipping-amount">₱0.00</span></p>
+
               <p class="breakdown-row"><strong>Amount Due Now:</strong> <span id="due-now-amount" class="due-now-amount">₱0.00</span></p>
               <p class="breakdown-row-secondary" id="remaining-balance-row"><strong>Balance upon Delivery:</strong> <span id="remaining-balance-amount">₱0.00</span></p>
             </div>
 
+            <!-- Payment Instructions: GCash wallet shown in the checkout drawer
+                 before Place Order - GCash is the only payment method (the
+                 other channels are temporarily hidden). The values are pushed
+                 by main.js (GCASH_ACCOUNT_NAME / GCASH_ACCOUNT_NUMBER) and
+                 mirror app.py's receipt/email constants: RH••A E. / 0928 181 5599. -->
+            <div class="payment-instructions-box border border-slate-300 rounded-lg p-3 space-y-1.5">
+              <p class="payment-type-label">Payment Instructions</p>
+              <p class="text-sm font-semibold text-slate-700">Pay via GCash:</p>
+              <p class="gcash-detail text-sm text-slate-700">Account Name: <strong id="gcashAccountName">RH••A E.</strong></p>
+              <p class="gcash-detail text-sm text-slate-700">GCash Number: <strong id="gcashAccountNumber">0928 181 5599</strong></p>
+              <p class="delivery-method-hint">After paying, reply to your email receipt with the payment screenshot / reference number.</p>
+            </div>
 
             <!-- Cart payload hidden fields; populated by main.js before submission -->
             <input type="hidden" id="checkoutCupId" name="cup_id" value="" title="Checkout cup ID" />
@@ -516,6 +596,10 @@
           <nav class="mt-3 flex flex-col gap-2 text-sm">
             <a href="#catalog" class="text-gray-400 transition hover:text-white">Catalog</a>
             <a href="#about" class="text-gray-400 transition hover:text-white">About</a>
+            <!-- Root-relative aliased admin route: renders the staff-only
+                 manage-orders-ps.html template via Flask on both desktop and
+                 mobile browsers (no 404 from missing manage-orders.html). -->
+            <a href="/manage-orders" class="text-gray-400 transition hover:text-white">Store Management</a>
           </nav>
         </div>
 
@@ -528,9 +612,8 @@
         </div>
       </div>
 
-      <div class="mt-10 flex flex-col gap-2 border-t border-gray-800 pt-5 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
+      <div class="mt-10 border-t border-gray-800 pt-5 text-xs text-gray-500">
         <p>&copy; <span id="copyrightYear"></span> Pack &amp; Sip. All rights reserved.</p>
-        <p>Custom E-Commerce Engine</p>
       </div>
     </div>
   </footer>

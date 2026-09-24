@@ -32,37 +32,54 @@ CORS(app, supports_credentials=True)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # Flask-Mail configuration for Gmail SMTP. Credentials stay out of source
-# control: the admin inbox used as the sender and the Google App Password are
-# injected through environment variables (e.g. Render dashboard > Environment).
+# control: the SMTP login and Google App Password are injected through
+# environment variables (e.g. Render dashboard > Environment).
+#
+# Email roles:
+#   SENDER / REPLY-TO ......... jambyletesa@gmail.com (customers reply here
+#                               with their GCash payment screenshots).
+#   ADMIN NOTIFICATION ........ legolandcreator@gmail.com (instant order
+#                               summary alert on every new order).
+#   CUSTOMER RECIPIENT ........ order['email'] (HTML invoice receipt).
+SENDER_EMAIL = (os.getenv('SENDER_EMAIL') or 'jambyletesa@gmail.com').strip()
+REPLY_TO_EMAIL = (os.getenv('REPLY_TO_EMAIL') or SENDER_EMAIL).strip()
+ADMIN_NOTIFICATION_EMAIL = (os.getenv('ADMIN_NOTIFICATION_EMAIL') or 'legolandcreator@gmail.com').strip()
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-# Accept the standard MAIL_USERNAME / MAIL_PASSWORD names (as shipped in .env)
-# while keeping the legacy address-keyed names working for existing deployments.
-app.config['MAIL_USERNAME'] = (
-    os.getenv('MAIL_USERNAME') or os.getenv('legolandcreator@gmail.com')
-)
-app.config['MAIL_PASSWORD'] = (
-    os.getenv('MAIL_PASSWORD') or os.getenv('edci nmxcxpxknrnv')
-)
-# Every receipt needs a sender: fall back to the authenticated SMTP account so
-# mail.send() never fails with an empty From address.
-app.config['MAIL_DEFAULT_SENDER'] = (
-    os.getenv('MAIL_DEFAULT_SENDER') or app.config['MAIL_USERNAME']
-)
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['MAIL_USE_SSL'] = False
+app.config['MAIL_USERNAME'] = 'jambyletesa@gmail.com'
+app.config['MAIL_PASSWORD'] = 'fxzhrrvwiueqwunn'
+app.config['MAIL_DEFAULT_SENDER'] = ('Pack & Sip Accounts', 'jambyletesa@gmail.com')
 mail = Mail(app)
 
 
 def get_admin_email_recipients():
     """Return the admin inboxes that receive new-order alerts.
 
-    Both addresses come from environment variables so a second recipient can
-    be added/rotated without touching the code. Blank values are dropped, so
-    a single-recipient setup (only legolandcreator@gmail.com) keeps working.
+    Always includes legolandcreator@gmail.com (overridable/extendable via
+    ADMIN_NOTIFICATION_EMAIL / ADMIN_EMAIL_1 / ADMIN_EMAIL_2) so every order
+    triggers an instant summary alert. Blank values are dropped and duplicates
+    removed.
     """
-    recipients = [os.getenv('legolandcreator@gmail.com'), os.getenv('ADMIN_EMAIL_2')]
-    return [address.strip() for address in recipients if address and address.strip()]
+    recipients = [
+        os.getenv('ADMIN_NOTIFICATION_EMAIL') or ADMIN_NOTIFICATION_EMAIL,
+        'legolandcreator@gmail.com',
+        os.getenv('legolandcreator@gmail.com'),
+        os.getenv('ADMIN_EMAIL_2'),
+    ]
+    # De-duplicate while preserving order.
+    seen = set()
+    unique = []
+    for address in recipients:
+        if not address or not address.strip():
+            continue
+        key = address.strip().lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(address.strip())
+    return unique
 
 DB_FILE = 'app.db'
 MICROWAVABLE_PRICE_PER_BOX = 1500.0
@@ -228,10 +245,15 @@ SELF_BOOKING_ALIASES = {
 # Payment channels, proof-of-payment instructions and operating hours printed
 # on the invoice/receipt and repeated in the customer's email receipt.
 # The account numbers are environment-driven so they can be rotated without a
-# code change; the GCash default matches the storefront contact number.
+# code change. The GCash defaults are the live wallet (RH..A E. / 0928 181 5599)
+# and feed the PDF "PAYMENT INSTRUCTIONS" box, the text/HTML receipt emails
+# and the checkout drawer in index.html (via main.js).
+# TEMPORARY: only GCash is displayed everywhere (checkout drawer, receipts,
+# confirmation emails); the other payment channels are hidden for now. Their
+# BANK_TRANSFER_* constants are kept below so the options are easy to restore.
 # ---------------------------------------------------------------------------
-GCASH_ACCOUNT_NAME = os.getenv('GCASH_ACCOUNT_NAME', 'Pack & Sip')
-GCASH_ACCOUNT_NUMBER = os.getenv('GCASH_ACCOUNT_NUMBER', '09221815599')
+GCASH_ACCOUNT_NAME = os.getenv('GCASH_ACCOUNT_NAME', 'RH..A E.')
+GCASH_ACCOUNT_NUMBER = os.getenv('GCASH_ACCOUNT_NUMBER', '0928 181 5599')
 BANK_TRANSFER_BANK = os.getenv('BANK_TRANSFER_BANK', 'BDO')
 BANK_TRANSFER_ACCOUNT_NAME = os.getenv('BANK_TRANSFER_ACCOUNT_NAME', 'Pack & Sip')
 BANK_TRANSFER_ACCOUNT_NUMBER = (os.getenv('BANK_TRANSFER_ACCOUNT_NUMBER') or '').strip()
@@ -239,8 +261,13 @@ BANK_TRANSFER_ACCOUNT_NUMBER = (os.getenv('BANK_TRANSFER_ACCOUNT_NUMBER') or '')
 BANK_TRANSFER_ACCOUNT_FALLBACK = 'Reply to this email to request the account number'
 
 # Lucide camera icon (📸) + the proof-of-payment instruction repeated on every
-# receipt so the customer knows how to send their payment screenshot.
+# receipt so the customer knows to reply to jambyletesa@gmail.com with their
+# GCash payment screenshot/reference number.
 PAYMENT_PROOF_INSTRUCTION = (
+    'Please reply to this email (jambyletesa@gmail.com) with your GCash '
+    'payment screenshot or reference number once paid.'
+)
+PAYMENT_PROOF_INSTRUCTION_SHORT = (
     '📸 REPLY directly to this email with your payment screenshot/reference number.'
 )
 OPERATING_HOURS_NOTE = (
@@ -414,22 +441,37 @@ def log_email_fallback(recipient, subject, body, reason):
     print('=' * 72 + '\n')
 
 
-def send_order_email(recipient, subject, body, html_body=None):
+def send_order_email(recipient, subject, body, html_body=None, sender=None,
+                      reply_to=None, attachments=None):
     """Send an order notification when SMTP credentials are configured.
 
     ``recipient`` accepts a single address or a list (admin alerts fan out to
-    every configured inbox). Email delivery is best-effort: failures (network
-    errors, Gmail rejecting a normal account password, missing credentials,
-    ...) never crash the request. The full email content is printed to the
-    console as a fallback so testing can continue uninterrupted.
+    every configured inbox). ``sender`` defaults to SENDER_EMAIL
+    (jambyletesa@gmail.com) and ``reply_to`` defaults to REPLY_TO_EMAIL so
+    customers can reply directly with their GCash payment screenshots.
+    Email delivery is best-effort: failures (network errors, missing SMTP
+    env vars on Render, ...) never crash the request — a clear error is
+    logged to the console and the checkout response still succeeds. The full
+    email content is printed to the console as a fallback so testing can
+    continue uninterrupted.
     """
     recipients = [recipient] if isinstance(recipient, str) else list(recipient or [])
     recipients = [str(address).strip() for address in recipients if address and str(address).strip()]
     recipient_display = ', '.join(recipients)
+    sender = (sender or SENDER_EMAIL or app.config.get('MAIL_DEFAULT_SENDER') or '').strip()
+    reply_to = (reply_to or REPLY_TO_EMAIL or sender or '').strip()
     if not recipients or not app.config.get('MAIL_USERNAME') or not app.config.get('MAIL_PASSWORD'):
-        app.logger.warning('Order email skipped: recipients or MAIL_USERNAME/MAIL_PASSWORD is not configured.')
-        log_email_fallback(recipient_display, subject, body, 'recipients or MAIL_USERNAME/MAIL_PASSWORD is not configured')
-        return
+        app.logger.warning(
+            'Order email to %s skipped: MAIL_USERNAME/MAIL_PASSWORD (SMTP env vars) '
+            'are missing on this host. Checkout response is unaffected.',
+            recipient_display or '(no recipient)',
+        )
+        print(
+            'EMAIL ERROR: cannot send "{}" to {} — SMTP env vars '
+            '(MAIL_USERNAME/MAIL_PASSWORD) are missing.'.format(subject, recipient_display or '(no recipient)')
+        )
+        log_email_fallback(recipient_display, subject, body, 'MAIL_USERNAME/MAIL_PASSWORD (SMTP env vars) is not configured')
+        return False
 
     # Gmail only accepts SMTP logins using a Google App Password. A normal Gmail
     # password will be rejected, so detect it early and fall back to console output.
@@ -439,17 +481,34 @@ def send_order_email(recipient, subject, body, html_body=None):
             'Create a 16-character App Password at https://myaccount.google.com/apppasswords '
             'so real SMTP delivery works. Falling back to console output for this email.'
         )
+        print(
+            'EMAIL ERROR: cannot send "{}" to {} — MAIL_PASSWORD is not a valid '
+            '16-character Google App Password.'.format(subject, recipient_display)
+        )
         log_email_fallback(recipient_display, subject, body, 'MAIL_PASSWORD does not look like a Google App Password')
-        return
+        return False
 
     try:
-        message = Message(subject=subject, recipients=recipients, body=body)
+        message = Message(
+            subject=subject,
+            recipients=recipients,
+            body=body,
+            sender=sender or None,
+            reply_to=reply_to or None,
+        )
         if html_body:
             message.html = html_body
+        for attachment in attachments or []:
+            filename, content_type, data = attachment
+            if data:
+                message.attach(filename, content_type, data)
         mail.send(message)
+        return True
     except Exception:
         app.logger.exception('Unable to send order email to %s', recipient_display)
+        print('EMAIL ERROR: SMTP send failed for "{}" to {}. See traceback above; checkout response unaffected.'.format(subject, recipient_display))
         log_email_fallback(recipient_display, subject, body, 'SMTP send failed (see exception logged above)')
+        return False
 
 
 def order_items_text(order):
@@ -612,10 +671,11 @@ def build_customer_receipt_email(order, subtotal, shipping_fee, total_due,
                                  upload_link=None):
     """Return (subject, text_body, html_body) for the customer's order receipt.
 
-    The receipt repeats every payment channel (GCash + bank transfer), the
-    camera-icon screenshot instruction and the DYNAMIC payment reservation
-    window for the chosen City / Location, so the customer can pay straight from
-    the email without opening the PDF attachment.
+    The receipt shows GCash as the only payment channel (the other channels
+    are temporarily hidden), plus the camera-icon screenshot instruction and
+    the DYNAMIC payment reservation window for the chosen City / Location, so
+    the customer can pay straight from the email without opening the PDF
+    attachment.
     """
     order_id = order['id']
     customer_name = order['customer_name'] or 'Customer'
@@ -670,8 +730,8 @@ Remaining Balance : P{remaining_balance:,.2f}
 Payment Terms     : {payment_terms}
 
 PAYMENT CHANNELS
-GCash             : {GCASH_ACCOUNT_NAME} - {GCASH_ACCOUNT_NUMBER}
-Bank Transfer     : {BANK_TRANSFER_BANK} - {BANK_TRANSFER_ACCOUNT_NAME} - {bank_account_display}
+Account Name      : {GCASH_ACCOUNT_NAME}
+GCash Number      : {GCASH_ACCOUNT_NUMBER}
 
 {PAYMENT_PROOF_INSTRUCTION}
 {('Upload your receipt here: ' + upload_link) if upload_link else ''}
@@ -731,18 +791,13 @@ Thank you for choosing Pack & Sip."""
       <p style="margin:18px 0 6px;font-size:12px;font-weight:bold;color:#4f46e5;letter-spacing:1px;">PAYMENT CHANNELS</p>
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <tr>
-          <td style="width:50%;vertical-align:top;padding-right:8px;">
+          <td style="width:100%;vertical-align:top;">
             <div style="border:1px solid #e2e8f0;padding:10px 12px;">
               <p style="margin:0 0 4px;font-weight:bold;color:#4f46e5;">GCash</p>
-              <p style="margin:0;color:#334155;">Account Name: {html.escape(GCASH_ACCOUNT_NAME)}<br />Account No.: {html.escape(GCASH_ACCOUNT_NUMBER)}</p>
+              <p style="margin:0;color:#334155;">Account Name: {html.escape(GCASH_ACCOUNT_NAME)}<br />GCash Number: {html.escape(GCASH_ACCOUNT_NUMBER)}</p>
             </div>
           </td>
-          <td style="width:50%;vertical-align:top;">
-            <div style="border:1px solid #e2e8f0;padding:10px 12px;">
-              <p style="margin:0 0 4px;font-weight:bold;color:#4f46e5;">Bank Transfer ({html.escape(BANK_TRANSFER_BANK)})</p>
-              <p style="margin:0;color:#334155;">Account Name: {html.escape(BANK_TRANSFER_ACCOUNT_NAME)}<br />Account No.: {html.escape(bank_account_display)}</p>
-            </div>
-          </td>
+          <!-- Non-GCash payment cards temporarily hidden: GCash is the only payment method. -->
         </tr>
       </table>
 
@@ -768,6 +823,8 @@ Thank you for choosing Pack & Sip."""
 # xhtml2pdf supports a limited CSS subset, so layout uses tables
 # (no flexbox / grid). Rounded corners are approximated with
 # bordered padded blocks which xhtml2pdf renders reliably.
+# TEMPORARY: only the GCash pay-card is shown - the second (non-GCash) card
+# is hidden in the pay-box table for now.
 INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
 <html>
 <head>
@@ -809,7 +866,7 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
   .pay-box { border: 1px dashed #4f46e5; background-color: #f8fafc; padding: 12px 14px; margin-bottom: 12px; }
   .pay-title { font-size: 11px; font-weight: bold; color: #0f172a; margin: 0 0 8px 0; letter-spacing: 1px; }
   .pay-cards { width: 100%; }
-  .pay-cards td { width: 50%; vertical-align: top; padding-right: 8px; }
+  .pay-cards td { width: 100%; vertical-align: top; padding-right: 0; }
   .pay-cards .last { padding-right: 0; }
   .pay-card { background-color: #ffffff; border: 1px solid #e2e8f0; padding: 9px 10px; }
   .pay-card-title { font-size: 11px; font-weight: bold; color: #4f46e5; margin: 0 0 4px 0; }
@@ -909,8 +966,7 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
     <p class="pay-title">PAYMENT INSTRUCTIONS — PAY P{{ "%.2f"|format(amount_due_now) }} NOW</p>
     <table class="pay-cards">
       <tr>
-        <td><div class="pay-card"><p class="pay-card-title">GCash</p><p>Account Name: {{ gcash_account_name }}<br />Account No.: {{ gcash_account_number }}</p></div></td>
-        <td class="last"><div class="pay-card"><p class="pay-card-title">Bank Transfer ({{ bank_transfer_bank }})</p><p>Account Name: {{ bank_transfer_account_name }}<br />Account No.: {{ bank_transfer_account_display }}</p></div></td>
+        <td class="last"><div class="pay-card"><p class="pay-card-title">GCash</p><p>Account Name: {{ gcash_account_name }}<br />GCash Number: {{ gcash_account_number }}</p></div></td>
       </tr>
     </table>
     <p class="proof-note">{{ payment_proof_instruction }}</p>
@@ -1145,8 +1201,9 @@ def render_invoice_html(order, unit_prices, upload_link=None, shipping_fee=None,
             downpayment_base=downpayment_base,
             amount_due_now=amount_due_now,
             remaining_balance=remaining_balance,
-            # Payment channels (GCash + bank transfer), the proof-of-payment
-            # instruction and the location-based reservation window.
+            # Payment channels (GCash only; the other channels are temporarily
+            # hidden), the proof-of-payment instruction and the location-based
+            # reservation window.
             gcash_account_name=GCASH_ACCOUNT_NAME,
             gcash_account_number=GCASH_ACCOUNT_NUMBER,
             bank_transfer_bank=BANK_TRANSFER_BANK,
@@ -1210,12 +1267,12 @@ def init_db():
     cursor.execute('SELECT COUNT(*) FROM products')
     if cursor.fetchone()[0] == 0:
         initial_products = [
-            ('cup-12oz', 'cup', 'Cups — 12 oz (Box of 1,250)', '12oz', None, 1250, 2860.0, 50, 'Durable 12oz disposable cups.'),
-            ('cup-16oz', 'cup', 'Cups — 16 oz (Box of 1,250)', '16oz', None, 1250, 2960.0, 40, 'Classic 16oz disposable cups.'),
-            ('cup-22oz', 'cup', 'Cups — 22 oz (Box of 1,250)', '22oz', None, 1250, 3840.0, 25, 'Large 22oz disposable cups.'),
-            ('lid-strawless', 'lid', 'Lids — Strawless (Box of 1,250)', None, 'Strawless', 1250, 1150.0, 60, 'Strawless lids — universal fit.'),
-            ('lid-dome', 'lid', 'Lids — Dome (Box of 1,250)', None, 'Dome', 1250, 1300.0, 30, 'Dome lids — universal fit.'),
-            ('lid-flat', 'lid', 'Lids — Flat (Box of 1,250)', None, 'Flat', 1250, 1150.0, 15, 'Flat lids — universal fit.')
+            ('cup-12oz', 'cup', 'Cups — 12 oz (Box of 1,250)', '12oz', None, 1250, 2860.0, 50, 'High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.'),
+            ('cup-16oz', 'cup', 'Cups — 16 oz (Box of 1,250)', '16oz', None, 1250, 2960.0, 40, 'High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.'),
+            ('cup-22oz', 'cup', 'Cups — 22 oz (Box of 1,250)', '22oz', None, 1250, 3840.0, 25, 'High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.'),
+            ('lid-strawless', 'lid', 'Lids — Strawless (Box of 1,250)', None, 'Strawless', 1250, 1150.0, 60, 'Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.'),
+            ('lid-dome', 'lid', 'Lids — Dome (Box of 1,250)', None, 'Dome', 1250, 1300.0, 30, 'Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.'),
+            ('lid-flat', 'lid', 'Lids — Flat (Box of 1,250)', None, 'Flat', 1250, 1150.0, 15, 'Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.')
         ]
         cursor.executemany('''
             INSERT INTO products (id, type, name, size, style, quantity_per_box, price_per_box, stock_boxes, description)
@@ -1224,15 +1281,15 @@ def init_db():
         conn.commit()
 
     microwavable_products = [
-        ('container-re-3200', 'microwavable', 'RE 3200 Rectangular Container (3,200ml)', '3,200ml', 'RE Series', 100, 1800.0, 20, 'Microwavable rectangular container with a 3,200ml capacity.'),
-        ('container-re-2500', 'microwavable', 'RE 2500 Rectangular Container (2,500ml)', '2,500ml', 'RE Series', 100, 1600.0, 20, 'Microwavable rectangular container with a 2,500ml capacity.'),
-        ('container-re-1600', 'microwavable', 'RE 1600 Rectangular Container (1,600ml)', '1,600ml', 'RE Series', 100, 1400.0, 20, 'Microwavable rectangular container with a 1,600ml capacity.'),
-        ('container-re-1000', 'microwavable', 'RE 1000 Rectangular Container (1,000ml)', '1,000ml', 'RE Series', 100, 1200.0, 20, 'Microwavable rectangular container with a 1,000ml capacity.'),
-        ('container-re-750', 'microwavable', 'RE 750 Rectangular Container (750ml)', '750ml', 'RE Series', 100, 1450.0, 20, 'Microwavable rectangular container with a 750ml capacity.'),
-        ('container-re-500', 'microwavable', 'RE 500 Rectangular Container (500ml)', '500ml', 'RE Series', 100, 1250.0, 20, 'Microwavable rectangular container with a 500ml capacity.'),
-        ('container-ro-30', 'microwavable', 'RO 30 Round Container (30 oz)', '30oz', 'RO Series', 100, 1230.0, 20, 'Microwavable round container with a 30oz capacity.'),
-        ('container-ro-16', 'microwavable', 'RO 16 Round Container (16 oz)', '16oz', 'RO Series', 100, 960.0, 20, 'Microwavable round container with a 16oz capacity.'),
-        ('container-ro-10', 'microwavable', 'RO 10 Round Container (10 oz)', '10oz', 'RO Series', 100, 820.0, 20, 'Microwavable round container with a 10oz capacity.')
+        ('container-re-3200', 'microwavable', 'RE 3200 Rectangular Container (3,200ml)', '3,200ml', 'RE Series', 100, 1800.0, 20, 'Extra-large heavy-duty food packaging. Excellent for full-sized platter meals and catering takeaways.'),
+        ('container-re-2500', 'microwavable', 'RE 2500 Rectangular Container (2,500ml)', '2,500ml', 'RE Series', 100, 1600.0, 20, 'Large capacity food containers designed for family shares, party trays, and bulk food orders.'),
+        ('container-re-1600', 'microwavable', 'RE 1600 Rectangular Container (1,600ml)', '1,600ml', 'RE Series', 100, 1400.0, 20, 'Medium-sized durable food containers with tight-fitting lids. Perfect for standard meals and pasta dishes.'),
+        ('container-re-1000', 'microwavable', 'RE 1000 Rectangular Container (1,000ml)', '1,000ml', 'RE Series', 100, 1650.0, 20, 'Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.'),
+        ('container-re-750', 'microwavable', 'RE 750 Rectangular Container (750ml)', '750ml', 'RE Series', 100, 1450.0, 20, 'Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.'),
+        ('container-re-500', 'microwavable', 'RE 500 Rectangular Container (500ml)', '500ml', 'RE Series', 100, 1250.0, 20, 'Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.'),
+        ('container-ro-30', 'microwavable', 'RO 30 Round Container (30 oz)', '30oz', 'RO Series', 100, 1230.0, 20, 'Large capacity round food containers designed for family shares, party trays, and bulk food orders.'),
+        ('container-ro-16', 'microwavable', 'RO 16 Round Container (16 oz)', '16oz', 'RO Series', 100, 960.0, 20, 'Medium-sized durable round food containers with tight-fitting lids. Perfect for standard meals and pasta dishes.'),
+        ('container-ro-10', 'microwavable', 'RO 10 Round Container (10 oz)', '10oz', 'RO Series', 100, 820.0, 20, 'Compact food-grade microwaveable round containers. Ideal for rice meals, side dishes, and small take-out servings.')
     ]
     cursor.executemany('''
         INSERT OR IGNORE INTO products (id, type, name, size, style, quantity_per_box, price_per_box, stock_boxes, description)
@@ -1276,6 +1333,73 @@ def init_db():
             (960.0, 'container-ro-16'),
             (820.0, 'container-ro-10'),
         ))
+        conn.commit()
+
+    # RE 1000 per-box price update: the 1,000ml rectangular container now
+    # sells for ₱1,650.00 per box (packs of 100). Databases seeded before
+    # this change carry the ₱1,200.00 rate, so backfill them here; guarded
+    # so we only write while the old price is still present (fresh databases
+    # are seeded directly with the new rate and any admin-updated price is
+    # left untouched).
+    re1000_current = cursor.execute(
+        "SELECT price_per_box FROM products WHERE id = 'container-re-1000'"
+    ).fetchone()
+    if re1000_current and float(re1000_current[0] or 0) == 1200.0:
+        cursor.execute(
+            "UPDATE products SET price_per_box = ? WHERE id = ?",
+            (1650.0, 'container-re-1000')
+        )
+        conn.commit()
+
+    # Professional catalog copy: cups, lids, and microwavable containers use
+    # complete marketing descriptions (pairs with the Dabba/GoUp badges above
+    # each section on the storefront). Databases seeded before this change
+    # carry the legacy one-line copy, so backfill them here; each UPDATE is
+    # guarded by an exact match on a known legacy text so we only write while
+    # the old copy is still present — fresh databases are seeded directly
+    # with the professional wording and any admin-edited descriptions are
+    # left untouched.
+    professional_description_backfill = (
+        ('High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.',
+         'cup-12oz', 'Durable 12oz disposable cups.'),
+        ('High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.',
+         'cup-16oz', 'Classic 16oz disposable cups.'),
+        ('High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.',
+         'cup-22oz', 'Large 22oz disposable cups.'),
+        ('Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.',
+         'lid-strawless', 'Strawless lids — universal fit.'),
+        ('Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.',
+         'lid-dome', 'Dome lids — universal fit.'),
+        ('Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.',
+         'lid-flat', 'Flat lids — universal fit.'),
+        ('Extra-large heavy-duty food packaging. Excellent for full-sized platter meals and catering takeaways.',
+         'container-re-3200', 'Authentic GoUp high-grade microwavable rectangular container with a 3,200ml capacity.'),
+        ('Large capacity food containers designed for family shares, party trays, and bulk food orders.',
+         'container-re-2500', 'Authentic GoUp high-grade microwavable rectangular container with a 2,500ml capacity.'),
+        ('Medium-sized durable food containers with tight-fitting lids. Perfect for standard meals and pasta dishes.',
+         'container-re-1600', 'Authentic GoUp high-grade microwavable rectangular container with a 1,600ml capacity.'),
+        ('Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.',
+         'container-re-1000', 'Authentic GoUp high-grade microwavable rectangular container with a 1,000ml capacity.'),
+        ('Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.',
+         'container-re-750', 'Authentic GoUp high-grade microwavable rectangular container with a 750ml capacity.'),
+        ('Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.',
+         'container-re-500', 'Authentic GoUp high-grade microwavable rectangular container with a 500ml capacity.'),
+        ('Large capacity round food containers designed for family shares, party trays, and bulk food orders.',
+         'container-ro-30', 'Authentic GoUp high-grade microwavable round container with a 30oz capacity.'),
+        ('Medium-sized durable round food containers with tight-fitting lids. Perfect for standard meals and pasta dishes.',
+         'container-ro-16', 'Authentic GoUp high-grade microwavable round container with a 16oz capacity.'),
+        ('Compact food-grade microwaveable round containers. Ideal for rice meals, side dishes, and small take-out servings.',
+         'container-ro-10', 'Authentic GoUp high-grade microwavable round container with a 10oz capacity.'),
+    )
+    legacy_professional_descriptions = tuple(row[2] for row in professional_description_backfill)
+    legacy_professional_count = cursor.execute(
+        "SELECT COUNT(*) FROM products WHERE description IN (%s)" % ','.join('?' * len(legacy_professional_descriptions)),
+        legacy_professional_descriptions
+    ).fetchone()[0]
+    if legacy_professional_count > 0:
+        cursor.executemany('''
+            UPDATE products SET description = ? WHERE id = ? AND description = ?
+        ''', professional_description_backfill)
         conn.commit()
 
 
@@ -1568,6 +1692,10 @@ SITEMAP_EXCLUDED_RULES = frozenset({
     '/robots.txt',
     '/index.html',            # alias of '/'
     '/manage-orders-ps.html',  # staff-only order dashboard
+    '/manage-orders',         # clean alias of the staff dashboard
+    '/manage-orders.html',    # legacy alias of the staff dashboard
+    '/admin',                 # clean alias of the staff dashboard
+    '/admin.html',            # legacy alias of the staff dashboard
     '/upload-receipt',        # order-specific receipt upload link
 })
 SITEMAP_EXCLUDED_PREFIXES = ('/api/', '/admin/', '/static/')
@@ -1651,8 +1779,12 @@ def robots_txt():
         'User-agent: *',
         'Allow: /',
         'Disallow: /admin/',
+        'Disallow: /admin',
+        'Disallow: /admin.html',
         'Disallow: /api/',
         'Disallow: /manage-orders-ps.html',
+        'Disallow: /manage-orders',
+        'Disallow: /manage-orders.html',
         'Disallow: /upload-receipt',
         '',
         f'Sitemap: {get_site_base_url()}/sitemap.xml',
@@ -1680,15 +1812,27 @@ def get_products():
     return jsonify({"products": result})
 
 
+@app.route('/manage-orders-ps.html', methods=['GET'])
+@app.route('/manage-orders.html', methods=['GET'])
+@app.route('/manage-orders', methods=['GET'])
+@app.route('/admin', methods=['GET'])
+@app.route('/admin.html', methods=['GET'])
+def admin_dashboard():
+    """Render the order management dashboard.
+
+    The canonical file on disk is ``manage-orders-ps.html``. The extra
+    ``/manage-orders``, ``/manage-orders.html``, ``/admin`` and
+    ``/admin.html`` aliases exist so footer links, bookmarks, and mobile
+    browsers that request the short names never hit the generic
+    ``/<path:filename>`` static handler (which would 404 when the file is
+    not found). All aliases render the same staff template.
+    """
+    return render_template('manage-orders-ps.html')
+
+
 @app.route('/<path:filename>')
 def serve_static(filename):
     return send_from_directory('.', filename)
-
-
-@app.route('/manage-orders-ps.html', methods=['GET'])
-def admin_dashboard():
-    """Render the order management dashboard."""
-    return render_template('manage-orders-ps.html')
 
 
 @app.route('/api/admin/orders', methods=['GET'])
@@ -2144,9 +2288,12 @@ def process_checkout():
         print(f"Invoice PDF Error: {e}")
         invoice_pdf_bytes = None
 
-    # Customer receipt: HTML + plain-text versions carrying the payment channels
-    # (GCash + bank transfer), the camera-icon screenshot instruction and the
-    # location-based payment reservation window.
+    # Customer receipt: HTML + plain-text versions carrying the GCash payment
+    # channel (Account Name: RH..A E. | Number: 0928 181 5599), the explicit
+    # "Please reply to this email (jambyletesa@gmail.com)..." instruction and
+    # the location-based payment reservation window. Sent FROM
+    # jambyletesa@gmail.com with Reply-To set to the same address, TO the
+    # customer's checkout email (order['email']).
     email_subject, email_body, email_html = build_customer_receipt_email(
         order,
         subtotal=subtotal,
@@ -2165,36 +2312,48 @@ def process_checkout():
     # Send the order confirmation email asynchronously in a background thread.
     # This keeps the checkout response snappy: the DB insert commits and the
     # success JSON is returned immediately, without waiting for SMTP network
-    # response times. Any mail error is still printed to the terminal.
+    # response times. Failures (missing SMTP env vars on Render, network
+    # errors, ...) only log a clear EMAIL ERROR to the console via
+    # send_order_email() and never break the checkout response.
     def send_confirmation_email():
         # Flask-Mail's mail.send() needs the Flask application context, which
         # is not available in this background thread by default.
         with app.app_context():
             try:
-                msg = Message(
-                    subject=email_subject,
-                    recipients=[order['email']],
-                    body=email_body,
-                    html=email_html
+                customer_email = (order['email'] or '').strip()
+                if not customer_email:
+                    print('EMAIL ERROR: customer receipt skipped — no customer email on order #{}.'.format(order['id']))
+                    return
+                attachments = (
+                    [(invoice_filename, 'application/pdf', invoice_pdf_bytes)]
+                    if invoice_pdf_bytes else None
                 )
-                if invoice_pdf_bytes:
-                    msg.attach(invoice_filename, 'application/pdf', invoice_pdf_bytes)
-                mail.send(msg)
+                send_order_email(
+                    customer_email,
+                    email_subject,
+                    email_body,
+                    html_body=email_html,
+                    sender=SENDER_EMAIL,
+                    reply_to=REPLY_TO_EMAIL,
+                    attachments=attachments,
+                )
             except Exception as e:
+                # Never let email break the saved order.
                 print(f"Mail Error: {e}")
 
     threading.Thread(target=send_confirmation_email, daemon=True).start()
 
-    # Admin new-order alert: notify EVERY configured admin inbox (ADMIN_EMAIL_1
-    # and ADMIN_EMAIL_2) whenever a new order lands. Sending runs in a background
-    # thread and is fully wrapped in try/except — the order is already saved for
-    # the customer, so a mail-server failure must not fail the checkout response.
+    # Admin new-order alert: send an instant order summary alert directly to
+    # legolandcreator@gmail.com (ADMIN_NOTIFICATION_EMAIL) whenever a new
+    # order lands. Sending runs in a background thread and is fully wrapped
+    # in try/except — the order is already saved for the customer, so a
+    # mail-server failure must not fail the checkout response.
     def send_admin_order_alert():
         with app.app_context():
             try:
                 admin_recipients = get_admin_email_recipients()
                 if not admin_recipients:
-                    print('Admin order alert skipped: no legolandcreator@gmail.com/ADMIN_EMAIL_2 configured.')
+                    print('EMAIL ERROR: admin order alert skipped — no ADMIN_NOTIFICATION_EMAIL / legolandcreator@gmail.com configured.')
                     return
                 subject, text_body, html_body = build_admin_order_alert(
                     order,
@@ -2202,7 +2361,14 @@ def process_checkout():
                     shipping_label=shipping_label,
                     delivery_zone=delivery_zone,
                 )
-                send_order_email(admin_recipients, subject, text_body, html_body=html_body)
+                send_order_email(
+                    admin_recipients,
+                    subject,
+                    text_body,
+                    html_body=html_body,
+                    sender=SENDER_EMAIL,
+                    reply_to=REPLY_TO_EMAIL,
+                )
             except Exception as e:
                 # Never let the alert block the saved order.
                 print(f"Admin Order Alert Error: {e}")
@@ -2260,7 +2426,7 @@ def upload_receipt():
         <body class="bg-slate-50 flex items-center justify-center min-h-screen p-4">
             <div class="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
                 <h1 class="text-2xl font-bold mb-4 text-indigo-700">Upload Payment Receipt</h1>
-                <p class="text-slate-700 font-medium mb-6 text-sm">Please upload your GCash/Maya screenshot for Order #{{ order_id }}</p>
+                <p class="text-slate-700 font-medium mb-6 text-sm">Please upload your GCash screenshot for Order #{{ order_id }}</p>
                 <form method="POST" enctype="multipart/form-data" class="space-y-4">
                     <input type="hidden" name="order_id" value="{{ order_id }}">
                     <div>
