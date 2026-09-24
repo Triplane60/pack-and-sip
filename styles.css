@@ -37,10 +37,12 @@
 }
 
 /* Hero brand logo: official mark above the "Wholesale Boxes of Cups, Lids &
-   Microwavable Containers" headline. Prominent 140px width + auto height
-   + object-fit: contain so the 1408x768 artwork never distorts, centered
-   above the headline with a 16px bottom margin. The .hero-copy rule below
-   centers the logo with the heading on both desktop and mobile. */
+   Microwavable Containers" headline. Uses the single brand asset favicon.png
+   (square 1:1 artwork, shared with the browser tab icon), so the prominent
+   140px width renders the mark square; height: auto + object-fit: contain
+   guarantee the artwork never distorts. Centered above the headline with a
+   16px bottom margin — the .hero-copy rule below centers the logo with the
+   heading on both desktop and mobile. */
 .hero-logo {
   display: block;
   width: 140px;
@@ -957,22 +959,25 @@ body.drawer-open #cartDrawer {
 
 /* ============================================================
    Mobile: enlarged Payment Instructions (GCash details)
-   The checkout drawer's and Order Confirmation Modal's
-   "Payment Instructions" box uses bigger text (1.1rem) and
+   The checkout drawer's, Order Confirmation Modal's, and the
+   post-checkout Order Placed modal's "Payment Instructions" /
+   "GCash Payment Details" box uses bigger text (1.1rem) and
    roomier padding on phones/tablets so the GCash Account Name
    and Number are easy to read and copy. 1024px also covers the
    phones that render the drawer in "Desktop site" mode (~980px).
    ============================================================ */
 @media (max-width: 1024px) {
   #drawerPanel .payment-instructions-box,
-  #confirmOrderModal .payment-instructions-box {
+  #confirmOrderModal .payment-instructions-box,
+  #orderPendingModal .payment-instructions-box {
     padding: 16px 18px !important;
     box-sizing: border-box !important;
   }
 
   /* All copy inside the box scales up for readability. */
   #drawerPanel .payment-instructions-box p,
-  #confirmOrderModal .payment-instructions-box p {
+  #confirmOrderModal .payment-instructions-box p,
+  #orderPendingModal .payment-instructions-box p {
     font-size: 1.1rem !important;
     line-height: 1.5 !important;
     margin-bottom: 6px !important;
@@ -982,13 +987,16 @@ body.drawer-open #cartDrawer {
   #drawerPanel .payment-instructions-box .gcash-detail,
   #drawerPanel .payment-instructions-box .gcash-detail strong,
   #confirmOrderModal .payment-instructions-box .gcash-detail,
-  #confirmOrderModal .payment-instructions-box .gcash-detail strong {
+  #confirmOrderModal .payment-instructions-box .gcash-detail strong,
+  #orderPendingModal .payment-instructions-box .gcash-detail,
+  #orderPendingModal .payment-instructions-box .gcash-detail strong {
     font-weight: 700 !important;
   }
 
   /* Proof-of-payment hint: slightly smaller than the account details. */
   #drawerPanel .payment-instructions-box .delivery-method-hint,
-  #confirmOrderModal .payment-instructions-box .delivery-method-hint {
+  #confirmOrderModal .payment-instructions-box .delivery-method-hint,
+  #orderPendingModal .payment-instructions-box .delivery-method-hint {
     font-size: 1rem !important;
     font-weight: 500 !important;
     line-height: 1.45 !important;

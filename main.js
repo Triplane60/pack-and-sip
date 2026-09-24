@@ -848,20 +848,21 @@ async function clearCartItems(){
 
 // ---------------------------------------------------------------------------
 // GCash payment details for the Payment Instructions boxes in the checkout
-// drawer (#gcashAccountName / #gcashAccountNumber) and the Order Confirmation
-// Modal (#confirmGcashAccountName / #confirmGcashAccountNumber). Defined once
-// here so the checkout drawer and the Order Confirmation Modal always show
+// drawer (#gcashAccountName / #gcashAccountNumber), the Order Confirmation
+// Modal (#confirmGcashAccountName / #confirmGcashAccountNumber), and the
+// post-checkout Order Placed modal (#pendingGcashAccountName /
+// #pendingGcashAccountNumber). Defined once here so every payment screen shows
 // the same wallet details.
 // ---------------------------------------------------------------------------
 const GCASH_ACCOUNT_NAME = 'RH••A E.';
 const GCASH_ACCOUNT_NUMBER = '0928 181 5599';
 
 function renderGcashInstructions(){
-  ['gcashAccountName', 'confirmGcashAccountName'].forEach((id) => {
+  ['gcashAccountName', 'confirmGcashAccountName', 'pendingGcashAccountName'].forEach((id) => {
     const el = document.getElementById(id);
     if(el) el.textContent = GCASH_ACCOUNT_NAME;
   });
-  ['gcashAccountNumber', 'confirmGcashAccountNumber'].forEach((id) => {
+  ['gcashAccountNumber', 'confirmGcashAccountNumber', 'pendingGcashAccountNumber'].forEach((id) => {
     const el = document.getElementById(id);
     if(el) el.textContent = GCASH_ACCOUNT_NUMBER;
   });
@@ -1559,13 +1560,48 @@ function closeOrderPendingModal(){
   document.getElementById('customerAddress').value = '';
 }
 
-function showOrderPendingModal(phone){
-  // Inject the phone number the customer entered at checkout so the success
-  // popup reads: "...An order confirmation SMS will be sent to 09123456789."
-  document.getElementById('modalPhone').textContent = phone || '';
+function showOrderPendingModal(phone, amounts){
+  // Inject the phone number the customer entered at checkout so the reminder
+  // reads: "...An SMS confirmation will also be sent to 09123456789."
+  const phoneEl = document.getElementById('modalPhone');
+  if(phoneEl) phoneEl.textContent = phone || '';
+
+  // GCash Payment / Order Invoice summary. The amounts are captured from the
+  // checkout payload in submitOrder() because the live on-screen totals have
+  // already been cleared by resetCheckoutState() when this modal opens.
+  const summary = amounts || {};
+  const paymentType = summary.paymentType === 'full' ? 'full' : '50_percent';
+  const dueNow = Number(summary.dueNow) || 0;
+  const remaining = Number(summary.remaining) || 0;
+
+  const totalEl = document.getElementById('pendingOrderTotal');
+  if(totalEl) totalEl.textContent = formatPrice(summary.total);
+
+  const dueLabel = document.getElementById('pendingOrderDueLabel');
+  if(dueLabel){
+    dueLabel.textContent = paymentType === 'full'
+      ? 'Amount Due (Full Payment)'
+      : 'Amount Due (50% Downpayment)';
+  }
+  const dueEl = document.getElementById('pendingOrderAmountDue');
+  if(dueEl) dueEl.textContent = formatPrice(dueNow);
+
+  // The balance row only applies to the 50% downpayment option: a full payment
+  // leaves nothing to settle later, so the row is hidden.
+  const balanceRow = document.getElementById('pendingOrderBalanceRow');
+  if(balanceRow){
+    const balanceEl = document.getElementById('pendingOrderBalance');
+    if(balanceEl) balanceEl.textContent = formatPrice(remaining);
+    balanceRow.classList.toggle('is-flex-row', remaining > 0);
+    balanceRow.classList.toggle('is-hidden-row', remaining <= 0);
+  }
+
   const modal = document.getElementById('orderPendingModal');
   modal.classList.remove('hidden');
   modal.classList.add('flex');
+  // Lucide placeholders (the screenshot-reminder camera icon) are converted on
+  // open in case the CDN script loaded after the first paint.
+  refreshIcons(modal);
   requestAnimationFrame(() => modal.classList.remove('opacity-0'));
 }
 
@@ -1818,6 +1854,16 @@ async function submitOrder(){
       ''
     ).trim();
 
+    // Snapshot the GCash payment summary for the post-checkout Order Placed
+    // modal: the totals live only in the checkout payload/hidden fields, which
+    // resetCheckoutState() clears below.
+    const pendingAmounts = {
+      paymentType: checkoutData.payment_type || '50_percent',
+      total: Number(checkoutData.total) || 0,
+      dueNow: Number(checkoutData.due_now) || 0,
+      remaining: Number(checkoutData.remaining_balance) || 0
+    };
+
     // Clear the local cart and close checkout before waiting for the network request.
     resetCheckoutState();
     const res = await fetch('/api/checkout', {
@@ -1831,7 +1877,7 @@ async function submitOrder(){
       showCustomAlert(data.error || 'Failed to place order');
       return;
     }
-    showOrderPendingModal(customerPhone);
+    showOrderPendingModal(customerPhone, pendingAmounts);
     // Refresh product list to reflect updated stock
     await fetchProducts();
   }catch(err){

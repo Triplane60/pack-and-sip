@@ -1331,6 +1331,7 @@ def upload_receipt():
         <html>
         <head>
             <title>Upload Receipt - Pack & Sip</title>
+            <link rel="icon" type="image/png" sizes="512x512" href="favicon.png">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <script src="https://cdn.tailwindcss.com"></script>
         </head>
