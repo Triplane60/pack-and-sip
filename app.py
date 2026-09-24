@@ -3,7 +3,6 @@ import os
 import io
 import html
 import datetime
-import threading
 from flask import Flask, jsonify, render_template, request, send_from_directory, session, render_template_string
 from werkzeug.utils import secure_filename
 from xhtml2pdf import pisa
@@ -31,19 +30,7 @@ CORS(app, supports_credentials=True)
 # PythonAnywhere instead of the internal http://127.0.0.1 address.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-# Flask-Mail configuration for Gmail SMTP. Credentials stay out of source
-# control: the SMTP login and Google App Password are injected through
-# environment variables (e.g. Render dashboard > Environment).
-#
-# Email roles:
-#   SENDER / REPLY-TO ......... jambyletesa@gmail.com (customers reply here
-#                               with their GCash payment screenshots).
-#   ADMIN NOTIFICATION ........ legolandcreator@gmail.com (instant order
-#                               summary alert on every new order).
-#   CUSTOMER RECIPIENT ........ order['email'] (HTML invoice receipt).
-SENDER_EMAIL = (os.getenv('SENDER_EMAIL') or 'jambyletesa@gmail.com').strip()
-REPLY_TO_EMAIL = (os.getenv('REPLY_TO_EMAIL') or SENDER_EMAIL).strip()
-ADMIN_NOTIFICATION_EMAIL = (os.getenv('ADMIN_NOTIFICATION_EMAIL') or 'legolandcreator@gmail.com').strip()
+# Flask-Mail configuration for order emails.
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
@@ -55,31 +42,7 @@ mail = Mail(app)
 
 
 def get_admin_email_recipients():
-    """Return the admin inboxes that receive new-order alerts.
-
-    Always includes legolandcreator@gmail.com (overridable/extendable via
-    ADMIN_NOTIFICATION_EMAIL / ADMIN_EMAIL_1 / ADMIN_EMAIL_2) so every order
-    triggers an instant summary alert. Blank values are dropped and duplicates
-    removed.
-    """
-    recipients = [
-        os.getenv('ADMIN_NOTIFICATION_EMAIL') or ADMIN_NOTIFICATION_EMAIL,
-        'legolandcreator@gmail.com',
-        os.getenv('legolandcreator@gmail.com'),
-        os.getenv('ADMIN_EMAIL_2'),
-    ]
-    # De-duplicate while preserving order.
-    seen = set()
-    unique = []
-    for address in recipients:
-        if not address or not address.strip():
-            continue
-        key = address.strip().lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(address.strip())
-    return unique
+    return ['legolandcreator@gmail.com']
 
 DB_FILE = 'app.db'
 MICROWAVABLE_PRICE_PER_BOX = 1500.0
@@ -412,80 +375,16 @@ def shipping_breakdown_text(breakdown):
     return ' + '.join(parts)
 
 
-def is_gmail_app_password(password):
-    """Return True if the configured MAIL_PASSWORD looks like a Google App Password.
+def send_order_email(recipient, subject, body, html_body=None, attachments=None):
+    """Send an order email from the configured Pack & Sip Gmail account."""
+    if isinstance(recipient, str):
+        recipients = [recipient]
+    else:
+        recipients = list(recipient or [])
 
-    Google App Passwords are exactly 16 characters long (usually displayed in the
-    "abcd efgh ijkl mnop" format). A regular Gmail account password does not match
-    this format and is rejected by Gmail's SMTP server when sign-in security is on.
-    """
-    if not password:
-        return False
-    compact = str(password).replace(' ', '')
-    return len(compact) == 16 and compact.isalnum()
-
-
-def log_email_fallback(recipient, subject, body, reason):
-    """Print the full email content to the console when SMTP cannot be used.
-
-    This keeps local development/testing uninterrupted even when Gmail rejects
-    the configured credentials.
-    """
-    print('\n' + '=' * 72)
-    print(' SMTP EMAIL FALLBACK - {}'.format(reason))
-    print('=' * 72)
-    print('To      : {}'.format(recipient))
-    print('Subject : {}'.format(subject))
-    print('-' * 72)
-    print(body)
-    print('=' * 72 + '\n')
-
-
-def send_order_email(recipient, subject, body, html_body=None, sender=None,
-                      reply_to=None, attachments=None):
-    """Send an order notification when SMTP credentials are configured.
-
-    ``recipient`` accepts a single address or a list (admin alerts fan out to
-    every configured inbox). ``sender`` defaults to SENDER_EMAIL
-    (jambyletesa@gmail.com) and ``reply_to`` defaults to REPLY_TO_EMAIL so
-    customers can reply directly with their GCash payment screenshots.
-    Email delivery is best-effort: failures (network errors, missing SMTP
-    env vars on Render, ...) never crash the request — a clear error is
-    logged to the console and the checkout response still succeeds. The full
-    email content is printed to the console as a fallback so testing can
-    continue uninterrupted.
-    """
-    recipients = [recipient] if isinstance(recipient, str) else list(recipient or [])
-    recipients = [str(address).strip() for address in recipients if address and str(address).strip()]
-    recipient_display = ', '.join(recipients)
-    sender = (sender or SENDER_EMAIL or app.config.get('MAIL_DEFAULT_SENDER') or '').strip()
-    reply_to = (reply_to or REPLY_TO_EMAIL or sender or '').strip()
-    if not recipients or not app.config.get('MAIL_USERNAME') or not app.config.get('MAIL_PASSWORD'):
-        app.logger.warning(
-            'Order email to %s skipped: MAIL_USERNAME/MAIL_PASSWORD (SMTP env vars) '
-            'are missing on this host. Checkout response is unaffected.',
-            recipient_display or '(no recipient)',
-        )
-        print(
-            'EMAIL ERROR: cannot send "{}" to {} — SMTP env vars '
-            '(MAIL_USERNAME/MAIL_PASSWORD) are missing.'.format(subject, recipient_display or '(no recipient)')
-        )
-        log_email_fallback(recipient_display, subject, body, 'MAIL_USERNAME/MAIL_PASSWORD (SMTP env vars) is not configured')
-        return False
-
-    # Gmail only accepts SMTP logins using a Google App Password. A normal Gmail
-    # password will be rejected, so detect it early and fall back to console output.
-    if not is_gmail_app_password(app.config.get('MAIL_PASSWORD')):
-        app.logger.warning(
-            'MAIL_PASSWORD does not look like a Google App Password. '
-            'Create a 16-character App Password at https://myaccount.google.com/apppasswords '
-            'so real SMTP delivery works. Falling back to console output for this email.'
-        )
-        print(
-            'EMAIL ERROR: cannot send "{}" to {} — MAIL_PASSWORD is not a valid '
-            '16-character Google App Password.'.format(subject, recipient_display)
-        )
-        log_email_fallback(recipient_display, subject, body, 'MAIL_PASSWORD does not look like a Google App Password')
+    recipients = [address.strip() for address in recipients if address and address.strip()]
+    if not recipients:
+        app.logger.warning('Order email skipped because no recipient was provided.')
         return False
 
     try:
@@ -493,21 +392,16 @@ def send_order_email(recipient, subject, body, html_body=None, sender=None,
             subject=subject,
             recipients=recipients,
             body=body,
-            sender=sender or None,
-            reply_to=reply_to or None,
+            sender=app.config['MAIL_DEFAULT_SENDER'],
         )
         if html_body:
             message.html = html_body
-        for attachment in attachments or []:
-            filename, content_type, data = attachment
-            if data:
-                message.attach(filename, content_type, data)
+        for filename, content_type, data in attachments or []:
+            message.attach(filename, content_type, data)
         mail.send(message)
         return True
     except Exception:
-        app.logger.exception('Unable to send order email to %s', recipient_display)
-        print('EMAIL ERROR: SMTP send failed for "{}" to {}. See traceback above; checkout response unaffected.'.format(subject, recipient_display))
-        log_email_fallback(recipient_display, subject, body, 'SMTP send failed (see exception logged above)')
+        app.logger.exception('Unable to send order email to %s', ', '.join(recipients))
         return False
 
 
@@ -1974,13 +1868,7 @@ def admin_ship_order(order_id):
             "Thank you for choosing Pack & Sip."
         )
 
-    # Flask-Mail's mail.send() needs the Flask application context, which is not
-    # available in a background thread by default.
-    def send_fulfillment_email():
-        with app.app_context():
-            send_order_email(order['email'], email_subject, email_body)
-
-    threading.Thread(target=send_fulfillment_email, daemon=True).start()
+    send_order_email(order['email'], email_subject, email_body)
 
     return jsonify({
         "success": True,
@@ -2269,32 +2157,20 @@ def process_checkout():
     base_url = get_site_base_url()
     upload_link = f"{base_url}/upload-receipt?order_id={order_id}"
 
-    # Render the official B2B invoice HTML from dynamic order data and
-    # convert it into a PDF byte stream for the email attachment.
-    # subtotal = sum(items); total_due = subtotal + Lalamove shipping_fee.
+    # Render the invoice and create the PDF attached to the customer receipt.
     invoice_filename = f"PackAndSip_Invoice_Order_{order_id}.pdf"
-    try:
-        invoice_html = render_invoice_html(
-            dict(order), unit_prices, upload_link,
-            shipping_fee=shipping,
-            shipping_label=shipping_label,
-            is_dynamic_cod=is_dynamic_cod,
-            delivery_method=delivery_method,
-            delivery_zone=delivery_zone,
-            shipping_breakdown=shipping_breakdown,
-        )
-        invoice_pdf_bytes = build_invoice_pdf(invoice_html)
-    except Exception as e:
-        print(f"Invoice PDF Error: {e}")
-        invoice_pdf_bytes = None
+    invoice_html = render_invoice_html(
+        dict(order), unit_prices, upload_link,
+        shipping_fee=shipping,
+        shipping_label=shipping_label,
+        is_dynamic_cod=is_dynamic_cod,
+        delivery_method=delivery_method,
+        delivery_zone=delivery_zone,
+        shipping_breakdown=shipping_breakdown,
+    )
+    invoice_pdf_bytes = build_invoice_pdf(invoice_html)
 
-    # Customer receipt: HTML + plain-text versions carrying the GCash payment
-    # channel (Account Name: RH..A E. | Number: 0928 181 5599), the explicit
-    # "Please reply to this email (jambyletesa@gmail.com)..." instruction and
-    # the location-based payment reservation window. Sent FROM
-    # jambyletesa@gmail.com with Reply-To set to the same address, TO the
-    # customer's checkout email (order['email']).
-    email_subject, email_body, email_html = build_customer_receipt_email(
+    receipt_subject, receipt_body, receipt_html = build_customer_receipt_email(
         order,
         subtotal=subtotal,
         shipping_fee=shipping,
@@ -2309,71 +2185,28 @@ def process_checkout():
         upload_link=upload_link,
     )
 
-    # Send the order confirmation email asynchronously in a background thread.
-    # This keeps the checkout response snappy: the DB insert commits and the
-    # success JSON is returned immediately, without waiting for SMTP network
-    # response times. Failures (missing SMTP env vars on Render, network
-    # errors, ...) only log a clear EMAIL ERROR to the console via
-    # send_order_email() and never break the checkout response.
-    def send_confirmation_email():
-        # Flask-Mail's mail.send() needs the Flask application context, which
-        # is not available in this background thread by default.
-        with app.app_context():
-            try:
-                customer_email = (order['email'] or '').strip()
-                if not customer_email:
-                    print('EMAIL ERROR: customer receipt skipped — no customer email on order #{}.'.format(order['id']))
-                    return
-                attachments = (
-                    [(invoice_filename, 'application/pdf', invoice_pdf_bytes)]
-                    if invoice_pdf_bytes else None
-                )
-                send_order_email(
-                    customer_email,
-                    email_subject,
-                    email_body,
-                    html_body=email_html,
-                    sender=SENDER_EMAIL,
-                    reply_to=REPLY_TO_EMAIL,
-                    attachments=attachments,
-                )
-            except Exception as e:
-                # Never let email break the saved order.
-                print(f"Mail Error: {e}")
+    admin_subject, admin_body, admin_html = build_admin_order_alert(
+        order,
+        shipping_fee=shipping,
+        shipping_label=shipping_label,
+        delivery_zone=delivery_zone,
+    )
 
-    threading.Thread(target=send_confirmation_email, daemon=True).start()
-
-    # Admin new-order alert: send an instant order summary alert directly to
-    # legolandcreator@gmail.com (ADMIN_NOTIFICATION_EMAIL) whenever a new
-    # order lands. Sending runs in a background thread and is fully wrapped
-    # in try/except — the order is already saved for the customer, so a
-    # mail-server failure must not fail the checkout response.
-    def send_admin_order_alert():
-        with app.app_context():
-            try:
-                admin_recipients = get_admin_email_recipients()
-                if not admin_recipients:
-                    print('EMAIL ERROR: admin order alert skipped — no ADMIN_NOTIFICATION_EMAIL / legolandcreator@gmail.com configured.')
-                    return
-                subject, text_body, html_body = build_admin_order_alert(
-                    order,
-                    shipping_fee=shipping,
-                    shipping_label=shipping_label,
-                    delivery_zone=delivery_zone,
-                )
-                send_order_email(
-                    admin_recipients,
-                    subject,
-                    text_body,
-                    html_body=html_body,
-                    sender=SENDER_EMAIL,
-                    reply_to=REPLY_TO_EMAIL,
-                )
-            except Exception as e:
-                # Never let the alert block the saved order.
-                print(f"Admin Order Alert Error: {e}")
-
-    threading.Thread(target=send_admin_order_alert, daemon=True).start()
+    send_order_email(
+        get_admin_email_recipients(),
+        admin_subject,
+        admin_body,
+        html_body=admin_html,
+    )
+    send_order_email(
+        (order['email'] or '').strip(),
+        receipt_subject,
+        receipt_body,
+        html_body=receipt_html,
+        attachments=[
+            (invoice_filename, 'application/pdf', invoice_pdf_bytes),
+        ],
+    )
 
     return jsonify({
         "success": True,
