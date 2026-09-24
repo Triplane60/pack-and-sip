@@ -1816,12 +1816,14 @@ async function submitOrder(){
     populateCheckoutHiddenFields();
 
     const formData = new FormData(document.getElementById('checkoutForm'));
+    const checkoutData = Object.fromEntries(formData.entries());
 
     // Clear the local cart and close checkout before waiting for the network request.
     resetCheckoutState();
-    const res = await fetch('/checkout', {
+    const res = await fetch('/api/checkout', {
       method: 'POST',
-      body: formData,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(checkoutData),
       credentials: 'include'
     });
     const data = await res.json();

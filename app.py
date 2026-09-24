@@ -23,7 +23,7 @@ except Exception:
 
 app = Flask(__name__, template_folder='.')
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'pack-sip-development-secret')
-CORS(app, supports_credentials=True)
+CORS(app)
 # Trust the X-Forwarded-Proto/Host headers of the hosting reverse proxy so that
 # request.host_url (used by the canonical URL, the Open Graph URL and the XML
 # sitemap) reports the public https:// address on free hosts such as Render or
