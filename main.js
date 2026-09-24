@@ -1573,8 +1573,6 @@ function showOrderPendingModal(email){
   modal.classList.remove('hidden');
   modal.classList.add('flex');
   requestAnimationFrame(() => modal.classList.remove('opacity-0'));
-  // Render the Lucide 'mail' icon in the Accounts Assistant email notice.
-  refreshIcons(modal);
 }
 
 function closeConfirmationModal(){
@@ -1807,7 +1805,6 @@ async function openConfirmationModal(){
 
 async function submitOrder(){
   if(!validateCheckoutFields()) return;
-  const email = document.getElementById('customerEmail').value.trim();
 
   try{
     // Recalculate the totals and mirror the selected items/quantities/totals
@@ -1831,7 +1828,7 @@ async function submitOrder(){
       showCustomAlert(data.error || 'Failed to place order');
       return;
     }
-    showOrderPendingModal(email);
+    showOrderPendingModal(checkoutData.email);
     // Refresh product list to reflect updated stock
     await fetchProducts();
   }catch(err){
