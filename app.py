@@ -9,6 +9,14 @@ from flask_cors import CORS
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+# Resend — outbound transactional email (admin order notifications, etc.).
+# The package is listed in requirements.txt; the API key below is the literal
+# placeholder from the Resend dashboard and is swapped for the real key at
+# deploy time. Every resend.Emails.send() call site in this file is wrapped in
+# its own try/except, so a bad key or a Resend outage can never crash a route.
+import resend
+resend.api_key = "PASTE_YOUR_API_KEY_HERE"
+
 # Load local environment variables from .env when python-dotenv is available.
 # Deployments normally inject the same values through the platform dashboard, so
 # the import is optional and never blocks startup.
@@ -1317,6 +1325,24 @@ def process_checkout():
         return jsonify({"error": f"Failed to process order: {str(e)}"}), 500
 
     conn.close()
+
+    # Admin notification email (Resend) — fired immediately AFTER the order row
+    # has been committed to app.db and the connection closed. The entire send
+    # sits in its own try/except so it can NEVER crash the checkout route: if
+    # Resend fails (bad key, network outage, API error) we just print the error
+    # and the customer still receives their normal success response below.
+    # NOTE: order is a sqlite3.Row (subscript access, not attributes), so the
+    # saved row's id/total are read via order_id and the computed `total`
+    # local — the same values stored in orders.id / orders.total_amount.
+    try:
+        resend.Emails.send({
+            "from": "Pack & Sip <onboarding@resend.dev>",
+            "to": ["jambyletesas@gmail.com"],
+            "subject": f"📦 New Order #{order_id} Received!",
+            "html": f"<h3>New Order Alert!</h3><p><strong>Customer:</strong> {name}</p><p><strong>Phone:</strong> {phone}</p><p><strong>Total:</strong> ₱{total}</p>"
+        })
+    except Exception as e:
+        print("Resend notification error:", e)
 
     return jsonify({'success': True, 'message': 'Order placed successfully!'}), 200
 

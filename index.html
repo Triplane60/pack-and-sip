@@ -289,10 +289,10 @@
         <span id="confirmOrderDownpayment">₱0.00</span>
       </div>
       <p id="confirmOrderPaymentNote" class="mt-4 text-xs leading-5 text-slate-500">A 50% downpayment is required via GCash to process your order. The remaining balance will be paid upon Lalamove delivery.</p>
-      <!-- Payment instructions: Lucide 'camera' for the email proof-of-payment. -->
+      <!-- Payment instructions: Lucide 'camera' for the proof-of-payment note. -->
       <p class="mt-2 flex items-start gap-2 text-xs leading-5 text-slate-600">
         <i data-lucide="camera" class="mt-0.5 h-3.5 w-3.5 text-indigo-600" aria-hidden="true"></i>
-        <span>After paying via GCash, REPLY directly to your email receipt with your payment screenshot/reference number.</span>
+        <span>After paying, please save your payment screenshot or reference number for verification.</span>
       </p>
       <!-- Payment Instructions: GCash wallet shown in the Order Confirmation
            Modal so customers can copy the account details before confirming.
@@ -480,13 +480,20 @@
       </div>
 
             <form id="checkoutForm" action="/checkout" method="POST" novalidate autocomplete="off" class="contents-display">
-        <div class="flex-1 overflow-y-auto">
+        <!-- Scrollable drawer body: everything between the Order Summary header
+             and the sticky submit bar. styles.css pins it as the flex child that
+             scrolls (overflow-y: auto) so the Place Order button below never
+             moves out of view. -->
+        <div class="flex-1 overflow-y-auto" id="drawerScrollBody">
           <div class="p-4" id="cartContent">
             <p class="text-sm font-medium text-slate-700">No items in cart.</p>
           </div>
           <div class="p-4 border-t space-y-2.5" id="customerForm">
             <!-- Customer details, top to bottom:
                  1. Full Name  2. Phone Number  3. Shipping Address  4. City / Location.
+                 (Items 3 and 4 are hidden while Customer Self-Booking /
+                 Warehouse Pick-up is selected — see the
+                 updateDeliveryFieldsVisibility() call in main.js.)
                  Full Name leads the form (who is ordering); the phone follows
                  directly below it and stays the primary contact channel — an SMS
                  order update is sent to it. Required, digits only, PH mobile
@@ -503,29 +510,16 @@
               <label for="customerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
               <textarea id="customerAddress" name="address" autocomplete="off" required title="Shipping Address" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
             </div>
-            <!-- Lalamove location explainer (Lalamove-only): "Why select your City / Location?"
-                 explainer directly above the City / Location dropdown.
-                 Visibility toggled via #lalamove-guide-container
-                 (display block/none) in main.js handleDeliveryMethodChange() +
-                 openCart(). Static markup — refreshIcons() converts the
-                 <i data-lucide> placeholder. -->
-            <div id="lalamove-guide-container">
-              <div class="delivery-zone-info" id="deliveryZoneInfo" role="note" aria-label="Why select your City / Location">
-                <i data-lucide="info" class="h-4 w-4" aria-hidden="true"></i>
-                <div class="delivery-zone-info-text">
-                  <strong>Why select your City / Location?</strong>
-                  <span>Estimated shipping rates are calculated based on the distance between your delivery location and our Warehouse in <strong>Bagumbayan, Taguig City</strong>, as well as the overall parcel volume.</span>
-                </div>
-              </div>
-            </div>
-            <!-- City / Location: ALWAYS enabled and visible — directly BELOW
-                 the Lalamove location explainer, for BOTH Lalamove Delivery
-                 and Customer Self-Booking / Warehouse Pick-up.
-                 It drives the Lalamove destination base rate and the dynamic
-                 payment reservation limit. The options (zone id, base rate +
-                 reservation window) come from app.py LALAMOVE_ZONE_OPTIONS so the
-                 storefront and the server always agree. -->
-            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
+            <!-- City / Location: shown ONLY for Lalamove Delivery. main.js
+                 updateDeliveryFieldsVisibility() hides this whole section
+                 (aria-hidden + .hidden) when Customer Self-Booking /
+                 Warehouse Pick-up is selected — no courier fee or payment
+                 reservation window applies there, so the picker and its
+                 explanatory notes only add form clutter. The options
+                 (zone id, base rate + reservation window) come from app.py
+                 LALAMOVE_ZONE_OPTIONS so the storefront and the server
+                 always agree. -->
+            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5" id="deliveryZoneFields">
               <label for="deliveryZone" class="block text-sm font-medium text-slate-700">City / Location</label>
               <select id="deliveryZone" name="delivery_zone" onchange="calculate()" title="City / Location — Lalamove shipping origin: Taguig" class="payment-type-select">
                 <option value="" disabled selected>Select your city / area</option>
@@ -533,8 +527,6 @@
                 <option value="{{ zone.id }}" data-rate="{{ '%.2f'|format(zone.rate) }}" data-short="{{ zone.short }}" data-reservation="{{ zone.reservation_minutes }}">{{ zone.label }} — ₱{{ '%.2f'|format(zone.rate) }}</option>
                 {% endfor %}
               </select>
-              <p class="delivery-method-hint" id="deliveryZoneNote">Estimated shipping rate calculated based on your location from Taguig + box quantity.</p>
-              <p class="delivery-method-hint" id="reservationLimitNote">Select your City / Location to see how long your payment reservation is held.</p>
             </div>
 
             <!-- Delivery Method: Option A = Lalamove Delivery (local courier
@@ -546,7 +538,6 @@
                 <input type="radio" id="deliveryMethodStandard" name="delivery_method" value="standard" checked onchange="handleDeliveryMethodChange()" title="Delivery Method: Lalamove Delivery (Local Courier Rates)" />
                 <span class="delivery-method-text">
                   <span class="delivery-method-title">Lalamove Delivery (Local Courier Rates)</span>
-                  <span class="delivery-method-hint">Estimated shipping rate calculated based on your location from Taguig + box quantity.</span>
                 </span>
               </label>
               <label class="delivery-method-option" for="deliveryMethodSelfBooking">
@@ -588,19 +579,7 @@
               <p class="text-sm font-semibold text-slate-700">Pay via GCash:</p>
               <p class="gcash-detail text-sm text-slate-700">Account Name: <strong id="gcashAccountName">RH••A E.</strong></p>
               <p class="gcash-detail text-sm text-slate-700">GCash Number: <strong id="gcashAccountNumber">0928 181 5599</strong></p>
-              <p class="delivery-method-hint">After paying, reply to your email receipt with the payment screenshot / reference number.</p>
-            </div>
-
-            <!-- GCash Reference Number (proof of payment). The 13 digits the
-                 GCash app shows after a successful transfer. Left OPTIONAL at
-                 checkout — the order is still saved as Pending Payment so the
-                 customer can pay afterwards and reply with the screenshot —
-                 but when it IS supplied it is a ready-made proof of payment
-                 for the staff dashboard. Digits only, max 13, and main.js
-                 rejects a partial value before the order is submitted. -->
-            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
-              <label for="gcashRef" class="block text-sm font-medium text-slate-700">GCash Reference Number (Optional / Required)</label>
-              <input type="text" id="gcashRef" name="gcash_ref" inputmode="numeric" placeholder="13-digit GCash Reference No." maxlength="13" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '');" title="GCash Reference Number" class="w-full rounded-md border-gray-200 p-1.5" />
+              <p class="delivery-method-hint">After paying, please save your payment screenshot or reference number for verification.</p>
             </div>
 
             <!-- Cart payload hidden fields; populated by main.js before submission -->
@@ -624,7 +603,10 @@
           </div>
         </div>
 
-        <div class="p-4 border-t sticky bottom-0 bg-white">
+        <!-- Sticky submit bar: pinned to the bottom of the drawer (see
+             #checkoutSubmitBar in styles.css) so "Place Order & Proceed" is
+             permanently visible without scrolling to the end of the form. -->
+        <div class="p-4 border-t sticky bottom-0 bg-white" id="checkoutSubmitBar">
           <button id="checkoutBtn" type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-md">Place Order & Proceed</button>
         </div>
       </form>

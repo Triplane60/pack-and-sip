@@ -116,13 +116,63 @@
   position: fixed;
   top: 0;
   right: 0;
+  /* Fixed-height flex column (the display:flex/flex-direction restatements of
+     the Tailwind classes on the markup are deliberate: they keep the drawer
+     laid out correctly even in the moment before the Tailwind CDN injects its
+     utilities, and ID specificity keeps them winning afterwards). Children:
+     header (shrink-0) + #drawerScrollBody (scrolls) + #checkoutSubmitBar
+     (sticky footer). The 100dvh fallback chain pins the bottom edge — and
+     therefore the submit bar — to the VISIBLE viewport on mobile browsers
+     whose dynamic toolbars make 100vh taller than the screen; browsers
+     without dvh support simply keep the 100vh line above. */
   height: 100vh;
+  height: 100dvh;
   max-height: 100vh;
+  display: flex;
+  flex-direction: column;
   z-index: 1000;
   box-shadow: -4px 0 20px rgba(0,0,0,0.15);
   width: 480px;
   max-width: 90vw;
   overflow-y: auto;
+}
+
+/* Checkout drawer body (#drawerScrollBody in index.html) — everything between
+   the Order Summary header and the sticky submit bar.
+   - flex: 1 1 0% + min-height: 0 let the flex item SHRINK below its content
+     height, so THIS element (not #drawerPanel) becomes the scroll container.
+     Without min-height: 0 the item's automatic minimum size (= its content
+     height) would force the whole panel to scroll instead, dragging the
+     submit bar below the fold on mobile.
+   - overflow-y: auto makes the tall cart/customer/payment content scroll
+     inside the drawer.
+   - overscroll-behavior: contain stops scroll chaining from bouncing the
+     catalog page behind the drawer on touch screens. */
+#drawerScrollBody {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* "Place Order & Proceed" bar (#checkoutSubmitBar in index.html) — the
+   always-visible sticky footer of the checkout drawer.
+   - position: sticky + bottom: 0 pin the container to the bottom edge of the
+     drawer (relative to its scrollport) while #drawerScrollBody scrolls.
+   - background: white + z-index: 10 keep page/form content from showing
+     through or painting over the bar as content moves underneath it.
+   - flex-shrink: 0 stops the flex column from ever squeezing the bar out of
+     shape when the body is very tall.
+   - padding mirrors the p-4 utility on the markup (ID beats the class, but
+     the values are identical, so the rendered spacing is unchanged). */
+#checkoutSubmitBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  flex-shrink: 0;
+  background: #fff;
+  padding: 1rem;
 }
 
 /* Hide FAB when drawer/modals are open */

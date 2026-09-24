@@ -171,10 +171,8 @@ function resetConfigurator(){
   // order starts from an explicit location choice again.
   resetDeliveryZone();
   resetDeliveryMethod();
-  updateLalamoveGuideVisibility(false);
-  updateDeliveryAddressVisibility(false);
+  updateDeliveryFieldsVisibility(false);
   syncCategoryTotals();
-  updateReservationLimitNote();
   document.getElementById('subtotal').innerText = '₱0.00';
   document.getElementById('shipping').innerText = '₱0.00';
   document.getElementById('total').innerText = '₱0.00';
@@ -349,10 +347,9 @@ async function calculate(){
   //    included in the current calculation.
   syncCategoryTotals();
   // Delivery-radios can be changed programmatically (for example by a reset),
-  // so keep hidden/required address fields + the Lalamove location explainer aligned
-  // before totals are calculated.
-  updateLalamoveGuideVisibility(getSelectedDeliveryMethod() === DELIVERY_METHOD_SELF_BOOKING);
-  updateDeliveryAddressVisibility(getSelectedDeliveryMethod() === DELIVERY_METHOD_SELF_BOOKING);
+  // so keep the conditionally-hidden Shipping Address + City / Location
+  // sections aligned with the selected method before totals are calculated.
+  updateDeliveryFieldsVisibility(isSelfBookingSelected());
 
   // Aggregate every independently-ordered catalog item (12oz/16oz/22oz cups,
   // lid styles, microwavable containers) by its own price per box.
@@ -407,9 +404,6 @@ async function calculate(){
     items
   });
 
-  // The selected City / Location also sets the dynamic payment reservation
-  // window shown under the City / Location dropdown.
-  updateReservationLimitNote();
 }
 
 function isLargeCupProduct(product){
@@ -514,18 +508,6 @@ function selectedZoneReservationMinutes(){
   return Number.isFinite(minutes) ? minutes : 0;
 }
 
-// Refresh the City / Location hint stating how long the payment reservation
-// (reserved stock + quoted pricing) is held for the selected area.
-function updateReservationLimitNote(){
-  const note = document.getElementById('reservationLimitNote');
-  if(!note) return;
-  if(!getSelectedDeliveryZone()){
-    note.textContent = 'Select your City / Location to see how long your payment reservation is held.';
-    return;
-  }
-  note.textContent = `Payment reservation limit: ${reservationWindowLabel(selectedZoneReservationMinutes())} from order confirmation (${deliveryZoneLabel()}).`;
-}
-
 function cupBoxSurcharge(cupBoxes){
   const cups = Math.max(0, parseInt(cupBoxes || 0, 10) || 0);
   if(cups <= 0) return 0;
@@ -583,28 +565,6 @@ function resetDeliveryZone(){
   if(select) select.value = '';
 }
 
-// Show or hide the shipping price tag (" — ₱XX.XX") attached to every
-// City / Location <option>. Customer Self-Booking / Warehouse Pick-up never
-// charges a courier fee, so the per-city price tags are stripped from the
-// dropdown; Lalamove Delivery restores them. The price-free base label is
-// cached on the first run (data-base-label) so toggling back and forth never
-// loses text, and option.selected/value are untouched because only the text
-// node is rewritten.
-function updateDeliveryZonePriceTags(selfBooking){
-  const select = getDeliveryZoneSelect();
-  if(!select) return;
-  Array.from(select.options).forEach(option => {
-    const rate = parseFloat(option.dataset.rate || '');
-    // The placeholder "Select your city / area" option carries no rate/price.
-    if(!Number.isFinite(rate)) return;
-    if(!option.dataset.baseLabel){
-      option.dataset.baseLabel = String(option.textContent).split(' — ')[0].trim();
-    }
-    const label = option.dataset.baseLabel;
-    option.textContent = selfBooking ? label : `${label} — ${formatPrice(rate)}`;
-  });
-}
-
 // Read the currently selected Delivery Method radio (defaults to Standard).
 function getSelectedDeliveryMethod(){
   const selected = document.querySelector('input[name="delivery_method"]:checked');
@@ -620,80 +580,59 @@ function deliveryMethodLabel(method){
   return DELIVERY_METHOD_LABELS[method || DELIVERY_METHOD_STANDARD] || DELIVERY_METHOD_LABELS[DELIVERY_METHOD_STANDARD];
 }
 
-// Keep delivery address, fee UI and location notes in sync with the chosen
-// delivery method.
-//   - Self-Booking / Warehouse Pick-up: hides ONLY the Shipping Address field
-//     and the Lalamove location explainer (#lalamove-guide-container), keeps
-//     shipping at P0.00 and relaxes address validation.
-//   - Lalamove Delivery: restores the address field, validation, the
-//     location + box surcharge fee, and the Lalamove location explainer
-//     (display: block).
-// City / Location stays visible and enabled for BOTH methods because it also
-// sets the dynamic payment reservation window.
+// Single source of truth for the conditionally-visible checkout sections,
+// kept in sync with the chosen Delivery Method (called from calculate(),
+// handleDeliveryMethodChange(), resetConfigurator() and openCart()):
+//   - Customer Self-Booking / Warehouse Pick-up: hides the Shipping Address
+//     field (#deliveryAddressFields) AND the whole City / Location section
+//     (#deliveryZoneFields) completely, and drops the address `required`
+//     attribute so validation passes without them.
+//   - Lalamove Delivery: shows both sections again and restores `required`
+//     on the address.
+// The blue "Why select your City / Location?" explainer and the helper notes
+// under the dropdown were removed from the markup entirely to reduce clutter.
 function getDeliveryAddressFields(){
   return document.getElementById('deliveryAddressFields');
 }
-// Dedicated visibility toggle for the Lalamove-only location explainer.
-// #lalamove-guide-container holds the "Why select your City / Location?"
-// explainer directly above the City / Location dropdown.
-// Lalamove Delivery -> display: block,
-// Customer Self-Booking / Warehouse Pick-up -> display: none.
-function updateLalamoveGuideVisibility(selfBooking){
-  const container = document.getElementById('lalamove-guide-container');
-  if(!container) return;
-  container.style.display = selfBooking ? 'none' : 'block';
-  if(selfBooking){
-    container.setAttribute('aria-hidden', 'true');
-  }else{
-    container.removeAttribute('aria-hidden');
-  }
-}
 
-function updateDeliveryAddressVisibility(selfBooking){
+function updateDeliveryFieldsVisibility(selfBooking){
   const fields = getDeliveryAddressFields();
   const address = document.getElementById('customerAddress');
-  const zone = getDeliveryZoneSelect();
-  // The location explainer is controlled solely by the parent container
-  // (display block/none), so do not toggle it separately here.
-  if(selfBooking && fields){
-    fields.classList.add('hidden');
-    fields.setAttribute('aria-hidden', 'true');
+  const zoneFields = document.getElementById('deliveryZoneFields');
+  if(selfBooking){
+    if(fields){
+      fields.classList.add('hidden');
+      fields.setAttribute('aria-hidden', 'true');
+    }
     if(address) address.removeAttribute('required');
-  }else if(fields){
-    fields.classList.remove('hidden');
-    fields.removeAttribute('aria-hidden');
+    if(zoneFields){
+      zoneFields.classList.add('hidden');
+      zoneFields.setAttribute('aria-hidden', 'true');
+    }
+  }else{
+    if(fields){
+      fields.classList.remove('hidden');
+      fields.removeAttribute('aria-hidden');
+    }
     if(address) address.setAttribute('required', '');
+    if(zoneFields){
+      zoneFields.classList.remove('hidden');
+      zoneFields.removeAttribute('aria-hidden');
+    }
   }
-  // The City / Location selector is never disabled or hidden: it feeds both the
-  // Lalamove base rate and the payment reservation limit.
+  // The <select> itself stays ENABLED while hidden so a city picked earlier
+  // survives switching back to Lalamove Delivery; only its section is hidden.
+  const zone = getDeliveryZoneSelect();
   if(zone){
     zone.removeAttribute('disabled');
     zone.disabled = false;
   }
-  // Strip the per-city shipping price tags from the dropdown while
-  // Self-Booking / Pick-up is active (shipping is P0.00); Lalamove restores them.
-  updateDeliveryZonePriceTags(selfBooking);
-  const zoneNote = document.getElementById('deliveryZoneNote');
-  if(zoneNote){
-    zoneNote.textContent = selfBooking
-      ? 'Warehouse pick-up: shipping is free. Your City / Location sets your payment reservation window.'
-      : 'Estimated shipping rate calculated based on your location from Taguig + box quantity.';
-  }
 }
 
-// Delivery Method radio change: refresh fee totals first, then show or hide
-// the Lalamove-specific address inputs + the location explainer
-// (#lalamove-guide-container: block for Lalamove, none for Self-Booking).
-// The explainer is static markup, so no DOM rewrite is needed; re-run
-// lucide.createIcons() via refreshIcons() for the info icon.
+// Delivery Method radio change: re-sync which form sections are visible
+// (Shipping Address + City / Location), then recalculate the totals.
 function handleDeliveryMethodChange(){
-  const selfBooking = isSelfBookingSelected();
-  updateLalamoveGuideVisibility(selfBooking);
-  updateDeliveryAddressVisibility(selfBooking);
-  refreshIcons();
-  if(window.lucide && typeof window.lucide.createIcons === 'function'){
-    try { window.lucide.createIcons(); } catch(err) { /* decorative only */ }
-  }
+  updateDeliveryFieldsVisibility(isSelfBookingSelected());
   calculate();
 }
 
@@ -701,8 +640,7 @@ function handleDeliveryMethodChange(){
 function resetDeliveryMethod(){
   const standard = document.getElementById('deliveryMethodStandard');
   if(standard) standard.checked = true;
-  updateLalamoveGuideVisibility(false);
-  updateDeliveryAddressVisibility(false);
+  updateDeliveryFieldsVisibility(false);
 }
 
 function updateSummary(data){
@@ -800,13 +738,18 @@ function openCart(){
   panel.classList.add('drawer-open-state');
   panel.setAttribute('aria-hidden','false');
   document.body.classList.add('drawer-open');
+  // Reopen the drawer at the top of its scrollable body (#drawerScrollBody)
+  // so the Order Summary header and the sticky "Place Order & Proceed" bar
+  // (#checkoutSubmitBar) are framed exactly as the customer last saw them —
+  // never stranded mid-scroll from a previous session.
+  const drawerBody = document.getElementById('drawerScrollBody');
+  if(drawerBody){ drawerBody.scrollTop = 0; }
   updateBackToTopButton();
   updateCheckoutTotals();
-  // Sync the Lalamove location explainer with the CURRENT radio selection
-  // immediately upon opening so the initial state is always accurate
-  // (Lalamove -> display block, Self-Booking -> display none).
-  updateLalamoveGuideVisibility(isSelfBookingSelected());
-  updateDeliveryAddressVisibility(isSelfBookingSelected());
+  // Sync the conditionally-hidden Shipping Address + City / Location sections
+  // with the CURRENT radio selection immediately upon opening so the initial
+  // state is always accurate.
+  updateDeliveryFieldsVisibility(isSelfBookingSelected());
   // The drawer holds static Lucide placeholders; convert them on every open in
   // case the CDN loaded after the initial page render.
   refreshIcons();
@@ -1228,11 +1171,10 @@ async function logout(){
   localStorage.clear();
   sessionStorage.clear();
 
-  // Explicitly clear the checkout input values (phone, name, address, GCash ref).
+  // Explicitly clear the checkout input values (phone, name, address).
   document.getElementById('customerPhone').value = '';
   document.getElementById('customerName').value = '';
   document.getElementById('customerAddress').value = '';
-  document.getElementById('gcashRef').value = '';
 
   // Hard-reset the UI back to the guest state.
   window.location.reload();
@@ -1559,7 +1501,6 @@ function closeOrderPendingModal(){
   document.getElementById('customerPhone').value = '';
   document.getElementById('customerName').value = '';
   document.getElementById('customerAddress').value = '';
-  document.getElementById('gcashRef').value = '';
 }
 
 function showOrderPendingModal(phone, amounts){
@@ -1623,7 +1564,6 @@ function resetCheckoutState(){
   document.getElementById('customerPhone').value = '';
   document.getElementById('customerName').value = '';
   document.getElementById('customerAddress').value = '';
-  document.getElementById('gcashRef').value = '';
 }
 
 
@@ -1647,21 +1587,12 @@ function validateCheckoutFields(){
     return false;
   }
 
-  // GCash Reference Number (proof of payment): optional at checkout — the order
-  // can be saved as Pending Payment and paid afterwards. A PARTIAL value is
-  // rejected so every reference stored for the staff dashboard is a complete,
-  // verifiable 13-digit GCash reference.
-  const gcashRefField = document.getElementById('gcashRef');
-  const gcashRef = gcashRefField ? gcashRefField.value.trim() : '';
-  if(gcashRef && !/^\d{13}$/.test(gcashRef)){
-    showCustomAlert('Please enter the complete 13-digit GCash reference number, or leave the field blank if you have not paid yet.');
-    return false;
-  }
-
-  // City / Location is required for BOTH delivery methods: it drives the
-  // Lalamove base rate and the dynamic payment reservation window.
-  if(!getSelectedDeliveryZone()){
-    showCustomAlert('Please select your City / Location so we can set your delivery fee and payment reservation window.');
+  // City / Location is required for Lalamove Delivery only: it drives the
+  // Lalamove base rate. The picker is hidden entirely for Customer
+  // Self-Booking / Warehouse Pick-up (no courier fee applies), so the check
+  // is skipped there.
+  if(!selfBooking && !getSelectedDeliveryZone()){
+    showCustomAlert('Please select your City / Location so we can set your delivery fee.');
     return false;
   }
 
