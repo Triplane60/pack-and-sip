@@ -508,6 +508,7 @@ def init_db():
             email TEXT,
             customer_address TEXT NOT NULL,
             customer_phone TEXT NOT NULL,
+            gcash_ref TEXT,
             payment_method TEXT NOT NULL DEFAULT 'Cash on Delivery',
             delivery_method TEXT NOT NULL DEFAULT 'standard',
             delivery_zone TEXT NOT NULL DEFAULT 'taguig_city',
@@ -560,6 +561,10 @@ def init_db():
         cursor.execute("ALTER TABLE orders ADD COLUMN total_amount REAL NOT NULL DEFAULT 0")
     if 'created_at' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN created_at TEXT")
+    if 'gcash_ref' not in order_columns:
+        # GCash Reference Number (13-digit proof of payment) captured at
+        # checkout; NULL when the customer has not paid yet.
+        cursor.execute("ALTER TABLE orders ADD COLUMN gcash_ref TEXT")
     conn.commit()
 
     conn.close()
@@ -954,7 +959,8 @@ def get_admin_orders():
             status,
             payment_status,
             COALESCE(delivery_method, 'standard') AS delivery_method,
-            COALESCE(delivery_zone, 'taguig_city') AS delivery_zone
+            COALESCE(delivery_zone, 'taguig_city') AS delivery_zone,
+            gcash_ref
         FROM orders
         ORDER BY created_at DESC, id DESC
     ''').fetchall()
@@ -1148,6 +1154,15 @@ def process_checkout():
     email = (data.get('email') or '').strip()
     address = (data.get('address') or '').strip()
     phone = (data.get('phone') or '').strip()
+    # GCash Reference Number (proof of payment): OPTIONAL — the storefront saves
+    # the order as Pending Payment so the customer can pay afterwards and send
+    # the screenshot/reference by email. When a value IS supplied it must be a
+    # complete 13-digit GCash reference so the staff dashboard always shows a
+    # verifiable proof of payment (blank is stored as NULL).
+    gcash_ref = (data.get('gcash_ref') or '').strip()
+    if gcash_ref and not (len(gcash_ref) == 13 and gcash_ref.isascii() and gcash_ref.isdigit()):
+        return jsonify({"error": "Please enter a valid 13-digit GCash reference number, or leave it blank."}), 400
+    gcash_ref = gcash_ref or None
     payment_type = (data.get('payment_type') or '50_percent').strip()
     payment_method = (data.get('payment_method') or '').strip()
     if not payment_method:
@@ -1288,9 +1303,9 @@ def process_checkout():
         created_at = datetime.datetime.utcnow().isoformat()
 
         cursor.execute('''
-            INSERT INTO orders (user_id, customer_name, email, customer_address, customer_phone, payment_method, delivery_method, delivery_zone, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total_amount, downpayment_amount, remaining_balance, payment_status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, name, email, address, phone, payment_method, delivery_method, delivery_zone, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total, downpayment_amount, remaining_balance, payment_status, created_at))
+            INSERT INTO orders (user_id, customer_name, email, customer_address, customer_phone, payment_method, delivery_method, delivery_zone, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total_amount, downpayment_amount, remaining_balance, payment_status, created_at, gcash_ref)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, name, email, address, phone, payment_method, delivery_method, delivery_zone, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total, downpayment_amount, remaining_balance, payment_status, created_at, gcash_ref))
 
 
         order_id = cursor.lastrowid

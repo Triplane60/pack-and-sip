@@ -88,6 +88,7 @@
               <th class="px-5 py-4 font-semibold">Shipping Address</th>
               <th class="px-5 py-4 font-semibold">Items</th>
               <th class="px-5 py-4 font-semibold">Total</th>
+              <th class="px-5 py-4 font-semibold">GCash Ref</th>
               <th class="px-5 py-4 font-semibold">Status</th>
               <th class="px-5 py-4 font-semibold">Actions</th>
               <th class="px-5 py-4 font-semibold text-right">Delete</th>
@@ -244,6 +245,18 @@
     }
 
 
+    // GCash Reference Number (proof of payment) submitted at checkout. Staff
+    // match these 13 digits against the GCash app before marking an order Paid;
+    // orders paid afterwards show "Not provided" until the customer sends the
+    // reference/screenshot.
+    function formatGcashRef(order) {
+      const ref = String(order.gcash_ref || '').trim();
+      if (!ref) {
+        return '<span class="text-xs font-medium italic text-slate-500">Not provided</span>';
+      }
+      return `<span class="font-mono text-xs font-bold tracking-wide text-slate-800">${ref}</span>`;
+    }
+
     function renderOrders(orders) {
       ordersTableBody.replaceChildren();
       emptyState.classList.toggle('hidden', orders.length !== 0);
@@ -264,6 +277,7 @@
             <div>${currency.format(Number(order.total_amount || 0))}</div>
             ${order.payment_status ? `<div class="mt-1 text-xs font-medium text-indigo-600">Payment: ${order.payment_status}</div>` : ''}
           </td>
+          <td class="whitespace-nowrap px-5 py-4">${formatGcashRef(order)}</td>
           <td class="px-5 py-4"><select data-order-id="${order.id}" class="status-select rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" onchange="toggleDeleteButton(${order.id}, this.value)">${statuses.map(status => `<option value="${status}" ${status === order.status ? 'selected' : ''}>${status}</option>`).join('')}</select></td>
           <td class="px-5 py-4">
             <div class="flex flex-col gap-2">

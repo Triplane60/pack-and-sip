@@ -1228,10 +1228,11 @@ async function logout(){
   localStorage.clear();
   sessionStorage.clear();
 
-  // Explicitly clear the checkout input values (phone, name, address).
+  // Explicitly clear the checkout input values (phone, name, address, GCash ref).
   document.getElementById('customerPhone').value = '';
   document.getElementById('customerName').value = '';
   document.getElementById('customerAddress').value = '';
+  document.getElementById('gcashRef').value = '';
 
   // Hard-reset the UI back to the guest state.
   window.location.reload();
@@ -1558,6 +1559,7 @@ function closeOrderPendingModal(){
   document.getElementById('customerPhone').value = '';
   document.getElementById('customerName').value = '';
   document.getElementById('customerAddress').value = '';
+  document.getElementById('gcashRef').value = '';
 }
 
 function showOrderPendingModal(phone, amounts){
@@ -1621,6 +1623,7 @@ function resetCheckoutState(){
   document.getElementById('customerPhone').value = '';
   document.getElementById('customerName').value = '';
   document.getElementById('customerAddress').value = '';
+  document.getElementById('gcashRef').value = '';
 }
 
 
@@ -1641,6 +1644,17 @@ function validateCheckoutFields(){
 
   if(!/^09\d{9}$/.test(phone)){
     showCustomAlert('Please enter a valid Philippine mobile number in the format 09123456789.');
+    return false;
+  }
+
+  // GCash Reference Number (proof of payment): optional at checkout — the order
+  // can be saved as Pending Payment and paid afterwards. A PARTIAL value is
+  // rejected so every reference stored for the staff dashboard is a complete,
+  // verifiable 13-digit GCash reference.
+  const gcashRefField = document.getElementById('gcashRef');
+  const gcashRef = gcashRefField ? gcashRefField.value.trim() : '';
+  if(gcashRef && !/^\d{13}$/.test(gcashRef)){
+    showCustomAlert('Please enter the complete 13-digit GCash reference number, or leave the field blank if you have not paid yet.');
     return false;
   }
 

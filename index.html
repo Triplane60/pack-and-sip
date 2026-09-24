@@ -591,6 +591,18 @@
               <p class="delivery-method-hint">After paying, reply to your email receipt with the payment screenshot / reference number.</p>
             </div>
 
+            <!-- GCash Reference Number (proof of payment). The 13 digits the
+                 GCash app shows after a successful transfer. Left OPTIONAL at
+                 checkout — the order is still saved as Pending Payment so the
+                 customer can pay afterwards and reply with the screenshot —
+                 but when it IS supplied it is a ready-made proof of payment
+                 for the staff dashboard. Digits only, max 13, and main.js
+                 rejects a partial value before the order is submitted. -->
+            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5">
+              <label for="gcashRef" class="block text-sm font-medium text-slate-700">GCash Reference Number (Optional / Required)</label>
+              <input type="text" id="gcashRef" name="gcash_ref" inputmode="numeric" placeholder="13-digit GCash Reference No." maxlength="13" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '');" title="GCash Reference Number" class="w-full rounded-md border-gray-200 p-1.5" />
+            </div>
+
             <!-- Cart payload hidden fields; populated by main.js before submission -->
             <input type="hidden" id="checkoutCupId" name="cup_id" value="" title="Checkout cup ID" />
             <input type="hidden" id="checkoutCupSize" name="cup_size" value="" title="Checkout cup size" />
