@@ -2157,56 +2157,63 @@ def process_checkout():
     base_url = get_site_base_url()
     upload_link = f"{base_url}/upload-receipt?order_id={order_id}"
 
-    # Render the invoice and create the PDF attached to the customer receipt.
-    invoice_filename = f"PackAndSip_Invoice_Order_{order_id}.pdf"
-    invoice_html = render_invoice_html(
-        dict(order), unit_prices, upload_link,
-        shipping_fee=shipping,
-        shipping_label=shipping_label,
-        is_dynamic_cod=is_dynamic_cod,
-        delivery_method=delivery_method,
-        delivery_zone=delivery_zone,
-        shipping_breakdown=shipping_breakdown,
-    )
-    invoice_pdf_bytes = build_invoice_pdf(invoice_html)
+    # Email delivery is non-critical to checkout. The order is already saved,
+    # so PDF generation, email generation, or SMTP failures must not return 500.
+    try:
+        invoice_filename = f"PackAndSip_Invoice_Order_{order_id}.pdf"
+        invoice_html = render_invoice_html(
+            dict(order), unit_prices, upload_link,
+            shipping_fee=shipping,
+            shipping_label=shipping_label,
+            is_dynamic_cod=is_dynamic_cod,
+            delivery_method=delivery_method,
+            delivery_zone=delivery_zone,
+            shipping_breakdown=shipping_breakdown,
+        )
+        invoice_pdf_bytes = build_invoice_pdf(invoice_html)
 
-    receipt_subject, receipt_body, receipt_html = build_customer_receipt_email(
-        order,
-        subtotal=subtotal,
-        shipping_fee=shipping,
-        total_due=total,
-        amount_due_now=downpayment_amount,
-        remaining_balance=remaining_balance,
-        payment_type=payment_type,
-        delivery_method=delivery_method,
-        delivery_zone=delivery_zone,
-        shipping_label=shipping_label,
-        shipping_breakdown=shipping_breakdown,
-        upload_link=upload_link,
-    )
+        receipt_subject, receipt_body, receipt_html = build_customer_receipt_email(
+            order,
+            subtotal=subtotal,
+            shipping_fee=shipping,
+            total_due=total,
+            amount_due_now=downpayment_amount,
+            remaining_balance=remaining_balance,
+            payment_type=payment_type,
+            delivery_method=delivery_method,
+            delivery_zone=delivery_zone,
+            shipping_label=shipping_label,
+            shipping_breakdown=shipping_breakdown,
+            upload_link=upload_link,
+        )
 
-    admin_subject, admin_body, admin_html = build_admin_order_alert(
-        order,
-        shipping_fee=shipping,
-        shipping_label=shipping_label,
-        delivery_zone=delivery_zone,
-    )
+        admin_subject, admin_body, admin_html = build_admin_order_alert(
+            order,
+            shipping_fee=shipping,
+            shipping_label=shipping_label,
+            delivery_zone=delivery_zone,
+        )
 
-    send_order_email(
-        get_admin_email_recipients(),
-        admin_subject,
-        admin_body,
-        html_body=admin_html,
-    )
-    send_order_email(
-        (order['email'] or '').strip(),
-        receipt_subject,
-        receipt_body,
-        html_body=receipt_html,
-        attachments=[
-            (invoice_filename, 'application/pdf', invoice_pdf_bytes),
-        ],
-    )
+        send_order_email(
+            get_admin_email_recipients(),
+            admin_subject,
+            admin_body,
+            html_body=admin_html,
+        )
+        send_order_email(
+            (order['email'] or '').strip(),
+            receipt_subject,
+            receipt_body,
+            html_body=receipt_html,
+            attachments=[
+                (invoice_filename, 'application/pdf', invoice_pdf_bytes),
+            ],
+        )
+    except Exception:
+        app.logger.exception(
+            'Order #%s was saved, but email generation or delivery failed.',
+            order_id,
+        )
 
     return jsonify({
         "success": True,
@@ -2225,7 +2232,7 @@ def process_checkout():
         "downpayment_amount": downpayment_amount,
         "remaining_balance": remaining_balance,
         "payment_status": payment_status
-    })
+    }), 200
 
 
 @app.route('/upload-receipt', methods=['GET', 'POST'])
