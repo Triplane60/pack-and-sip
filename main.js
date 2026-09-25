@@ -661,24 +661,43 @@ function deliveryMethodLabel(method){
 }
 
 // Single source of truth for the checkout address sections. Shipping Address
-// (#deliveryAddressFields) and City / Location (#deliveryZoneFields) are part
+// (#deliveryAddressFields), the blue shipping-fee tip box
+// (#lalamove-guide-container) and City / Location (#deliveryZoneFields) are part
 // of the checkout flow again: they are VISIBLE for Lalamove Delivery and HIDDEN
 // for Customer Self-Booking / Warehouse Pick-up. updateDeliveryFieldsVisibility()
 // is called from calculate(), handleDeliveryMethodChange(), resetConfigurator()
 // and openCart() so the sections always match the selected Delivery Method.
-// The blue "Why select your City / Location?" explainer and the helper notes
-// under the dropdown were removed from the markup entirely to reduce clutter.
 function getDeliveryAddressFields(){
   return document.getElementById('deliveryAddressFields');
 }
 
+// Blue info/tip box directly above the City / Location dropdown: the itemized
+// Lalamove shipping fee per zone (Taguig City ₱60.00, Neighboring Cities
+// ₱90.00, Rest of Metro Manila ₱150.00, Nearby Provinces ₱280.00, Outer
+// Provincial ₱450.00 — see app.py LALAMOVE_ZONE_OPTIONS). styles.css documents
+// this contract: display block for Lalamove Delivery, display none for
+// Customer Self-Booking / Warehouse Pick-up. It always moves together with the
+// Shipping Address + City / Location sections.
+function updateLalamoveGuideVisibility(showGuide){
+  const guide = document.getElementById('lalamove-guide-container');
+  if(!guide) return;
+  guide.classList.toggle('hidden', !showGuide);
+  if(showGuide){
+    guide.removeAttribute('aria-hidden');
+    guide.style.display = '';
+  } else {
+    guide.setAttribute('aria-hidden', 'true');
+    guide.style.display = 'none';
+  }
+}
+
 // Dynamic address visibility for the checkout drawer:
-//   - Lalamove Delivery (selfBooking === false)             -> SHOW both
-//     "Shipping Address" and "City / Location" so the courier destination
-//     (needed for the zone-based fee) can be captured.
+//   - Lalamove Delivery (selfBooking === false)             -> SHOW the blue
+//     shipping-fee tip box, "Shipping Address" and "City / Location" so the
+//     courier destination (needed for the zone-based fee) can be captured.
 //   - Customer Self-Booking / Warehouse Pick-up
-//     (selfBooking === true, the default)                   -> HIDE both
-//     sections again; no courier destination is collected for pick-up.
+//     (selfBooking === true, the default)                   -> HIDE all three
+//     again; no courier destination is collected for pick-up.
 function updateDeliveryFieldsVisibility(selfBooking){
   const showFields = !selfBooking;
   const fields = getDeliveryAddressFields();
@@ -697,6 +716,8 @@ function updateDeliveryFieldsVisibility(selfBooking){
   };
   setSectionVisible(fields, showFields);
   setSectionVisible(zoneFields, showFields);
+  // Blue fee-breakdown tip box rides along with the two sections above.
+  updateLalamoveGuideVisibility(showFields);
   // Shipping Address is required only while Lalamove Delivery needs it
   // (mirrors the server-side check in app.py); hidden sections are never
   // required, so Self-Booking / Pick-up submissions stay unaffected.
@@ -717,7 +738,7 @@ function updateDeliveryFieldsVisibility(selfBooking){
 }
 
 // Delivery Method radio change: re-sync which form sections are visible
-// (Shipping Address + City / Location), then recalculate the totals.
+// (blue fee tip box + Shipping Address + City / Location), then recalculate.
 function handleDeliveryMethodChange(){
   updateDeliveryFieldsVisibility(isSelfBookingSelected());
   calculate();
@@ -847,8 +868,8 @@ function openCart(){
   updateBackToTopButton();
   updateCheckoutTotals();
   // Sync the conditionally-hidden Shipping Address + City / Location sections
-  // with the CURRENT radio selection immediately upon opening so the initial
-  // state is always accurate.
+  // and the blue fee-breakdown tip box with the CURRENT radio selection
+  // immediately upon opening so the initial state is always accurate.
   updateDeliveryFieldsVisibility(isSelfBookingSelected());
   // The drawer holds static Lucide placeholders; convert them on every open in
   // case the CDN loaded after the initial page render.

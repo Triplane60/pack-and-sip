@@ -548,6 +548,29 @@
                  LALAMOVE_ZONE_OPTIONS so the storefront and the server
                  always agree. -->
             <div class="border border-slate-300 rounded-lg p-3 space-y-2.5 hidden" id="deliveryZoneFields" aria-hidden="true" style="display:none;">
+              <!-- Blue tip box: itemized Lalamove shipping fee per City / Location
+                   zone, rendered directly above the dropdown. main.js
+                   updateLalamoveGuideVisibility() (called from
+                   updateDeliveryFieldsVisibility()) shows it together with the
+                   Shipping Address + City / Location fields for Lalamove Delivery
+                   and hides it for Customer Self-Booking / Warehouse Pick-up.
+                   The rates mirror app.py LALAMOVE_ZONE_OPTIONS (origin: Taguig)
+                   so the tip box, the <option data-rate> values and the server
+                   always agree. -->
+              <div id="lalamove-guide-container" aria-hidden="true" style="display:none;" class="hidden">
+                <div class="delivery-zone-info" role="note">
+                  <i data-lucide="info" aria-hidden="true"></i>
+                  <div class="delivery-zone-info-text">
+                    <strong>Shipping Fee per City / Location</strong>
+                    <span>Your City / Location sets the Lalamove base rate from our Taguig warehouse (box quantities add a small per-box surcharge):</span>
+                    <span class="block"><strong>Taguig City</strong> — ₱60.00</span>
+                    <span class="block"><strong>Neighboring Cities</strong> (Makati, Pasig, Pateros) — ₱90.00</span>
+                    <span class="block"><strong>Rest of Metro Manila</strong> — ₱150.00</span>
+                    <span class="block"><strong>Nearby Provinces</strong> (Rizal, Cavite, Laguna, Bulacan) — ₱280.00</span>
+                    <span class="block"><strong>Outer Provincial</strong> — ₱450.00</span>
+                  </div>
+                </div>
+              </div>
               <label for="deliveryZone" class="block text-sm font-medium text-slate-700">City / Location</label>
               <select id="deliveryZone" name="delivery_zone" onchange="calculate()" title="City / Location — Lalamove shipping origin: Taguig" class="payment-type-select" tabindex="-1">
                 <option value="" disabled>Select your city / area</option>
