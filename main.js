@@ -525,7 +525,7 @@ const SELF_BOOKING_NOTE = "Note: You will book your own rider (Lalamove/Grab) on
 const WAREHOUSE_PICKUP_ADDRESS = '175 M.L.Q. St., Bagumbayan, Taguig City';
 // Warehouse contact number shown directly below the Pick-up Address in the
 // Confirm Order modal whenever Self-Booking / Pick-up details are rendered.
-const WAREHOUSE_CONTACT_NUMBER = '[Insert Phone Number Here]';
+const WAREHOUSE_CONTACT_NUMBER = '0928 181 5599';
 
 // ---------------------------------------------------------------------------
 // Lalamove local courier shipping (origin: Taguig City). The destination base
@@ -916,16 +916,13 @@ async function clearCartItems(){
 
 // ---------------------------------------------------------------------------
 // GCash payment details for the Payment Instructions boxes in the checkout
-// drawer (#gcashAccountName / #gcashAccountNumber / #gcashAccountName2 /
-// #gcashAccountNumber2), the Order Confirmation Modal (#confirmGcash*), and the
-// post-checkout Order Placed modal (#pendingGcash*). Two accounts are listed
-// so transactions won't hit daily limits. Defined once here so every payment
-// screen shows the same wallet details.
+// drawer (#gcashAccountName / #gcashAccountNumber), the Order Confirmation
+// Modal (#confirmGcash*), and the post-checkout Order Placed modal
+// (#pendingGcash*). A single account is listed as the sole payment option.
+// Defined once here so every payment screen shows the same wallet details.
 // ---------------------------------------------------------------------------
 const GCASH_ACCOUNT_1_NAME = 'RH••A E.';
 const GCASH_ACCOUNT_1_NUMBER = '0928 181 5599';
-const GCASH_ACCOUNT_2_NAME = 'JE••••N ER•••T E.';
-const GCASH_ACCOUNT_2_NUMBER = '0966 745 3719';
 // Legacy aliases (kept so any other code referencing the single-account names
 // keeps working — they point at Option 1).
 const GCASH_ACCOUNT_NAME = GCASH_ACCOUNT_1_NAME;
@@ -939,14 +936,6 @@ function renderGcashInstructions(){
   ['gcashAccountNumber', 'confirmGcashAccountNumber', 'pendingGcashAccountNumber'].forEach((id) => {
     const el = document.getElementById(id);
     if(el) el.textContent = GCASH_ACCOUNT_1_NUMBER;
-  });
-  ['gcashAccountName2', 'confirmGcashAccountName2', 'pendingGcashAccountName2'].forEach((id) => {
-    const el = document.getElementById(id);
-    if(el) el.textContent = GCASH_ACCOUNT_2_NAME;
-  });
-  ['gcashAccountNumber2', 'confirmGcashAccountNumber2', 'pendingGcashAccountNumber2'].forEach((id) => {
-    const el = document.getElementById(id);
-    if(el) el.textContent = GCASH_ACCOUNT_2_NUMBER;
   });
 }
 
