@@ -40,7 +40,17 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 # re-deploy started from a different working directory) opens the SAME app.db.
 # A relative path would silently create a fresh, default-seeded database
 # whenever the working directory changed — wiping real stock counts.
-DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app.db')
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(APP_DIR, 'app.db')
+# Legacy Flask "instance folder" layout. It is honoured ONLY when app.db is
+# missing, so a deployment that previously kept its data in instance/app.db
+# keeps using THAT database instead of being handed a brand-new, empty file.
+LEGACY_INSTANCE_DB_FILE = os.path.join(APP_DIR, 'instance', 'app.db')
+
+# Tables the application needs. init_db() uses this to decide whether the
+# schema still has to be created and whether default stock may be seeded.
+REQUIRED_TABLES = ('users', 'products', 'orders')
+
 MICROWAVABLE_PRICE_PER_BOX = 1500.0
 
 # Uploaded payment proofs (GCash screenshots from the Order Confirmation Modal
@@ -347,51 +357,139 @@ def shipping_breakdown_text(breakdown):
     return ' + '.join(parts)
 
 
+def resolve_db_file():
+    """Return the database file to open WITHOUT ever discarding existing data.
+
+    Preference order:
+      1. app.db next to this script (the canonical location).
+      2. instance/app.db (legacy Flask instance layout) — used ONLY when the
+         canonical file is missing, so a deployment that previously stored its
+         data there keeps using it instead of silently starting from a fresh,
+         empty app.db.
+    """
+    if os.path.isfile(DB_FILE):
+        return DB_FILE
+    if os.path.isfile(LEGACY_INSTANCE_DB_FILE):
+        return LEGACY_INSTANCE_DB_FILE
+    return DB_FILE
+
+
+def database_file_exists():
+    """True when a database FILE is already present on disk.
+
+    MUST be evaluated BEFORE sqlite3.connect(): connecting to a missing path
+    silently CREATES an empty database file, which would make an existing
+    installation look like a brand-new one.
+    """
+    return os.path.isfile(resolve_db_file())
+
+
+def existing_table_names(conn):
+    """Return the set of user tables currently stored in the database."""
+    rows = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchall()
+    return {row[0] for row in rows}
+
+
 def get_db():
     """Establish and return a database connection with dict-like row access."""
-    conn = sqlite3.connect(DB_FILE)
+    # timeout=30 waits (instead of raising "database is locked") while another
+    # write is in flight, so a concurrent request can never lose its write.
+    # resolve_db_file() keeps an existing instance/app.db in use when app.db is
+    # absent rather than quietly creating a new, empty store.
+    conn = sqlite3.connect(resolve_db_file(), timeout=30)
     conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
-    """Initialize the database schema and seed initial inventory if empty."""
+    """Create the schema on a fresh install and run ADDITIVE migrations only.
+
+    DATA-SAFETY CONTRACT — a restart or re-deploy must never wipe real data:
+      1. The database FILE is resolved and checked BEFORE connecting, because
+         sqlite3.connect() would otherwise create a brand-new empty app.db and
+         make an existing installation look like a fresh one.
+      2. Table setup runs ONLY when the schema is missing or incomplete, and it
+         is always ``CREATE TABLE IF NOT EXISTS``. This module contains NO
+         DROP TABLE and NO drop_all()/delete-all call, so every existing table
+         and row survives untouched.
+      3. Default product stock is seeded ONLY while the products table is
+         COMPLETELY EMPTY. As soon as a single product row exists, every
+         ``stock_boxes`` value is read back from the database and preserved.
+      4. On an already-initialized database only ADDITIVE column migrations
+         (ALTER TABLE ... ADD COLUMN) and value-guarded legacy backfills run —
+         none of them ever writes ``stock_boxes``.
+    """
+    db_path = resolve_db_file()
+    if db_path != DB_FILE:
+        print(f"[init_db] app.db not found — reusing the existing legacy database at {db_path}")
+
+    # Checked BEFORE get_db(): connecting would create the file and hide the
+    # difference between "fresh deploy" and "existing data" at the path level.
+    db_existed_before_connect = os.path.isfile(db_path)
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT NOT NULL UNIQUE COLLATE NOCASE,
-            password_hash TEXT NOT NULL,
-            full_name TEXT NOT NULL,
-            phone TEXT,
-            shipping_address TEXT
+    tables_before = existing_table_names(conn)
+    has_full_schema = db_existed_before_connect and set(REQUIRED_TABLES).issubset(tables_before)
+    if has_full_schema:
+        print(
+            "[init_db] Existing database detected with all tables present — "
+            "skipping table setup and product seeding; live data (incl. stock_boxes) is preserved."
         )
-    ''')
-
-    # Create Products Table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS products (
-            id TEXT PRIMARY KEY,
-            type TEXT NOT NULL,
-            name TEXT NOT NULL,
-            size TEXT,
-            style TEXT,
-            quantity_per_box INTEGER NOT NULL,
-            price_per_box REAL NOT NULL,
-            stock_boxes INTEGER NOT NULL,
-            description TEXT NOT NULL
+    elif db_existed_before_connect:
+        missing_tables = sorted(set(REQUIRED_TABLES) - tables_before)
+        print(
+            f"[init_db] Existing database is missing table(s) {missing_tables} — "
+            "creating only what is missing (existing tables and rows are never dropped)."
         )
-    ''')
+    else:
+        print("[init_db] No database file found — creating a fresh database and seeding default inventory.")
 
-    # Seed initial data ONLY when the products table is empty. When the table
-    # (or the whole app.db file) already exists — the normal case after a
-    # restart, re-deploy or code update — this block is skipped entirely so
-    # every existing row, and especially its stock_boxes quantity, is read
-    # straight back from the database instead of being re-seeded or reset to
-    # the default values below.
-    cursor.execute('SELECT COUNT(*) FROM products')
-    if cursor.fetchone()[0] == 0:
+    # ------------------------------------------------------------------
+    # 1. Schema. CREATE TABLE IF NOT EXISTS is a no-op for a table that
+    #    already exists, and the whole block is skipped when the full
+    #    schema is already in place (has_full_schema above). There is
+    #    intentionally no DROP TABLE / drop_all() anywhere in this file.
+    # ------------------------------------------------------------------
+    if not has_full_schema:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                password_hash TEXT NOT NULL,
+                full_name TEXT NOT NULL,
+                phone TEXT,
+                shipping_address TEXT
+            )
+        ''')
+
+        # Create Products Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS products (
+                id TEXT PRIMARY KEY,
+                type TEXT NOT NULL,
+                name TEXT NOT NULL,
+                size TEXT,
+                style TEXT,
+                quantity_per_box INTEGER NOT NULL,
+                price_per_box REAL NOT NULL,
+                stock_boxes INTEGER NOT NULL,
+                description TEXT NOT NULL
+            )
+        ''')
+
+    # ------------------------------------------------------------------
+    # 2. Seed DEFAULT inventory ONLY while the products table is COMPLETELY
+    #    EMPTY. The moment even one product row exists — the normal case
+    #    after a restart, re-deploy or code update — the entire seeding step
+    #    is skipped, so every existing row, and especially its stock_boxes
+    #    quantity, is read straight back from the database instead of being
+    #    re-seeded or reset to the defaults below.
+    # ------------------------------------------------------------------
+    existing_product_count = cursor.execute('SELECT COUNT(*) FROM products').fetchone()[0]
+    products_are_empty = existing_product_count == 0
+    if products_are_empty:
         initial_products = [
             ('cup-12oz', 'cup', 'Cups — 12 oz (Box of 1,250)', '12oz', None, 1250, 2860.0, 50, 'High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.'),
             ('cup-16oz', 'cup', 'Cups — 16 oz (Box of 1,250)', '16oz', None, 1250, 2960.0, 40, 'High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.'),
@@ -408,10 +506,16 @@ def init_db():
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', initial_products)
         conn.commit()
+    else:
+        print(
+            "[init_db] products table is not empty — default stock seed skipped; "
+            f"keeping the {existing_product_count} existing product row(s) untouched."
+        )
 
-    # New microwavable products are appended with OR IGNORE so an existing
-    # catalog (and every existing stock_boxes value) is left untouched; the
-    # defaults below apply only to brand-new rows on a fresh database.
+    # Default microwavable stock. Like the cups/lids above, these rows are
+    # inserted ONLY while the products table is completely empty (the
+    # `products_are_empty` guard below), so an existing catalog — and every
+    # existing stock_boxes value — is never touched or topped up by seed data.
     microwavable_products = [
         ('container-re-3200', 'microwavable', 'RE 3200 Rectangular Container (3,200ml)', '3,200ml', 'RE Series', 100, 1800.0, 20, 'Extra-large heavy-duty food packaging. Excellent for full-sized platter meals and catering takeaways.'),
         ('container-re-2500', 'microwavable', 'RE 2500 Rectangular Container (2,500ml)', '2,500ml', 'RE Series', 100, 1600.0, 20, 'Large capacity food containers designed for family shares, party trays, and bulk food orders.'),
@@ -423,11 +527,15 @@ def init_db():
         ('container-ro-16', 'microwavable', 'RO 16 Round Container (16 oz)', '16oz', 'RO Series', 100, 960.0, 20, 'Medium-sized durable round food containers with tight-fitting lids. Perfect for standard meals and pasta dishes.'),
         ('container-ro-10', 'microwavable', 'RO 10 Round Container (10 oz)', '10oz', 'RO Series', 100, 820.0, 20, 'Compact food-grade microwaveable round containers. Ideal for rice meals, side dishes, and small take-out servings.')
     ]
-    cursor.executemany('''
-        INSERT OR IGNORE INTO products (id, type, name, size, style, quantity_per_box, price_per_box, stock_boxes, description)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', microwavable_products)
-    conn.commit()
+    # INSERT OR IGNORE is kept as a second safety net: even if the empty-table
+    # check were somehow bypassed, an existing row could never be overwritten
+    # by these default values (and stock_boxes would stay as stored).
+    if products_are_empty:
+        cursor.executemany('''
+            INSERT OR IGNORE INTO products (id, type, name, size, style, quantity_per_box, price_per_box, stock_boxes, description)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', microwavable_products)
+        conn.commit()
 
     # IMPORTANT: none of the startup migrations/backfills below ever writes
     # stock_boxes. Inventory numbers are changed only by the two write paths
@@ -541,31 +649,41 @@ def init_db():
         conn.commit()
 
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS orders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER REFERENCES users(id),
-            customer_name TEXT NOT NULL,
-            email TEXT,
-            customer_address TEXT NOT NULL,
-            customer_phone TEXT NOT NULL,
-            gcash_ref TEXT,
-            payment_method TEXT NOT NULL DEFAULT 'Cash on Delivery',
-            delivery_method TEXT NOT NULL DEFAULT 'standard',
-            delivery_zone TEXT NOT NULL DEFAULT 'taguig_city',
-            status TEXT NOT NULL DEFAULT 'Pending',
-            cup_id TEXT,
-            cup_size TEXT,
-            cup_boxes INTEGER,
-            lid_id TEXT,
-            lid_style TEXT,
-            lid_boxes INTEGER,
-            microwavable_size TEXT,
-            total_amount REAL,
-            created_at TEXT
-        )
-    ''')
+    # Orders table. Also created only when the schema is still missing.
+    # CREATE TABLE IF NOT EXISTS is a no-op on an existing table, and the column
+    # migrations below only ever APPEND a missing column, so no existing order
+    # (or any other) row can be lost here.
+    if not has_full_schema:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER REFERENCES users(id),
+                customer_name TEXT NOT NULL,
+                email TEXT,
+                customer_address TEXT NOT NULL,
+                customer_phone TEXT NOT NULL,
+                gcash_ref TEXT,
+                payment_method TEXT NOT NULL DEFAULT 'Cash on Delivery',
+                delivery_method TEXT NOT NULL DEFAULT 'standard',
+                delivery_zone TEXT NOT NULL DEFAULT 'taguig_city',
+                status TEXT NOT NULL DEFAULT 'Pending',
+                cup_id TEXT,
+                cup_size TEXT,
+                cup_boxes INTEGER,
+                lid_id TEXT,
+                lid_style TEXT,
+                lid_boxes INTEGER,
+                microwavable_size TEXT,
+                total_amount REAL,
+                created_at TEXT
+            )
+        ''')
 
+    # ------------------------------------------------------------------
+    # 3. ADDITIVE column migrations — ALTER TABLE ... ADD COLUMN only, each
+    #    guarded by a PRAGMA table_info() presence check so it runs at most
+    #    once per column. These never rewrite, move or drop existing data.
+    # ------------------------------------------------------------------
     order_columns = [row['name'] for row in cursor.execute('PRAGMA table_info(orders)').fetchall()]
     if 'email' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN email TEXT")
