@@ -266,7 +266,10 @@
 
   <!-- Order confirmation modal -->
   <div id="confirmOrderModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 p-4" role="dialog" aria-modal="true" aria-labelledby="confirmOrderTitle">
-    <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+    <!-- Wider panel: #confirmOrderPanel in styles.css sets max-width: 650px
+         (out-specifying the Tailwind max-w-md fallback) with roomier padding,
+         a 92vh max-height and internal scrolling on short screens. -->
+    <div id="confirmOrderPanel" class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
       <div class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-indigo-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></div>
       <h2 id="confirmOrderTitle" class="mt-4 text-2xl font-bold text-slate-900">Confirm Your Order</h2>
       <p class="mt-2 text-slate-600">Is this everything you'd like to order?</p>
@@ -276,15 +279,15 @@
         <span>Note: We only sell by boxes and not by retail.</span>
       </div>
       <div id="confirmOrderItems" class="mt-5 space-y-2 rounded-lg bg-slate-50 p-4 text-sm text-slate-700"></div>
-      <div class="mt-4 flex items-center justify-between border-t border-slate-200 pt-4 font-bold text-slate-900">
+      <div class="confirm-order-row mt-4 flex items-center justify-between border-t border-slate-200 pt-4 font-bold text-slate-900">
         <span>Total</span>
         <span id="confirmOrderTotal">₱0.00</span>
       </div>
-      <div class="mt-2 flex items-center justify-between text-sm text-slate-600">
+      <div class="confirm-order-row mt-2 flex items-center justify-between text-sm text-slate-600">
         <span>Delivery Method</span>
         <span id="confirmOrderDeliveryMethod" class="font-semibold text-slate-800">Lalamove Delivery</span>
       </div>
-      <div class="mt-2 flex items-center justify-between text-sm text-slate-600">
+      <div class="confirm-order-row mt-2 flex items-center justify-between text-sm text-slate-600">
         <span>Delivery Area</span>
         <span id="confirmOrderDeliveryZone" class="font-semibold text-slate-800">—</span>
       </div>
@@ -298,11 +301,11 @@
           <span id="confirmOrderContactText" class="font-semibold text-slate-800">Contact Number: [Insert Phone Number Here]</span>
         </span>
       </div>
-      <div class="mt-2 flex items-center justify-between text-sm font-semibold text-amber-700" id="confirmOrderFullRow">
+      <div class="confirm-order-row mt-2 flex items-center justify-between text-sm font-semibold text-amber-700" id="confirmOrderFullRow">
         <span>Required Payment</span>
         <span id="confirmOrderRequiredPayment">₱0.00</span>
       </div>
-      <div class="mt-2 flex items-center justify-between text-sm font-semibold text-amber-700" id="confirmOrderDownpaymentRow">
+      <div class="confirm-order-row mt-2 flex items-center justify-between text-sm font-semibold text-amber-700" id="confirmOrderDownpaymentRow">
         <span>Required 50% Downpayment</span>
         <span id="confirmOrderDownpayment">₱0.00</span>
       </div>
@@ -326,7 +329,7 @@
            below the Payment Instructions. main.js keeps "Yes, Place Order"
            (#confirmOrderBtn) disabled until a valid image is attached here,
            then posts it to /api/checkout as the multipart field "gcash_proof". -->
-      <div class="mt-3 rounded-lg border border-slate-300 p-3 text-left">
+      <div id="confirmOrderProofBox" class="mt-3 rounded-lg border border-slate-300 p-3 text-left">
         <label for="gcashProofInput" class="block text-sm font-semibold text-slate-700">
           Upload GCash Payment Screenshot / Proof <span class="text-red-600" aria-hidden="true">*</span>
         </label>
@@ -347,7 +350,7 @@
         </p>
         <p id="confirmOrderReservationNote" class="mt-1"></p>
       </div>
-      <div class="mt-6 grid grid-cols-2 gap-3">
+      <div id="confirmOrderActions" class="mt-6 grid grid-cols-2 gap-3">
         <button id="addMoreItemsBtn" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-50">Add More Items</button>
         <!-- Locked until a valid GCash proof image is attached (main.js
              setConfirmOrderButtonEnabled toggles disabled/aria-disabled). -->

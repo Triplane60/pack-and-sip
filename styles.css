@@ -1247,3 +1247,100 @@ select:-webkit-autofill:active {
   caret-color: #1e293b;
   transition: background-color 5000s ease-in-out 0s;
 }
+
+/* ============================================================
+   Order Confirmation Modal — wider, roomier layout
+   (#confirmOrderModal / #confirmOrderPanel in index.html)
+
+   The panel used to rely solely on Tailwind's max-w-md (448px).
+   It is now 650px wide on desktop and every internal block scales
+   with it: the order-items summary, the delivery/payment detail
+   rows, the Payment Instructions box, the GCash proof upload
+   field and the two action buttons.
+
+   The ID selector (#confirmOrderPanel) out-specifies Tailwind's
+   .max-w-md / .p-6 utilities, so this width + padding hold at
+   runtime regardless of stylesheet order (same approach as
+   #drawerPanel above). max-width uses min() so the modal stays
+   fully responsive and never exceeds the viewport.
+   ============================================================ */
+#confirmOrderModal #confirmOrderPanel {
+  width: 100%;
+  /* 650px on desktop; on phones / "Desktop site" width it shrinks to the
+     available space (100% of the overlay's padded content box). */
+  max-width: min(650px, 100%);
+  padding: 28px 32px;
+  box-sizing: border-box;
+  /* Short laptop/landscape screens: the panel scrolls internally so the
+     "Add More Items" / "Yes, Place Order" buttons stay reachable. */
+  max-height: 92vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Order items summary (#confirmOrderItems): roomier breathing room in the
+   wider container. */
+#confirmOrderModal #confirmOrderItems {
+  padding: 18px 20px;
+}
+
+/* Delivery details + payment/total rows share one vertical rhythm so the
+   wider rows never look cramped or misaligned. */
+#confirmOrderModal .confirm-order-row {
+  gap: 16px;
+  min-height: 28px;
+}
+
+/* Payment Instructions box + GCash proof upload field: consistent inner
+   padding at the wider size (the max-width:1024px block below reuses the
+   same 16px/18px values for touch screens). */
+#confirmOrderModal .payment-instructions-box,
+#confirmOrderModal #confirmOrderProofBox {
+  padding: 16px 18px;
+}
+
+/* Action buttons: fill the wider grid evenly with taller tap targets. */
+#confirmOrderModal #confirmOrderActions {
+  gap: 14px;
+  margin-top: 26px;
+}
+
+#confirmOrderModal #confirmOrderActions > button {
+  min-height: 48px;
+  padding: 12px 18px;
+}
+
+/* ------------------------------------------------------------
+   Responsive steps
+   ------------------------------------------------------------ */
+/* Tablets / phones (incl. "Desktop site" mode at ~980px): go full-width
+   inside the overlay's p-4 and tighten the outer padding so no horizontal
+   scrolling is ever introduced. */
+@media (max-width: 1024px) {
+  #confirmOrderModal #confirmOrderPanel {
+    max-width: 100%;
+    padding: 22px 20px;
+  }
+
+  #confirmOrderModal .confirm-order-row {
+    gap: 12px;
+  }
+}
+
+/* Small phones: compact padding and a single-column button stack so the
+   two actions stay comfortably tappable. */
+@media (max-width: 480px) {
+  #confirmOrderModal #confirmOrderPanel {
+    padding: 18px 16px;
+  }
+
+  #confirmOrderModal #confirmOrderItems,
+  #confirmOrderModal .payment-instructions-box,
+  #confirmOrderModal #confirmOrderProofBox {
+    padding: 14px;
+  }
+
+  #confirmOrderModal #confirmOrderActions {
+    grid-template-columns: 1fr;
+  }
+}
