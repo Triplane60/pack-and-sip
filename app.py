@@ -905,7 +905,14 @@ def robots_txt():
 
 @app.route('/api/products', methods=['GET'])
 def get_products():
-    """Fetch all products from SQLite database."""
+    """Fetch all products from SQLite database.
+
+    This is the single source of truth for live inventory (``stock_boxes``).
+    The storefront (``main.js``) must always render these server values
+    instead of hardcoded defaults, so the response is marked ``no-store`` to
+    prevent browsers / proxies from serving a stale cached copy after an
+    order or an admin stock update.
+    """
     conn = get_db()
     products = conn.execute('SELECT * FROM products').fetchall()
     conn.close()
@@ -916,10 +923,17 @@ def get_products():
         # Compatible sizes for universal lids
         if item['type'] == 'lid':
             item['compatible_sizes'] = ["12oz", "16oz", "22oz"]
+        try:
+            item['stock_boxes'] = int(item.get('stock_boxes', 0) or 0)
+        except (TypeError, ValueError):
+            item['stock_boxes'] = 0
         item['in_stock'] = item['stock_boxes'] > 0
         result.append(item)
 
-    return jsonify({"products": result})
+    response = jsonify({"products": result})
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    return response
 
 
 @app.route('/manage-orders-ps.html', methods=['GET'])
@@ -1412,12 +1426,20 @@ def admin_inventory():
     conn = get_db()
     products = conn.execute('SELECT id, name, stock_boxes FROM products').fetchall()
     conn.close()
-    return jsonify({"inventory": [dict(p) for p in products]})
+    response = jsonify({"inventory": [dict(p) for p in products]})
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    return response
 
 
 @app.route('/api/admin/update-stock', methods=['POST'])
 def update_stock():
-    """Update stock_boxes for a specific product."""
+    """Update stock_boxes for a specific product.
+
+    This is the backend write path for admin stock edits: the value is
+    persisted in SQLite so the next GET /api/products (storefront refresh)
+    returns the real updated quantity.
+    """
     data = request.get_json(force=True, silent=True) or {}
     product_id = data.get('product_id')
     try:
@@ -1427,17 +1449,20 @@ def update_stock():
 
     if not product_id:
         return jsonify({"error": "Product ID required"}), 400
+    if new_stock < 0:
+        return jsonify({"error": "Stock cannot be negative"}), 400
 
     conn = get_db()
     cursor = conn.execute('UPDATE products SET stock_boxes = ? WHERE id = ?', (new_stock, product_id))
     conn.commit()
     success = cursor.rowcount > 0
+    row = conn.execute('SELECT id, name, stock_boxes FROM products WHERE id = ?', (product_id,)).fetchone() if success else None
     conn.close()
 
     if not success:
         return jsonify({"error": "Product not found"}), 404
 
-    return jsonify({"success": True, "message": "Stock updated successfully"})
+    return jsonify({"success": True, "message": "Stock updated successfully", "product": dict(row) if row else None})
 
 
 if __name__ == '__main__':

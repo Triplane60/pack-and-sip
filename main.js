@@ -1,6 +1,59 @@
 const API_BASE = '/api';
 let PRODUCTS = [];
 
+// Live inventory is owned by the server (SQLite stock_boxes surfaced through
+// GET /api/products). A localStorage snapshot is kept ONLY as an offline
+// fallback so a failed product request never renders an empty catalog — it is
+// never used to override fresher server values.
+const STOCK_CACHE_KEY = 'pack_and_sip_stock_cache_v1';
+
+function readCachedStocks(){
+  try{
+    const raw = localStorage.getItem(STOCK_CACHE_KEY);
+    if(!raw) return {};
+    const parsed = JSON.parse(raw);
+    if(!parsed || typeof parsed !== 'object') return {};
+    // Unified cache shape is { products: [...] }; derive stocks from it.
+    if(Array.isArray(parsed.products)){
+      const stocks = {};
+      parsed.products.forEach((p) => {
+        if(p && p.id !== undefined && p.id !== null) stocks[String(p.id)] = Number(p.stock_boxes) || 0;
+      });
+      return { stocks };
+    }
+    return parsed;
+  }catch(err){
+    return {};
+  }
+}
+
+function writeCachedStocks(){
+  // Unified snapshot: full server products (single cache shape). Kept as a
+  // separate helper so existing calls stay valid.
+  writeCachedProducts();
+}
+
+function applyCachedStocksFallback(){
+  // Offline fallback only: reuse the last KNOWN server stock values when the
+  // live product request fails, so a refresh without connectivity does not
+  // reset items (e.g. 16oz cups) back to stale hardcoded defaults.
+  const cached = readCachedStocks();
+  const stocks = cached && cached.stocks ? cached.stocks : {};
+  if(!stocks || Object.keys(stocks).length === 0) return false;
+  let applied = false;
+  (Array.isArray(PRODUCTS) ? PRODUCTS : []).forEach((product) => {
+    if(!product) return;
+    const key = String(product.id || '');
+    if(!key || !(key in stocks)) return;
+    const stock = Number(stocks[key]);
+    if(!Number.isFinite(stock) || stock < 0) return;
+    product.stock_boxes = Math.floor(stock);
+    product.in_stock = product.stock_boxes > 0;
+    applied = true;
+  });
+  return applied;
+}
+
 // Force browser to scroll to top on page reload
 if ('scrollRestoration' in history) {
     history.scrollRestoration = 'manual';
@@ -41,22 +94,108 @@ function formatProductPrice(product){
   return formatPrice(product ? product.price_per_box : 0);
 }
 
+function normalizeServerProducts(list){
+  // Normalize the live server payload into the single source of truth for
+  // inventory. stock_boxes always comes from the backend database — never
+  // from hardcoded frontend defaults — so admin updates and order deductions
+  // survive a page refresh.
+  return (Array.isArray(list) ? list : []).map((product) => {
+    if(!product || typeof product !== 'object') return product;
+    const stock = Number(product.stock_boxes);
+    product.stock_boxes = Number.isFinite(stock) && stock >= 0 ? Math.floor(stock) : 0;
+    product.in_stock = product.stock_boxes > 0;
+    return product;
+  });
+}
+
+function clampQtysToServerStock(){
+  // Clamp any in-progress configurator quantity to the fresh server stock.
+  // Runs only after `qtys` exists (post-DOMContentLoaded / post-fetch).
+  try{
+    if(typeof qtys === 'undefined' || !qtys) return;
+    (Array.isArray(PRODUCTS) ? PRODUCTS : []).forEach((product) => {
+      if(!product || !product.id || qtys[product.id] === undefined) return;
+      qtys[product.id] = Math.max(0, Math.min(parseInt(qtys[product.id], 10) || 0, Number(product.stock_boxes || 0)));
+    });
+  }catch(err){ /* qtys not ready yet — clamp happens on next render */ }
+}
+
+function readCachedProducts(){
+  try{
+    const raw = localStorage.getItem(STOCK_CACHE_KEY);
+    if(!raw) return [];
+    const parsed = JSON.parse(raw);
+    const list = parsed && Array.isArray(parsed.products) ? parsed.products : [];
+    return normalizeServerProducts(list);
+  }catch(err){
+    return [];
+  }
+}
+
+function writeCachedProducts(){
+  try{
+    localStorage.setItem(STOCK_CACHE_KEY, JSON.stringify({ updatedAt: Date.now(), products: PRODUCTS }));
+  }catch(err){
+    // Storage may be unavailable (private mode / quota) — server state stays
+    // authoritative, so a cache-write failure is safely ignored.
+  }
+}
+
+// Seed in-memory state synchronously from the last KNOWN server snapshot so a
+// refresh (even offline) never flashes hardcoded defaults like 16oz = 34.
+// The live fetch below always overwrites this with fresher server values.
+try{
+  const cachedProducts = readCachedProducts();
+  if(Array.isArray(cachedProducts) && cachedProducts.length > 0 && PRODUCTS.length === 0){
+    PRODUCTS = cachedProducts;
+  }
+}catch(err){ /* server fetch remains authoritative */ }
+
 async function fetchProducts(){
   try{
-    const res = await fetch(`${API_BASE}/products`);
+    // Always ask the server for the real, updated stock quantities (orders +
+    // admin updates). `cache: 'no-store'` plus the no-store response headers
+    // in app.py guarantee a refresh never reuses a stale copy (e.g. 16oz cups
+    // stuck back at 34 after being reduced to 30).
+    const res = await fetch(`${API_BASE}/products`, { cache: 'no-store' });
     if(!res.ok){
       throw new Error(`Product request failed with status ${res.status}`);
     }
     const data = await res.json();
-    PRODUCTS = Array.isArray(data) ? data : (data.products || []);
+    const list = Array.isArray(data) ? data : (data.products || []);
+    // Empty server list while we hold a cached snapshot means a transient
+    // backend issue — keep the last known server stocks, never blank/reset.
+    if((!Array.isArray(list) || list.length === 0) && PRODUCTS.length > 0){
+      renderCatalog();
+      return;
+    }
+    PRODUCTS = normalizeServerProducts(list);
+    clampQtysToServerStock();
+    // Snapshot the fresh server products (including stocks) for offline fallback only.
+    writeCachedProducts();
+    writeCachedStocks();
   }catch(err){
     // Keep PRODUCTS as an array and fall through to renderCatalog(): the
     // page-load sequence must not stop when the product endpoint is
-    // unavailable. A failed fetch simply renders an empty catalog section.
+    // unavailable. PRODUCTS already holds the last known server snapshot
+    // (seeded from localStorage at startup or from the previous successful
+    // fetch), so a refresh does NOT reset stock counts to hardcoded defaults.
     console.error('Failed to load products:', err);
-    if(!Array.isArray(PRODUCTS)) PRODUCTS = [];
+    if(!Array.isArray(PRODUCTS)) PRODUCTS = readCachedProducts();
   }
+  clampQtysToServerStock();
   renderCatalog();
+}
+
+async function refreshProductStocks(){
+  // Re-fetch live inventory after an order (or on demand) so the catalog,
+  // configurator clamps, and localStorage snapshot immediately reflect the
+  // deducted quantities stored in the database.
+  await fetchProducts();
+  updateConfiguratorActionState();
+  const { items } = getCartState();
+  renderCheckoutSummary(items);
+  updateCheckoutTotals();
 }
 
 function findProductById(id){
@@ -2006,8 +2145,9 @@ async function submitOrder(){
       return;
     }
     showOrderPendingModal(customerPhone, pendingAmounts);
-    // Refresh product list to reflect updated stock
-    await fetchProducts();
+    // Re-fetch the REAL updated stocks from the server (never hardcoded
+    // defaults) so the catalog immediately reflects the deducted quantities.
+    await refreshProductStocks();
   }catch(err){
     showCustomAlert('Network error placing order');
   }
