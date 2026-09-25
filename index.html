@@ -629,7 +629,7 @@
              #checkoutSubmitBar in styles.css) so "Place Order & Proceed" is
              permanently visible without scrolling to the end of the form. -->
         <div class="p-4 border-t sticky bottom-0 bg-white" id="checkoutSubmitBar">
-          <button id="checkoutBtn" type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-md">Place Order & Proceed</button>
+          <button id="checkoutBtn" type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-md disabled:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-60" disabled aria-disabled="true">Place Order & Proceed</button>
         </div>
       </form>
     </div>

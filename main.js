@@ -358,6 +358,29 @@ function getQty(product){
   return Math.max(0, parseInt(qtys[product.id] || 0, 10) || 0);
 }
 
+// Authoritative cart state used by both the checkout button and submission guard.
+// `items` contains products with a positive box quantity; `totalQuantity` is the
+// sum of those quantities. A cart is checkoutable only when both are non-zero.
+function getCartState(){
+  const items = PRODUCTS.filter(product => getQty(product) > 0);
+  const totalQuantity = items.reduce((total, product) => total + getQty(product), 0);
+  return { items, totalQuantity };
+}
+
+function ensureCartHasItems(){
+  const { items, totalQuantity } = getCartState();
+
+  // Keep the button accurate even if a submit is triggered programmatically
+  // before the normal cart-rendering update has finished.
+  updateCartBadges(totalQuantity);
+
+  if(items.length > 0 && totalQuantity > 0) return true;
+
+  showToast('Your cart is empty. Please add items to your cart before proceeding.');
+  return false;
+}
+
+
 function setQty(product, value){
   const parsed = Math.max(0, Math.min(parseInt(value, 10) || 0, Number(product.stock_boxes || 0)));
   qtys[product.id] = parsed;
@@ -733,6 +756,12 @@ function updateCheckoutTotals() {
   // FULL shipping fee is always charged upfront, even for 50% downpayment:
   // Initial Due = (Subtotal * 50%) + Full Shipping; Balance = Subtotal * 50%.
   let dueNow = total;
+  const checkoutButton = document.getElementById('checkoutBtn');
+  if(checkoutButton){
+    checkoutButton.disabled = totalQuantity <= 0;
+    checkoutButton.setAttribute('aria-disabled', String(checkoutButton.disabled));
+  }
+
   let remaining = 0;
 
   if (paymentType === '50_percent') {
@@ -872,6 +901,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if(checkoutForm){
     checkoutForm.addEventListener('submit', (e) => {
       e.preventDefault();
+      if(!ensureCartHasItems()) return;
       if(!currentUser){
         openAuthModalWithTab('login');
         return;
@@ -1693,6 +1723,7 @@ function populateCheckoutHiddenFields(){
   setHidden('checkoutRemainingBalance', remaining);
 }
 async function openConfirmationModal(){
+  if(!ensureCartHasItems()) return;
   // Guests authenticate before entering the order confirmation step. The auth
   // modal opens on Login, with Register available in the adjacent tab.
   if(!currentUser){
@@ -1820,6 +1851,7 @@ async function openConfirmationModal(){
 }
 
 async function submitOrder(){
+  if(!ensureCartHasItems()) return;
   // Keep the final order action protected as well as the initial checkout
   // action, so a guest cannot submit without signing in first.
   if(!currentUser){
