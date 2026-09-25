@@ -1062,13 +1062,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   const checkoutForm = document.getElementById('checkoutForm');
   if(checkoutForm){
+    // "Place Order & Proceed" (#checkoutBtn, type=submit) → Order Confirmation
+    // Modal. GUEST CHECKOUT: there is intentionally NO Login / Register gate
+    // here, so #authModal never interrupts the order summary flow and guests go
+    // straight to the "Confirm Your Order" step (see openConfirmationModal and
+    // submitOrder, which are equally ungated).
     checkoutForm.addEventListener('submit', (e) => {
       e.preventDefault();
       if(!ensureCartHasItems()) return;
-      if(!currentUser){
-        openAuthModalWithTab('login');
-        return;
-      }
       openConfirmationModal();
     });
   }
@@ -1108,6 +1109,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('addMoreItemsBtn').addEventListener('click', closeConfirmationModal);
   document.getElementById('confirmOrderBtn').addEventListener('click', submitOrder);
+  // Required GCash proof screenshot: keeps "Yes, Place Order" disabled until a
+  // valid image is attached (see setupGcashProofUpload).
+  setupGcashProofUpload();
   document.getElementById('closeModalBtn').addEventListener('click', closeOrderPendingModal);
   setupAuthModal();
   setupAccountNudgeModal();
@@ -1649,12 +1653,25 @@ function renderCustomerOrders(orders){
   orders.forEach(order => {
     const card = document.createElement('div');
     card.className = 'rounded-lg border border-slate-200 bg-white p-4';
+    // Contact identity for the order details: prefer the values stored ON the
+    // order itself (customer_name / customer_phone), which exist for guest
+    // checkouts too, and only fall back to the signed-in profile. This keeps the
+    // order details meaningful without requiring a registered account id.
+    const contactName = order.customer_name || (currentUser ? currentUser.full_name : '') || '';
+    const contactPhone = order.customer_phone || (currentUser ? currentUser.phone : '') || '';
     card.innerHTML = `
       <div class="flex items-center justify-between gap-3">
         <span class="font-semibold text-indigo-700">Order #${escapeHtml(order.id)}</span>
         ${orderStatusBadge(order.status)}
       </div>
       <p class="mt-1 text-xs font-medium text-slate-700">${escapeHtml(formatOrderDate(order.created_at))}</p>
+      <!-- Guest / Customer contact info (Name + Phone Number) shown in the order
+           details, sourced from the order record so guests without an account
+           still see who the order is for. -->
+      <div class="mt-2 rounded-md bg-slate-50 p-2 text-xs font-medium leading-5 text-slate-700">
+        <div>Name: <span class="font-semibold text-slate-800">${escapeHtml(contactName) || '—'}</span></div>
+        <div>Phone Number: <span class="font-semibold text-slate-800">${escapeHtml(contactPhone) || '—'}</span></div>
+      </div>
       <div class="mt-1 text-sm font-medium leading-5 text-slate-700">${orderItemsSummary(order)}</div>
       <div class="mt-1 flex items-end justify-between gap-3">
         <span class="text-sm font-semibold text-slate-800">Total: ${formatPrice(order.total_amount)}</span>
@@ -1780,6 +1797,114 @@ function showOrderPendingModal(phone, amounts){
   requestAnimationFrame(() => modal.classList.remove('opacity-0'));
 }
 
+// ---------------------------------------------------------------------------
+// GCash proof of payment (Order Confirmation Modal)
+// ---------------------------------------------------------------------------
+// #confirmOrderBtn ("Yes, Place Order") starts DISABLED every time the modal
+// opens and is only enabled once the customer attaches a valid image to
+// #gcashProofInput. The chosen file is POSTed to /api/checkout as the multipart
+// field "gcash_proof" (see submitOrder / app.py process_checkout).
+const GCASH_PROOF_IMAGE_TYPES = [
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+  'image/gif', 'image/bmp', 'image/heic', 'image/heif'
+];
+const GCASH_PROOF_IMAGE_EXT = /\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i;
+
+function getGcashProofInput(){
+  return document.getElementById('gcashProofInput');
+}
+
+function getGcashProofFile(){
+  const input = getGcashProofInput();
+  return (input && input.files && input.files.length) ? input.files[0] : null;
+}
+
+function isAcceptedGcashProofFile(file){
+  if(!file) return false;
+  const type = (file.type || '').toLowerCase();
+  if(type && GCASH_PROOF_IMAGE_TYPES.includes(type)) return true;
+  // Some mobile pickers hand back an empty MIME type — fall back to the
+  // filename extension so a valid .jpg/.png is never wrongly rejected.
+  return !type && GCASH_PROOF_IMAGE_EXT.test(file.name || '');
+}
+
+function setConfirmOrderButtonEnabled(enabled){
+  const btn = document.getElementById('confirmOrderBtn');
+  if(!btn) return;
+  btn.disabled = !enabled;
+  btn.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+}
+
+function resetGcashProofUpload(){
+  const input = getGcashProofInput();
+  if(input) input.value = '';
+  const preview = document.getElementById('gcashProofPreview');
+  const previewImg = document.getElementById('gcashProofPreviewImg');
+  if(previewImg) previewImg.removeAttribute('src');
+  if(preview) preview.classList.add('hidden');
+  const status = document.getElementById('gcashProofStatus');
+  if(status){
+    status.textContent = 'No file selected yet. Please attach your GCash payment screenshot (image file only).';
+    status.classList.remove('text-red-600');
+    status.classList.add('text-slate-500');
+  }
+  // The modal always re-opens with the final action locked.
+  setConfirmOrderButtonEnabled(false);
+}
+
+function handleGcashProofChange(){
+  const file = getGcashProofFile();
+  const preview = document.getElementById('gcashProofPreview');
+  const previewImg = document.getElementById('gcashProofPreviewImg');
+  const status = document.getElementById('gcashProofStatus');
+
+  const setStatus = (message, isError) => {
+    if(!status) return;
+    status.textContent = message;
+    status.classList.toggle('text-red-600', !!isError);
+    status.classList.toggle('text-slate-500', !isError);
+  };
+  const clearPreview = () => {
+    if(previewImg) previewImg.removeAttribute('src');
+    if(preview) preview.classList.add('hidden');
+  };
+
+  if(!file){
+    clearPreview();
+    setStatus('No file selected yet. Please attach your GCash payment screenshot (image file only).', false);
+    setConfirmOrderButtonEnabled(false);
+    return;
+  }
+
+  if(!isAcceptedGcashProofFile(file)){
+    clearPreview();
+    setStatus('Invalid file. Please upload an image (JPG, PNG, WEBP, GIF, BMP, HEIC).', true);
+    setConfirmOrderButtonEnabled(false);
+    return;
+  }
+
+  // Valid image: unlock "Yes, Place Order" and show the file details.
+  setConfirmOrderButtonEnabled(true);
+  setStatus(`Selected: ${file.name} (${Math.max(1, Math.round(file.size / 1024))} KB) — proof attached.`, false);
+
+  if(preview && previewImg){
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      previewImg.src = event.target.result;
+      preview.classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function setupGcashProofUpload(){
+  const input = getGcashProofInput();
+  if(!input) return;
+  input.addEventListener('change', handleGcashProofChange);
+  // Arm the disabled state as soon as the listeners are installed.
+  resetGcashProofUpload();
+}
+
 function closeConfirmationModal(){
   const modal = document.getElementById('confirmOrderModal');
   modal.classList.add('hidden');
@@ -1886,12 +2011,9 @@ function populateCheckoutHiddenFields(){
 }
 async function openConfirmationModal(){
   if(!ensureCartHasItems()) return;
-  // Guests authenticate before entering the order confirmation step. The auth
-  // modal opens on Login, with Register available in the adjacent tab.
-  if(!currentUser){
-    openAuthModalWithTab('login');
-    return;
-  }
+  // GUEST CHECKOUT: no Login / Register gate — a signed-in account is NOT
+  // required to reach the "Confirm Your Order" modal. Only the contact details
+  // (Full Name + Phone Number) are validated here.
   if(!validateCheckoutFields()) return;
 
   await calculate();
@@ -2016,17 +2138,17 @@ async function openConfirmationModal(){
   modal.classList.add('flex');
   // Lucide placeholders inside the modal are converted on first open.
   refreshIcons(modal);
+  // Re-arm the required GCash proof upload: clears any previous file/preview
+  // and locks "Yes, Place Order" again until a fresh image is attached.
+  resetGcashProofUpload();
 }
 
 async function submitOrder(){
   if(!ensureCartHasItems()) return;
-  // Keep the final order action protected as well as the initial checkout
-  // action, so a guest cannot submit without signing in first.
-  if(!currentUser){
-    closeConfirmationModal();
-    openAuthModalWithTab('login');
-    return;
-  }
+  // GUEST CHECKOUT: the final "Yes, Place Order" action is ungated as well, so
+  // #authModal can never pop up over a completed order summary. app.py's
+  // process_checkout() simply stores the order with user_id = NULL when nobody
+  // is signed in.
   if(!validateCheckoutFields()) return;
 
   try{
@@ -2035,8 +2157,23 @@ async function submitOrder(){
     await calculate();
     populateCheckoutHiddenFields();
 
-    const formData = new FormData(document.getElementById('checkoutForm'));
+    const formEl = document.getElementById('checkoutForm');
+    const formData = new FormData(formEl);
     const checkoutData = Object.fromEntries(formData.entries());
+
+    // GCash payment proof (REQUIRED): captured BEFORE resetCheckoutState()
+    // tears the modal down, so it can be appended to the multipart payload.
+    // The button is disabled while no valid image is attached, but the guard
+    // is kept as a final safety net for keyboard/JS triggered submits.
+    const proofFile = getGcashProofFile();
+    if(!proofFile || !isAcceptedGcashProofFile(proofFile)){
+      showCustomAlert('Please upload your GCash payment screenshot / proof before placing the order.');
+      return;
+    }
+    // Multipart submission: the exact same checkout fields PLUS the proof image
+    // (FormData is a snapshot, so the later form reset cannot affect it).
+    const submitData = new FormData(formEl);
+    submitData.append('gcash_proof', proofFile, proofFile.name);
     // Capture the customer's phone number before the form is reset — it is the
     // value injected into the order success popup. FormData holds it as
     // checkoutData.phone because the input carries name="phone"; reading the
@@ -2059,10 +2196,12 @@ async function submitOrder(){
 
     // Clear the local cart and close checkout before waiting for the network request.
     resetCheckoutState();
+    // NOTE: no explicit Content-Type header — the browser sets the multipart
+    // boundary itself so app.py can read BOTH request.form (the checkout
+    // fields) and request.files['gcash_proof'] (the uploaded screenshot).
     const res = await fetch('/api/checkout', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(checkoutData),
+      body: submitData,
       credentials: 'include'
     });
     const data = await res.json();

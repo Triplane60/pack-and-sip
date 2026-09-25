@@ -43,6 +43,17 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app.db')
 MICROWAVABLE_PRICE_PER_BOX = 1500.0
 
+# Uploaded payment proofs (GCash screenshots from the Order Confirmation Modal
+# and the /upload-receipt page) are written to an absolute `uploads/` folder
+# next to this script. Keeping it absolute means every process — dev server,
+# gunicorn/uwsgi, or a re-deploy started from another working directory — writes
+# to the SAME place. The relative path recorded in orders.gcash_proof is
+# `uploads/<filename>`, which the generic serve_static route can hand back.
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# Only real image files are accepted as payment proof.
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.heic', '.heif'}
+
 # ---------------------------------------------------------------------------
 # Lalamove local courier shipping (origin: Taguig City).
 #
@@ -595,6 +606,11 @@ def init_db():
         # GCash Reference Number (13-digit proof of payment) captured at
         # checkout; NULL when the customer has not paid yet.
         cursor.execute("ALTER TABLE orders ADD COLUMN gcash_ref TEXT")
+    if 'gcash_proof' not in order_columns:
+        # Relative path of the GCash payment screenshot uploaded from the Order
+        # Confirmation Modal (e.g. 'uploads/gcash_proof_12_shot.png'); NULL when
+        # the customer did not attach proof.
+        cursor.execute("ALTER TABLE orders ADD COLUMN gcash_proof TEXT")
     conn.commit()
 
     conn.close()
@@ -976,6 +992,22 @@ def admin_dashboard():
     return render_template('manage-orders-ps.html')
 
 
+@app.route('/uploads/<path:filename>')
+def serve_upload(filename):
+    """Serve an uploaded GCash payment proof (or receipt) screenshot.
+
+    Uploads live in the ABSOLUTE UPLOAD_FOLDER next to app.py, so this route
+    keeps working no matter which working directory the server was started from
+    (the generic ``/<path:filename>`` handler below resolves against the process
+    cwd instead, which would 404 after a deploy started from another folder).
+
+    Every ``orders.gcash_proof`` value stores the relative path
+    ``uploads/<filename>``, which maps 1:1 onto this route, so the admin
+    dashboard's "PAYMENT PROOF" column can load the image with a plain <img>.
+    """
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
 @app.route('/<path:filename>')
 def serve_static(filename):
     return send_from_directory('.', filename)
@@ -988,9 +1020,14 @@ def get_admin_orders():
     orders = conn.execute('''
         SELECT
             id,
+            -- Contact identity comes straight from the order row captured at
+            -- checkout (guest checkout included), so a registered account is
+            -- NEVER required to identify a customer. user_id is exposed only so
+            -- the dashboard can badge an order as Guest vs Registered.
+            user_id,
             customer_name AS full_name,
-            email,
             customer_phone AS phone_number,
+            email,
             customer_address AS shipping_address,
             payment_method,
             COALESCE(cup_boxes, 0) AS cup_boxes,
@@ -1004,7 +1041,8 @@ def get_admin_orders():
             payment_status,
             COALESCE(delivery_method, 'standard') AS delivery_method,
             COALESCE(delivery_zone, 'taguig_city') AS delivery_zone,
-            gcash_ref
+            gcash_ref,
+            gcash_proof
         FROM orders
         ORDER BY created_at DESC, id DESC
     ''').fetchall()
@@ -1190,6 +1228,11 @@ def process_checkout():
         # items, quantities and totals arrive as hidden fields in the form.
         data = {key: request.form.get(key) for key in request.form}
 
+    # GCash proof-of-payment screenshot: the Order Confirmation Modal always
+    # submits the form as multipart/form-data with the chosen image in the
+    # "gcash_proof" field (see main.js submitOrder).
+    proof_file = request.files.get('gcash_proof') if request.files else None
+
     name = (data.get('name') or '').strip()
     # Email is OPTIONAL: the storefront checkout identifies the customer by
     # Full Name + Phone Number (collected first, no email address), so no email
@@ -1354,6 +1397,29 @@ def process_checkout():
 
         order_id = cursor.lastrowid
         conn.commit()
+
+        # Persist the uploaded GCash proof AFTER the order row is committed, so
+        # a storage/disk failure can never lose the order or roll it back. The
+        # saved relative path is recorded in orders.gcash_proof for the staff
+        # dashboard.
+        if proof_file is not None and (proof_file.filename or '').strip():
+            try:
+                safe_name = secure_filename(proof_file.filename) or 'gcash_proof'
+                extension = os.path.splitext(safe_name)[1].lower()
+                if extension in IMAGE_EXTENSIONS:
+                    stored_name = f"gcash_proof_{order_id}_{safe_name}"
+                    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+                    proof_file.save(os.path.join(app.config['UPLOAD_FOLDER'], stored_name))
+                    cursor.execute(
+                        'UPDATE orders SET gcash_proof = ? WHERE id = ?',
+                        (f"uploads/{stored_name}", order_id)
+                    )
+                    conn.commit()
+                else:
+                    print(f"GCash proof ignored for order {order_id}: unsupported file type '{extension}'")
+            except Exception as proof_err:
+                print("GCash proof save error:", proof_err)
+
         order = conn.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
     except Exception as e:
         conn.rollback()

@@ -88,6 +88,10 @@
               <th class="px-5 py-4 font-semibold">Shipping Address</th>
               <th class="px-5 py-4 font-semibold">Items</th>
               <th class="px-5 py-4 font-semibold">Total</th>
+              <!-- PAYMENT PROOF: the GCash screenshot the customer uploaded in
+                   the "Confirm Your Order" modal (orders.gcash_proof). Rendered
+                   uppercase by the thead's 'uppercase' class. -->
+              <th class="px-5 py-4 font-semibold">Payment Proof</th>
               <th class="px-5 py-4 font-semibold">Status</th>
               <th class="px-5 py-4 font-semibold">Actions</th>
               <th class="px-5 py-4 font-semibold text-right">Delete</th>
@@ -127,6 +131,28 @@
       <div class="mt-6 grid grid-cols-2 gap-3">
         <button type="button" id="admin-confirm-cancel" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">Cancel</button>
         <button type="button" id="admin-confirm-ok" class="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment proof viewer: opens the GCash payment screenshot the customer
+       uploaded in the "Confirm Your Order" modal (orders.gcash_proof, served by
+       the /uploads/<filename> route in app.py) from the PAYMENT PROOF column. -->
+  <div id="proof-viewer-modal" class="fixed inset-0 z-[10000] hidden items-center justify-center bg-slate-900/70 px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="proof-viewer-title">
+    <div class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-[0.22em] text-indigo-600">GCash payment proof</p>
+          <h2 id="proof-viewer-title" class="mt-1 text-xl font-bold tracking-tight text-slate-900">GCash payment proof</h2>
+        </div>
+        <button type="button" id="proof-viewer-close-icon" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-lg font-bold text-slate-500 transition hover:bg-slate-50 hover:text-slate-800" aria-label="Close payment proof" title="Close">✕</button>
+      </div>
+      <div class="mt-4 flex max-h-[65vh] items-center justify-center overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
+        <img id="proof-viewer-image" alt="Customer GCash payment proof" class="max-h-[60vh] w-auto rounded-lg object-contain" />
+      </div>
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <a id="proof-viewer-open" href="#" target="_blank" rel="noopener" class="text-sm font-semibold text-indigo-700 hover:underline">Open in new tab</a>
+        <button type="button" id="proof-viewer-close" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Close</button>
       </div>
     </div>
   </div>
@@ -206,8 +232,57 @@
       message.className = `border-b px-5 py-3 text-sm ${isError ? 'border-red-100 bg-red-50 text-red-700' : 'border-emerald-100 bg-emerald-50 text-emerald-700'}`;
     }
 
+    // Escape any value interpolated into a row template so a customer-supplied
+    // name / address / email can never inject markup into the dashboard.
+    function escapeHtml(value) {
+      return String(value === undefined || value === null ? '' : value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
     function formatAddress(order) {
-      return order.shipping_address || '—';
+      const address = String(order.shipping_address || '').trim();
+      return address ? escapeHtml(address) : '—';
+    }
+
+    // Guest vs Registered badge. The contact identity (Name + Phone Number)
+    // always comes from the order row itself — customer_name / customer_phone
+    // are captured at checkout for guests too — so a registered account id is
+    // NOT required to identify a customer. This badge is purely informational.
+    function accountBadge(order) {
+      const hasAccount = order.user_id !== null && order.user_id !== undefined && order.user_id !== '';
+      return hasAccount
+        ? '<div class="mt-1 inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-700">Registered Account</div>'
+        : '<div class="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">Guest Checkout</div>';
+    }
+
+    // orders.gcash_proof stores a RELATIVE path such as
+    // 'uploads/gcash_proof_12_shot.png'; the dedicated /uploads/<filename>
+    // route in app.py serves it from the absolute UPLOAD_FOLDER.
+    function paymentProofUrl(order) {
+      const path = String(order.gcash_proof || '').trim().replace(/^\/+/, '');
+      return path ? `/${path}` : '';
+    }
+
+    // PAYMENT PROOF cell: a clickable thumbnail + an explicit
+    // "View Proof / Screenshot" button (both carry data-proof-src and open the
+    // viewer modal below), or a clear empty state when no screenshot was sent.
+    function formatPaymentProof(order) {
+      const url = paymentProofUrl(order);
+      if (!url) {
+        return '<div class="text-xs font-semibold text-slate-400">No proof uploaded</div>';
+      }
+      const safeUrl = escapeHtml(url);
+      const orderId = escapeHtml(order.id);
+      return `
+        <div class="flex flex-col items-start gap-2">
+          <img src="${safeUrl}" alt="GCash payment proof for order #${orderId}" data-proof-src="${safeUrl}" data-proof-order="${orderId}" loading="lazy" title="View payment proof" class="h-14 w-14 cursor-zoom-in rounded-lg border border-slate-200 object-cover transition hover:brightness-95" />
+          <button type="button" data-proof-src="${safeUrl}" data-proof-order="${orderId}" class="rounded-lg border border-indigo-200 px-3 py-1.5 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50">View Proof / Screenshot</button>
+        </div>
+      `;
     }
 
     // Delivery Method badge: Lalamove local courier (with its destination zone)
@@ -256,14 +331,27 @@
         row.className = 'align-top transition hover:bg-slate-50';
                 row.innerHTML = `
           <td class="whitespace-nowrap px-5 py-4 font-bold text-indigo-700">#${order.id}</td>
-          <td class="px-5 py-4"><div class="font-semibold text-slate-800">${order.full_name || '—'}</div></td>
-                    <td class="px-5 py-4 text-slate-700"><div>${order.email || '—'}</div><div class="mt-1">${order.phone_number || '—'}</div></td>
+          <!-- CUSTOMER: name straight from the order row (works for guests too)
+               plus a Guest / Registered badge. No account id is required. -->
+          <td class="px-5 py-4">
+            <div class="font-semibold text-slate-800">${escapeHtml(order.full_name) || '—'}</div>
+            ${accountBadge(order)}
+          </td>
+          <!-- CONTACT: Phone Number is the primary, always-present channel
+               (captured at checkout even for guests) and is click-to-call; the
+               email sits below when the customer supplied one. -->
+          <td class="px-5 py-4 text-slate-700">
+            <div class="font-semibold text-slate-800">${order.phone_number ? `<a href="tel:${escapeHtml(order.phone_number)}" class="hover:underline">${escapeHtml(order.phone_number)}</a>` : '—'}</div>
+            <div class="mt-1 text-xs font-medium text-slate-600">${order.email ? escapeHtml(order.email) : '<span class="text-slate-400">No email on file</span>'}</div>
+          </td>
           <td class="max-w-[220px] whitespace-normal px-5 py-4 text-slate-700">${formatAddress(order)}${formatDeliveryMethod(order)}</td>
           <td class="whitespace-normal px-5 py-4 text-xs font-semibold leading-6 text-slate-700">${formatItems(order)}</td>
           <td class="whitespace-nowrap px-5 py-4 font-bold text-slate-800">
             <div>${currency.format(Number(order.total_amount || 0))}</div>
-            ${order.payment_status ? `<div class="mt-1 text-xs font-medium text-indigo-600">Payment: ${order.payment_status}</div>` : ''}
+            ${order.payment_status ? `<div class="mt-1 text-xs font-medium text-indigo-600">Payment: ${escapeHtml(order.payment_status)}</div>` : ''}
           </td>
+          <!-- PAYMENT PROOF: the uploaded GCash screenshot (thumbnail + button). -->
+          <td class="px-5 py-4">${formatPaymentProof(order)}</td>
           <td class="px-5 py-4"><select data-order-id="${order.id}" class="status-select rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" onchange="toggleDeleteButton(${order.id}, this.value)">${statuses.map(status => `<option value="${status}" ${status === order.status ? 'selected' : ''}>${status}</option>`).join('')}</select></td>
           <td class="px-5 py-4">
             <div class="flex flex-col gap-2">
@@ -339,6 +427,14 @@
     }
 
     ordersTableBody.addEventListener('click', event => {
+      // PAYMENT PROOF: the thumbnail and the "View Proof / Screenshot" button
+      // both carry data-proof-src, so either one opens the proof viewer.
+      const proofTrigger = event.target.closest('[data-proof-src]');
+      if (proofTrigger) {
+        openProofViewer(proofTrigger.dataset.proofSrc, proofTrigger.dataset.proofOrder);
+        return;
+      }
+
       const saveBtn = event.target.closest('[data-save-id]');
       if (saveBtn) {
         const row = saveBtn.closest('tr');
@@ -352,6 +448,53 @@
         deleteOrder(deleteBtn.dataset.deleteId, deleteBtn);
       }
     });
+
+
+    /* ---------------------------------------------------------------
+       Payment proof viewer
+       Shows the GCash screenshot uploaded by the customer (orders.gcash_proof)
+       opened from the PAYMENT PROOF column. Closes via the buttons, the
+       backdrop or Esc; "Open in new tab" is always available as a fallback.
+    --------------------------------------------------------------- */
+    const proofViewerModal = document.getElementById('proof-viewer-modal');
+    const proofViewerImage = document.getElementById('proof-viewer-image');
+    const proofViewerOpen = document.getElementById('proof-viewer-open');
+    const proofViewerTitle = document.getElementById('proof-viewer-title');
+    const proofViewerClose = document.getElementById('proof-viewer-close');
+    const proofViewerCloseIcon = document.getElementById('proof-viewer-close-icon');
+
+    function openProofViewer(src, orderId) {
+      if (!proofViewerModal || !src) return;
+      proofViewerImage.src = src;
+      proofViewerImage.alt = orderId ? `GCash payment proof for order #${orderId}` : 'GCash payment proof';
+      if (proofViewerOpen) proofViewerOpen.href = src;
+      if (proofViewerTitle) {
+        proofViewerTitle.textContent = orderId ? `GCash payment proof — Order #${orderId}` : 'GCash payment proof';
+      }
+      proofViewerModal.classList.remove('hidden');
+      proofViewerModal.classList.add('flex');
+      document.body.classList.add('modal-open');
+      if (proofViewerClose) proofViewerClose.focus();
+    }
+
+    function closeProofViewer() {
+      if (!proofViewerModal || proofViewerModal.classList.contains('hidden')) return;
+      proofViewerModal.classList.add('hidden');
+      proofViewerModal.classList.remove('flex');
+      document.body.classList.remove('modal-open');
+      proofViewerImage.removeAttribute('src');
+    }
+
+    if (proofViewerClose) proofViewerClose.addEventListener('click', closeProofViewer);
+    if (proofViewerCloseIcon) proofViewerCloseIcon.addEventListener('click', closeProofViewer);
+    if (proofViewerModal) {
+      proofViewerModal.addEventListener('click', event => {
+        if (event.target === proofViewerModal) closeProofViewer();
+      });
+      document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && !proofViewerModal.classList.contains('hidden')) closeProofViewer();
+      });
+    }
 
 
     /* ---------------------------------------------------------------
