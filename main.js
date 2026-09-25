@@ -28,9 +28,20 @@ function formatPrice(value){
 }
 
 async function fetchProducts(){
-  const res = await fetch(`${API_BASE}/products`);
-  const data = await res.json();
-  PRODUCTS = Array.isArray(data) ? data : (data.products || []);
+  try{
+    const res = await fetch(`${API_BASE}/products`);
+    if(!res.ok){
+      throw new Error(`Product request failed with status ${res.status}`);
+    }
+    const data = await res.json();
+    PRODUCTS = Array.isArray(data) ? data : (data.products || []);
+  }catch(err){
+    // Keep PRODUCTS as an array and fall through to renderCatalog(): the
+    // page-load sequence must not stop when the product endpoint is
+    // unavailable. A failed fetch simply renders an empty catalog section.
+    console.error('Failed to load products:', err);
+    if(!Array.isArray(PRODUCTS)) PRODUCTS = [];
+  }
   renderCatalog();
 }
 
@@ -758,8 +769,12 @@ function updateCheckoutTotals() {
   let dueNow = total;
   const checkoutButton = document.getElementById('checkoutBtn');
   if(checkoutButton){
-    checkoutButton.disabled = totalQuantity <= 0;
-    checkoutButton.setAttribute('aria-disabled', String(checkoutButton.disabled));
+    // PRODUCTS quantities are the single source of truth, so a cart is
+    // checkoutable only when at least one item and quantity are present.
+    const { items, totalQuantity } = getCartState();
+    const cartIsEmpty = items.length === 0 || totalQuantity <= 0;
+    checkoutButton.disabled = cartIsEmpty;
+    checkoutButton.setAttribute('aria-disabled', String(cartIsEmpty));
   }
 
   let remaining = 0;
