@@ -77,15 +77,25 @@ function getProductImageFallback(product){
 // their .webp files; anything without a photo (e.g. microwavables) falls back
 // to the placehold.co placeholder via getProductImageFallback().
 function getProductImage(product){
+  const type = String(product.type || '').trim().toLowerCase();
+  // Ensure microwavables and other non-cup/lid items never use cup or lid photos
+  if(type !== 'cup' && type !== 'lid'){
+    return getProductImageFallback(product);
+  }
+
   const id = String(product.id || '').trim().toLowerCase();
   const size = String(product.size || '').trim().toLowerCase();
   const style = String(product.style || '').trim().toLowerCase();
-  if(id === 'cup-12oz' || size === '12oz') return 'static/12oz.webp';
-  if(id === 'cup-16oz' || size === '16oz') return 'static/16oz.webp';
-  if(id === 'cup-22oz' || size === '22oz') return 'static/22oz.webp';
-  if(id === 'lid-dome' || style === 'dome') return 'static/dome.webp';
-  if(id === 'lid-flat' || style === 'flat') return 'static/flat.webp';
-  if(id === 'lid-strawless' || style === 'strawless') return 'static/strawless.webp';
+  if(type === 'cup' || id.startsWith('cup-')){
+    if(id === 'cup-12oz' || size === '12oz') return 'static/12oz.webp';
+    if(id === 'cup-16oz' || size === '16oz') return 'static/16oz.webp';
+    if(id === 'cup-22oz' || size === '22oz') return 'static/22oz.webp';
+  }
+  if(type === 'lid' || id.startsWith('lid-')){
+    if(id === 'lid-dome' || style === 'dome') return 'static/dome.webp';
+    if(id === 'lid-flat' || style === 'flat') return 'static/flat.webp';
+    if(id === 'lid-strawless' || style === 'strawless') return 'static/strawless.webp';
+  }
   return getProductImageFallback(product);
 }
 
@@ -119,7 +129,7 @@ function renderCatalog(){
           <span class="shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${stockClasses}">${stockLabel}</span>
         </div>
         <figure class="product-card-media">
-          <img src="${getProductImage(product)}" data-fallback="${getProductImageFallback(product)}" alt="${product.name} preview" class="product-card-img h-40 w-full object-cover" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=this.dataset.fallback;" />
+          <img src="${getProductImage(product)}" data-fallback="${getProductImageFallback(product)}" alt="${product.name} preview" class="product-card-img ${product.type === 'microwavable' ? 'h-44 object-cover' : 'h-64 sm:h-72 object-contain p-3'} w-full" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=this.dataset.fallback;" />
           <figcaption class="product-card-media-label">${product.name}</figcaption>
         </figure>
         <div class="p-5 pt-4">
@@ -862,6 +872,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if(checkoutForm){
     checkoutForm.addEventListener('submit', (e) => {
       e.preventDefault();
+      if(!currentUser){
+        openAuthModalWithTab('login');
+        return;
+      }
       openConfirmationModal();
     });
   }
@@ -921,21 +935,16 @@ function setupAuthModal(){
   const loginForm = document.getElementById('loginForm');
   const registerForm = document.getElementById('registerForm');
 
-    const openAuth = () => {
-    authModal.classList.remove('hidden');
-    authModal.classList.add('flex');
-    document.body.classList.add('modal-open');
-  };
-
   const closeAuthModal = () => {
     authModal.classList.add('hidden');
     authModal.classList.remove('flex');
     document.body.classList.remove('modal-open');
   };
 
-
-  authBtn.addEventListener('click', openAuth);
-  closeAuth.addEventListener('click', closeAuthModal);
+  // Opening the modal always starts on Login; Register remains available
+  // through the adjacent tab.
+  if(authBtn) authBtn.addEventListener('click', openAuthModal);
+  if(closeAuth) closeAuth.addEventListener('click', closeAuthModal);
 
   // Forgot password modal wiring
   const forgotPasswordBtn = document.getElementById('forgotPasswordBtn');
@@ -1519,13 +1528,9 @@ window.addEventListener('scroll', updateBackToTopButton);
 function closeOrderPendingModal(){
   const modal = document.getElementById('orderPendingModal');
   modal.classList.add('opacity-0');
-  const wasGuestCheckout = !currentUser;
   setTimeout(() => {
     modal.classList.add('hidden');
     modal.classList.remove('flex');
-    // Guests finishing checkout see the account recommendation after the
-    // pending confirmation closes, so tracking/faster checkout is discoverable.
-    if(wasGuestCheckout) openAccountNudgeModal();
   }, 300);
   closeCart();
   resetConfigurator();
@@ -1687,8 +1692,13 @@ function populateCheckoutHiddenFields(){
   setHidden('checkoutDueNow', dueNow);
   setHidden('checkoutRemainingBalance', remaining);
 }
-
 async function openConfirmationModal(){
+  // Guests authenticate before entering the order confirmation step. The auth
+  // modal opens on Login, with Register available in the adjacent tab.
+  if(!currentUser){
+    openAuthModalWithTab('login');
+    return;
+  }
   if(!validateCheckoutFields()) return;
 
   await calculate();
@@ -1810,6 +1820,13 @@ async function openConfirmationModal(){
 }
 
 async function submitOrder(){
+  // Keep the final order action protected as well as the initial checkout
+  // action, so a guest cannot submit without signing in first.
+  if(!currentUser){
+    closeConfirmationModal();
+    openAuthModalWithTab('login');
+    return;
+  }
   if(!validateCheckoutFields()) return;
 
   try{

@@ -304,8 +304,32 @@ input[type="number"] {
    also renders this DOM caption directly beneath its image. Bold/dark at
    1.1rem–1.25rem so the product name (e.g. "RO 10 Round Container (10 oz)")
    is easily readable on both desktop and mobile. */
+/* Product card media and image presentation:
+   For Cups and Lids (#productList), enlarged container height (h-64/h-72, 270px)
+   with object-contain and comfortable padding so the drinkware pictures appear
+   noticeably larger, sharper, and uncropped. */
 .product-card-media {
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: #f8fafc;
+}
+
+#productList .product-card-media {
+  background-color: #f8fafc;
+}
+
+#productList .product-card-img {
+  height: 17rem; /* ~h-68 / 272px */
+  width: 100%;
+  object-fit: contain;
+  padding: 1rem;
+}
+
+#microwavableList .product-card-img {
+  height: 11rem;
+  width: 100%;
+  object-fit: cover;
 }
 
 .product-card-media-label {
