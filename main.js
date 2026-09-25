@@ -164,6 +164,7 @@ function renderCatalog(){
         </figure>
         <div class="p-5 pt-4">
           <p class="product-card-desc text-sm font-medium text-slate-700">${product.description}</p>
+          ${product.type === 'microwavable' ? `<p class="mt-1 text-xs font-medium text-slate-500">(Box of 10) — boxes of 10 units</p>` : ''}
           <div class="mt-4 flex items-end justify-between gap-3">
             <div>
               <span class="cardPrice text-2xl font-bold text-indigo-700">${formatPrice(product.price_per_box)}</span>
@@ -521,7 +522,10 @@ const SELF_BOOKING_SHIPPING_LABEL = 'Customer Self-Booking';
 const SELF_BOOKING_NOTE = "Note: You will book your own rider (Lalamove/Grab) once your order status is updated to 'Ready for Pick-up'.";
 // Warehouse pick-up address shown in the Confirm Order modal when the
 // Customer Self-Booking / Warehouse Pick-up delivery method is selected.
-const WAREHOUSE_PICKUP_ADDRESS = '175 M.L.Q. St. Bagumbayan, Taguig City';
+const WAREHOUSE_PICKUP_ADDRESS = '175 M.L.Q. St., Bagumbayan, Taguig City';
+// Warehouse contact number shown directly below the Pick-up Address in the
+// Confirm Order modal whenever Self-Booking / Pick-up details are rendered.
+const WAREHOUSE_CONTACT_NUMBER = '[Insert Phone Number Here]';
 
 // ---------------------------------------------------------------------------
 // Lalamove local courier shipping (origin: Taguig City). The destination base
@@ -1866,13 +1870,19 @@ async function openConfirmationModal(){
   // (the row stays hidden when there is no address to show).
   const addressRow = document.getElementById('confirmOrderAddressRow');
   const addressText = document.getElementById('confirmOrderAddressText');
+  const contactText = document.getElementById('confirmOrderContactText');
   if (addressRow && addressText) {
     if (selfBooking) {
       addressText.textContent = `Pick-up Address: ${WAREHOUSE_PICKUP_ADDRESS}`;
+      if (contactText) {
+        contactText.textContent = `Contact Number: ${WAREHOUSE_CONTACT_NUMBER}`;
+        contactText.style.display = '';
+      }
       addressRow.classList.remove('is-hidden-row');
       addressRow.classList.add('is-flex-row');
     } else {
       const shippingAddress = document.getElementById('customerAddress').value.trim();
+      if (contactText) contactText.style.display = 'none';
       if (shippingAddress) {
         addressText.textContent = `Shipping Address: ${shippingAddress}`;
         addressRow.classList.remove('is-hidden-row');
