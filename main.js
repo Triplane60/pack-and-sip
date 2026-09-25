@@ -924,7 +924,7 @@ async function clearCartItems(){
 const GCASH_ACCOUNT_1_NAME = 'RH••A E.';
 const GCASH_ACCOUNT_1_NUMBER = '0928 181 5599';
 // Legacy aliases (kept so any other code referencing the single-account names
-// keeps working — they point at Option 1).
+// keeps working — they point at the sole account).
 const GCASH_ACCOUNT_NAME = GCASH_ACCOUNT_1_NAME;
 const GCASH_ACCOUNT_NUMBER = GCASH_ACCOUNT_1_NUMBER;
 
