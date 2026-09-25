@@ -426,8 +426,10 @@ input[type="number"] {
   font-size: 14px;
 }
 
-/* Payment Instructions box — checkout drawer + Order Confirmation Modal.
-   Holds the GCash Account Name / Number that customers copy before paying. */
+/* Payment Instructions box — Order Confirmation Modal + post-checkout Order
+   Placed modal. Holds the GCash Account Name / Number that customers copy
+   before paying. (The Order Summary drawer intentionally renders NO such box —
+   see the NOTE in index.html / main.js.) */
 .payment-instructions-box .gcash-detail {
   display: block;
   font-size: 14px;
@@ -535,7 +537,9 @@ input[type="number"] {
 }
 
 .custom-alert-message {
-  font-weight: 500;
+  /* Semi-bold so alert text (e.g. the "upload your GCash proof" message shown
+     over the Confirm Order modal) stays highly legible. */
+  font-weight: 600;
   color: #374151;
   margin: 16px 0 24px;
 }
@@ -1050,15 +1054,18 @@ body.drawer-open #cartDrawer {
 
 /* ============================================================
    Mobile: enlarged Payment Instructions (GCash details)
-   The checkout drawer's, Order Confirmation Modal's, and the
-   post-checkout Order Placed modal's "Payment Instructions" /
-   "GCash Payment Details" box uses bigger text (1.1rem) and
-   roomier padding on phones/tablets so the GCash Account Name
-   and Number are easy to read and copy. 1024px also covers the
-   phones that render the drawer in "Desktop site" mode (~980px).
+   The Order Confirmation Modal's and the post-checkout Order
+   Placed modal's "Payment Instructions" / "GCash Payment
+   Details" box uses bigger text (1.1rem) and roomier padding on
+   phones/tablets so the GCash Account Name and Number are easy to
+   read and copy. 1024px also covers the phones that render the
+   site in "Desktop site" mode (~980px).
+
+   (The Order Summary drawer no longer renders a Payment
+   Instructions box — those details live ONLY in the Order
+   Confirmation Modal, beside the GCash proof upload field.)
    ============================================================ */
 @media (max-width: 1024px) {
-  #drawerPanel .payment-instructions-box,
   #confirmOrderModal .payment-instructions-box,
   #orderPendingModal .payment-instructions-box {
     padding: 16px 18px !important;
@@ -1066,7 +1073,6 @@ body.drawer-open #cartDrawer {
   }
 
   /* All copy inside the box scales up for readability. */
-  #drawerPanel .payment-instructions-box p,
   #confirmOrderModal .payment-instructions-box p,
   #orderPendingModal .payment-instructions-box p {
     font-size: 1.1rem !important;
@@ -1075,8 +1081,6 @@ body.drawer-open #cartDrawer {
   }
 
   /* GCash Account Name / Number — bold so they stand out for copying. */
-  #drawerPanel .payment-instructions-box .gcash-detail,
-  #drawerPanel .payment-instructions-box .gcash-detail strong,
   #confirmOrderModal .payment-instructions-box .gcash-detail,
   #confirmOrderModal .payment-instructions-box .gcash-detail strong,
   #orderPendingModal .payment-instructions-box .gcash-detail,
@@ -1085,11 +1089,10 @@ body.drawer-open #cartDrawer {
   }
 
   /* Proof-of-payment hint: slightly smaller than the account details. */
-  #drawerPanel .payment-instructions-box .delivery-method-hint,
   #confirmOrderModal .payment-instructions-box .delivery-method-hint,
   #orderPendingModal .payment-instructions-box .delivery-method-hint {
     font-size: 1rem !important;
-    font-weight: 500 !important;
+    font-weight: 600 !important;
     line-height: 1.45 !important;
   }
 }
@@ -1343,4 +1346,67 @@ select:-webkit-autofill:active {
   #confirmOrderModal #confirmOrderActions {
     grid-template-columns: 1fr;
   }
+}
+
+/* ============================================================
+   Order Confirmation Modal — small-text legibility
+   (#confirmOrderModal)
+
+   Every smaller body/description text inside the modal is raised to
+   ~0.95rem (15px) with a semi-bold (600) weight so the notes, the
+   address details, the payment instructions, the upload status and
+   the amber notices stay clearly readable inside the wider panel.
+
+   Nothing is ever SHRUNK: the rule only targets copy that is
+   currently 12px (text-xs), 14px (text-sm / .gcash-detail) or 12px
+   (.delivery-method-hint / .wholesale-notice). The ID-led selectors
+   out-specify Tailwind's .text-xs / .text-sm utilities, so the sizes
+   hold regardless of stylesheet order. Headings, the lead paragraph
+   and the Total figure keep their larger sizes.
+   ============================================================ */
+#confirmOrderModal #confirmOrderItems,
+#confirmOrderModal .confirm-order-row,
+#confirmOrderModal #confirmOrderPaymentNote,
+#confirmOrderModal #confirmOrderProofNote,
+#confirmOrderModal #confirmOrderAddressRow,
+#confirmOrderModal #gcashProofStatus,
+#confirmOrderModal #confirmOrderOperatingHours,
+#confirmOrderModal #confirmOrderReservationNote,
+#confirmOrderModal .wholesale-notice,
+#confirmOrderModal #confirmOrderProofBox label,
+#confirmOrderModal .payment-instructions-box .gcash-detail,
+#confirmOrderModal .payment-instructions-box .delivery-method-hint {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Total row: the headline figure keeps its full 1rem size while matching the
+   semi-bold rhythm of the detail rows around it. */
+#confirmOrderModal #confirmOrderTotalRow {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* Lead paragraph ("Is this everything you'd like to order?") — already 1rem,
+   given the same semi-bold weight so the whole modal reads consistently. */
+#confirmOrderModal #confirmOrderSubtitle {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* The GCash account name / number stay the boldest copy in the box. */
+#confirmOrderModal .payment-instructions-box .gcash-detail strong {
+  font-weight: 700;
+}
+
+/* Upload-field status / validation message: the red error state (added by
+   main.js) is emphasized so an invalid/missing proof is unmistakable. */
+#confirmOrderModal #gcashProofStatus {
+  font-weight: 600;
+}
+
+#confirmOrderModal #gcashProofStatus.text-red-600 {
+  font-weight: 700;
 }

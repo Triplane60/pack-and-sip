@@ -272,14 +272,14 @@
     <div id="confirmOrderPanel" class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
       <div class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-indigo-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></div>
       <h2 id="confirmOrderTitle" class="mt-4 text-2xl font-bold text-slate-900">Confirm Your Order</h2>
-      <p class="mt-2 text-slate-600">Is this everything you'd like to order?</p>
+      <p id="confirmOrderSubtitle" class="mt-2 text-slate-600">Is this everything you'd like to order?</p>
       <!-- Wholesale-only notice: Lucide 'package' icon + by-the-box reminder. -->
       <div class="wholesale-notice" role="note">
         <i data-lucide="package" class="h-4 w-4" aria-hidden="true"></i>
         <span>Note: We only sell by boxes and not by retail.</span>
       </div>
       <div id="confirmOrderItems" class="mt-5 space-y-2 rounded-lg bg-slate-50 p-4 text-sm text-slate-700"></div>
-      <div class="confirm-order-row mt-4 flex items-center justify-between border-t border-slate-200 pt-4 font-bold text-slate-900">
+      <div id="confirmOrderTotalRow" class="confirm-order-row mt-4 flex items-center justify-between border-t border-slate-200 pt-4 font-bold text-slate-900">
         <span>Total</span>
         <span id="confirmOrderTotal">₱0.00</span>
       </div>
@@ -311,7 +311,7 @@
       </div>
       <p id="confirmOrderPaymentNote" class="mt-4 text-xs leading-5 text-slate-500">A 50% downpayment is required via GCash to process your order. The remaining balance will be paid upon Lalamove delivery.</p>
       <!-- Payment instructions: Lucide 'camera' for the proof-of-payment note. -->
-      <p class="mt-2 flex items-start gap-2 text-xs leading-5 text-slate-600">
+      <p id="confirmOrderProofNote" class="mt-2 flex items-start gap-2 text-xs leading-5 text-slate-600">
         <i data-lucide="camera" class="mt-0.5 h-3.5 w-3.5 text-indigo-600" aria-hidden="true"></i>
         <span>After paying, please save your payment screenshot or reference number for verification.</span>
       </p>
@@ -638,18 +638,11 @@
               <p class="breakdown-row-secondary" id="remaining-balance-row"><strong>Balance upon Delivery:</strong> <span id="remaining-balance-amount">₱0.00</span></p>
             </div>
 
-            <!-- Payment Instructions: single GCash wallet shown in the checkout drawer
-                 before Place Order - GCash is the only payment method (the
-                 other channels are temporarily hidden). The values are pushed
-                 by main.js (GCASH_ACCOUNT_1_*) and
-                 mirror the Order Confirmation Modal values. -->
-            <div class="payment-instructions-box border border-slate-300 rounded-lg p-3 space-y-1.5">
-              <p class="payment-type-label">Payment Instructions</p>
-              <p class="text-sm font-semibold text-slate-700">Pay via GCash:</p>
-              <p class="gcash-detail text-sm text-slate-700">Account Name: <strong id="gcashAccountName">RH••A E.</strong></p>
-              <p class="gcash-detail text-sm text-slate-700">GCash Number: <strong id="gcashAccountNumber">0928 181 5599</strong></p>
-              <p class="delivery-method-hint">Please send payment via GCash to the account listed below.</p>
-            </div>
+            <!-- NOTE: The Payment Instructions (GCash account details) box was
+                 intentionally REMOVED from this Order Summary drawer. Those
+                 details now live ONLY in the "Confirm Your Order" modal, right
+                 above the required GCash proof upload field (main.js
+                 renderGcashInstructions pushes the values into #confirmGcash*). -->
 
             <!-- Cart payload hidden fields; populated by main.js before submission -->
             <input type="hidden" id="checkoutCupId" name="cup_id" value="" title="Checkout cup ID" />

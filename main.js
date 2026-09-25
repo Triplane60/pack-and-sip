@@ -1016,11 +1016,14 @@ async function clearCartItems(){
 
 
 // ---------------------------------------------------------------------------
-// GCash payment details for the Payment Instructions boxes in the checkout
-// drawer (#gcashAccountName / #gcashAccountNumber), the Order Confirmation
-// Modal (#confirmGcash*), and the post-checkout Order Placed modal
+// GCash payment details for the Payment Instructions boxes in the Order
+// Confirmation Modal (#confirmGcash*) and the post-checkout Order Placed modal
 // (#pendingGcash*). A single account is listed as the sole payment option.
 // Defined once here so every payment screen shows the same wallet details.
+//
+// NOTE: the Order Summary drawer deliberately renders NO Payment Instructions
+// box — those details live ONLY in the Order Confirmation Modal, directly above
+// the required GCash proof upload field.
 // ---------------------------------------------------------------------------
 const GCASH_ACCOUNT_1_NAME = 'RH••A E.';
 const GCASH_ACCOUNT_1_NUMBER = '0928 181 5599';
@@ -1030,11 +1033,15 @@ const GCASH_ACCOUNT_NAME = GCASH_ACCOUNT_1_NAME;
 const GCASH_ACCOUNT_NUMBER = GCASH_ACCOUNT_1_NUMBER;
 
 function renderGcashInstructions(){
-  ['gcashAccountName', 'confirmGcashAccountName', 'pendingGcashAccountName'].forEach((id) => {
+  // The drawer ids (#gcashAccountName / #gcashAccountNumber) were removed along
+  // with the Order Summary drawer's Payment Instructions box, so only the Order
+  // Confirmation Modal (#confirmGcash*) and the post-checkout Order Placed modal
+  // (#pendingGcash*) are updated here.
+  ['confirmGcashAccountName', 'pendingGcashAccountName'].forEach((id) => {
     const el = document.getElementById(id);
     if(el) el.textContent = GCASH_ACCOUNT_1_NAME;
   });
-  ['gcashAccountNumber', 'confirmGcashAccountNumber', 'pendingGcashAccountNumber'].forEach((id) => {
+  ['confirmGcashAccountNumber', 'pendingGcashAccountNumber'].forEach((id) => {
     const el = document.getElementById(id);
     if(el) el.textContent = GCASH_ACCOUNT_1_NUMBER;
   });
@@ -1044,8 +1051,8 @@ function renderGcashInstructions(){
 document.addEventListener('DOMContentLoaded', () => {
   resetConfigurator();
   fetchProducts();
-  // Push the GCash account details into the drawer + confirmation modal
-  // Payment Instructions boxes.
+  // Push the GCash account details into the Order Confirmation Modal (and the
+  // post-checkout Order Placed modal) Payment Instructions boxes.
   renderGcashInstructions();
   // Enforce the new defaults on first load: Self-Booking delivery + 100% Full
   // Payment, with Shipping Address / City / Location hidden.
