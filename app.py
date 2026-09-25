@@ -15,7 +15,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 # deploy time. Every resend.Emails.send() call site in this file is wrapped in
 # its own try/except, so a bad key or a Resend outage can never crash a route.
 import resend
-resend.api_key = "PASTE_YOUR_API_KEY_HERE"
+resend.api_key = "re_3FTMQJJT_5Hib8mBXrygHA528XZcFMiJ8"
 
 # Load local environment variables from .env when python-dotenv is available.
 # Deployments normally inject the same values through the platform dashboard, so

@@ -52,6 +52,21 @@
   margin: 0 auto 16px auto;
 }
 
+/* Hero / main app banner (static/app.webp): full-width photo below the brand
+   mark and above the headline. Rounded + capped height so product photography
+   reads as a banner; object-fit: cover crops gracefully; display:none via the
+   inline onerror fallback when app.webp hasn't been added yet. */
+.hero-banner {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  max-height: 300px;
+  height: auto;
+  object-fit: cover;
+  border-radius: 12px;
+  margin: 0 auto 16px auto;
+}
+
 /* Hero text block: logo, headline, subdescription, and bullets are centered
    as one group on both desktop and mobile for a balanced banner identity.
    The bullets list keeps left-aligned text inside its centered box so the

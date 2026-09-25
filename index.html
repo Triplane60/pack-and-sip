@@ -103,7 +103,11 @@
              powers the browser tab icon), sized at 140px wide via .hero-logo in
              styles.css. Keeps id="siteLogo" so the double-click admin shortcut
              in main.js keeps working. -->
-        <img id="siteLogo" class="hero-logo" src="favicon.png" alt="Pack &amp; Sip logo" />
+        <img id="siteLogo" class="hero-logo" src="favicon.png" alt="Pack &amp; Sip logo" loading="lazy" decoding="async" onerror="this.onerror=null;this.style.display='none';" />
+        <!-- Hero / main app banner: local photography (static/app.webp, with a
+             root-level app.webp copy as fallback). Hidden automatically if the
+             file is missing so the hero text layout never breaks. -->
+        <img id="heroBanner" class="hero-banner" src="static/app.webp" alt="Pack &amp; Sip wholesale disposable cups, lids and containers" loading="lazy" decoding="async" onerror="if(!this.dataset.triedRoot){this.dataset.triedRoot='1';this.src='app.webp';}else{this.style.display='none';}" />
         <h1 class="text-3xl font-extrabold text-slate-900">Wholesale Boxes of Cups, Lids &amp; Microwavable Containers</h1>
         <p class="mt-4 text-slate-700">High-volume eco-friendly disposable drinkware and food containers powered by Dabba and GoUp. Direct warehouse pricing for food businesses and events.</p>
         <ul class="mt-4 text-sm font-medium text-slate-700">
@@ -230,12 +234,16 @@
         </div>
       </div>
 
-      <!-- GCash Payment Details: identical wallet to the Payment Instructions
-           boxes in the checkout drawer and the Confirm Order modal. -->
+      <!-- GCash Payment Details: identical TWO wallets to the Payment Instructions
+           boxes in the checkout drawer and the Confirm Order modal. Two accounts
+           are listed so transactions won't hit daily limits. -->
       <div class="payment-instructions-box mt-3 space-y-1.5 rounded-lg border border-slate-300 p-3 text-left">
         <p class="payment-type-label">GCash Payment Details</p>
-        <p class="gcash-detail text-sm text-slate-700">Account Name: <strong id="pendingGcashAccountName">RH••A E.</strong></p>
-        <p class="gcash-detail text-sm text-slate-700">GCash Number: <strong id="pendingGcashAccountNumber">0928 181 5599</strong></p>
+        <p class="gcash-detail text-sm text-slate-700">Option 1 — Account Name: <strong id="pendingGcashAccountName">RH••A E.</strong></p>
+        <p class="gcash-detail text-sm text-slate-700">Option 1 — GCash Number: <strong id="pendingGcashAccountNumber">0928 181 5599</strong></p>
+        <p class="gcash-detail text-sm text-slate-700">Option 2 — Account Name: <strong id="pendingGcashAccountName2">JE••••N ER•••T E.</strong></p>
+        <p class="gcash-detail text-sm text-slate-700">Option 2 — GCash Number: <strong id="pendingGcashAccountNumber2">0966 745 3719</strong></p>
+        <p class="delivery-method-hint">You may pay to either of the GCash accounts listed above.</p>
       </div>
 
       <!-- Reminder: Lucide 'camera' icon for the payment screenshot, plus the
@@ -294,14 +302,18 @@
         <i data-lucide="camera" class="mt-0.5 h-3.5 w-3.5 text-indigo-600" aria-hidden="true"></i>
         <span>After paying, please save your payment screenshot or reference number for verification.</span>
       </p>
-      <!-- Payment Instructions: GCash wallet shown in the Order Confirmation
+      <!-- Payment Instructions: TWO GCash wallets shown in the Order Confirmation
            Modal so customers can copy the account details before confirming.
            Values are pushed by main.js (renderGcashInstructions) and mirror
-           the checkout drawer values: RH••A E. / 0928 181 5599. -->
+           the checkout drawer values. Two accounts are listed so transactions
+           won't hit daily limits. -->
       <div class="payment-instructions-box mt-3 rounded-lg border border-slate-300 p-3 space-y-1.5 text-left">
         <p class="payment-type-label">Payment Instructions</p>
-        <p class="gcash-detail">Account Name: <strong id="confirmGcashAccountName">RH••A E.</strong></p>
-        <p class="gcash-detail">GCash Number: <strong id="confirmGcashAccountNumber">0928 181 5599</strong></p>
+        <p class="gcash-detail">Option 1 — Account Name: <strong id="confirmGcashAccountName">RH••A E.</strong></p>
+        <p class="gcash-detail">Option 1 — GCash Number: <strong id="confirmGcashAccountNumber">0928 181 5599</strong></p>
+        <p class="gcash-detail">Option 2 — Account Name: <strong id="confirmGcashAccountName2">JE••••N ER•••T E.</strong></p>
+        <p class="gcash-detail">Option 2 — GCash Number: <strong id="confirmGcashAccountNumber2">0966 745 3719</strong></p>
+        <p class="delivery-method-hint">You may pay to either of the GCash accounts listed above.</p>
       </div>
       <!-- Operating hours (always shown) + the City-based payment reservation
            window, which main.js refreshes from the selected City / Location. -->
@@ -569,16 +581,20 @@
               <p class="breakdown-row-secondary" id="remaining-balance-row"><strong>Balance upon Delivery:</strong> <span id="remaining-balance-amount">₱0.00</span></p>
             </div>
 
-            <!-- Payment Instructions: GCash wallet shown in the checkout drawer
+            <!-- Payment Instructions: TWO GCash wallets shown in the checkout drawer
                  before Place Order - GCash is the only payment method (the
                  other channels are temporarily hidden). The values are pushed
-                 by main.js (GCASH_ACCOUNT_NAME / GCASH_ACCOUNT_NUMBER) and
-                 mirror the Order Confirmation Modal values: RH••A E. / 0928 181 5599. -->
+                 by main.js (GCASH_ACCOUNT_1_* / GCASH_ACCOUNT_2_*) and
+                 mirror the Order Confirmation Modal values. Two accounts are
+                 listed so transactions won't hit daily limits. -->
             <div class="payment-instructions-box border border-slate-300 rounded-lg p-3 space-y-1.5">
               <p class="payment-type-label">Payment Instructions</p>
               <p class="text-sm font-semibold text-slate-700">Pay via GCash:</p>
-              <p class="gcash-detail text-sm text-slate-700">Account Name: <strong id="gcashAccountName">RH••A E.</strong></p>
-              <p class="gcash-detail text-sm text-slate-700">GCash Number: <strong id="gcashAccountNumber">0928 181 5599</strong></p>
+              <p class="gcash-detail text-sm text-slate-700">Option 1 — Account Name: <strong id="gcashAccountName">RH••A E.</strong></p>
+              <p class="gcash-detail text-sm text-slate-700">Option 1 — GCash Number: <strong id="gcashAccountNumber">0928 181 5599</strong></p>
+              <p class="gcash-detail text-sm text-slate-700">Option 2 — Account Name: <strong id="gcashAccountName2">JE••••N ER•••T E.</strong></p>
+              <p class="gcash-detail text-sm text-slate-700">Option 2 — GCash Number: <strong id="gcashAccountNumber2">0966 745 3719</strong></p>
+              <p class="delivery-method-hint">You may pay to either of the GCash accounts listed above.</p>
               <p class="delivery-method-hint">After paying, please save your payment screenshot or reference number for verification.</p>
             </div>
 

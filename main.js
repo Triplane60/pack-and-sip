@@ -65,11 +65,28 @@ function compareMicrowavableAsc(a, b){
   return String(a.name || '').localeCompare(String(b.name || ''));
 }
 
-function getProductImage(product){
+function getProductImageFallback(product){
   const label = product.type === 'cup' ? `${product.size} Cup` : product.type === 'lid' ? `${product.style} Lid` : `${product.name}`;
   const background = product.type === 'cup' ? 'e0e7ff' : product.type === 'lid' ? 'f1f5f9' : 'ecfdf5';
   const foreground = product.type === 'cup' ? '3730a3' : product.type === 'lid' ? '334155' : '047857';
   return `https://placehold.co/640x300/${background}/${foreground}?text=${encodeURIComponent(label)}`;
+}
+
+// Local product photography (served from ./static/ with root-level copies as
+// backup — Flask's /<path:filename> handler serves both). Cups/lids map to
+// their .webp files; anything without a photo (e.g. microwavables) falls back
+// to the placehold.co placeholder via getProductImageFallback().
+function getProductImage(product){
+  const id = String(product.id || '').trim().toLowerCase();
+  const size = String(product.size || '').trim().toLowerCase();
+  const style = String(product.style || '').trim().toLowerCase();
+  if(id === 'cup-12oz' || size === '12oz') return 'static/12oz.webp';
+  if(id === 'cup-16oz' || size === '16oz') return 'static/16oz.webp';
+  if(id === 'cup-22oz' || size === '22oz') return 'static/22oz.webp';
+  if(id === 'lid-dome' || style === 'dome') return 'static/dome.webp';
+  if(id === 'lid-flat' || style === 'flat') return 'static/flat.webp';
+  if(id === 'lid-strawless' || style === 'strawless') return 'static/strawless.webp';
+  return getProductImageFallback(product);
 }
 
 function renderCatalog(){
@@ -102,7 +119,7 @@ function renderCatalog(){
           <span class="shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${stockClasses}">${stockLabel}</span>
         </div>
         <figure class="product-card-media">
-          <img src="${getProductImage(product)}" alt="${product.name} preview" class="h-40 w-full object-cover" />
+          <img src="${getProductImage(product)}" data-fallback="${getProductImageFallback(product)}" alt="${product.name} preview" class="product-card-img h-40 w-full object-cover" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=this.dataset.fallback;" />
           <figcaption class="product-card-media-label">${product.name}</figcaption>
         </figure>
         <div class="p-5 pt-4">
@@ -791,23 +808,37 @@ async function clearCartItems(){
 
 // ---------------------------------------------------------------------------
 // GCash payment details for the Payment Instructions boxes in the checkout
-// drawer (#gcashAccountName / #gcashAccountNumber), the Order Confirmation
-// Modal (#confirmGcashAccountName / #confirmGcashAccountNumber), and the
-// post-checkout Order Placed modal (#pendingGcashAccountName /
-// #pendingGcashAccountNumber). Defined once here so every payment screen shows
-// the same wallet details.
+// drawer (#gcashAccountName / #gcashAccountNumber / #gcashAccountName2 /
+// #gcashAccountNumber2), the Order Confirmation Modal (#confirmGcash*), and the
+// post-checkout Order Placed modal (#pendingGcash*). Two accounts are listed
+// so transactions won't hit daily limits. Defined once here so every payment
+// screen shows the same wallet details.
 // ---------------------------------------------------------------------------
-const GCASH_ACCOUNT_NAME = 'RH••A E.';
-const GCASH_ACCOUNT_NUMBER = '0928 181 5599';
+const GCASH_ACCOUNT_1_NAME = 'RH••A E.';
+const GCASH_ACCOUNT_1_NUMBER = '0928 181 5599';
+const GCASH_ACCOUNT_2_NAME = 'JE••••N ER•••T E.';
+const GCASH_ACCOUNT_2_NUMBER = '0966 745 3719';
+// Legacy aliases (kept so any other code referencing the single-account names
+// keeps working — they point at Option 1).
+const GCASH_ACCOUNT_NAME = GCASH_ACCOUNT_1_NAME;
+const GCASH_ACCOUNT_NUMBER = GCASH_ACCOUNT_1_NUMBER;
 
 function renderGcashInstructions(){
   ['gcashAccountName', 'confirmGcashAccountName', 'pendingGcashAccountName'].forEach((id) => {
     const el = document.getElementById(id);
-    if(el) el.textContent = GCASH_ACCOUNT_NAME;
+    if(el) el.textContent = GCASH_ACCOUNT_1_NAME;
   });
   ['gcashAccountNumber', 'confirmGcashAccountNumber', 'pendingGcashAccountNumber'].forEach((id) => {
     const el = document.getElementById(id);
-    if(el) el.textContent = GCASH_ACCOUNT_NUMBER;
+    if(el) el.textContent = GCASH_ACCOUNT_1_NUMBER;
+  });
+  ['gcashAccountName2', 'confirmGcashAccountName2', 'pendingGcashAccountName2'].forEach((id) => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = GCASH_ACCOUNT_2_NAME;
+  });
+  ['gcashAccountNumber2', 'confirmGcashAccountNumber2', 'pendingGcashAccountNumber2'].forEach((id) => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = GCASH_ACCOUNT_2_NUMBER;
   });
 }
 
