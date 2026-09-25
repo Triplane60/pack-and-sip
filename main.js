@@ -27,6 +27,20 @@ function formatPrice(value){
   return `₱${Number(value || 0).toFixed(2)}`;
 }
 
+// Temporarily unpriced microwavable sizes: display "TBA" instead of a numeric
+// amount. Prices still come from the API/DB (no hardcoded amounts here), so
+// this frontend override only changes display + ordering behaviour.
+const TBA_PRODUCT_IDS = new Set(['container-re-1600', 'container-re-2500', 'container-re-3200']);
+
+function isTbaPriceProduct(product){
+  return !!product && TBA_PRODUCT_IDS.has(String(product.id || ''));
+}
+
+function formatProductPrice(product){
+  if(isTbaPriceProduct(product)) return 'TBA';
+  return formatPrice(product ? product.price_per_box : 0);
+}
+
 async function fetchProducts(){
   try{
     const res = await fetch(`${API_BASE}/products`);
@@ -151,6 +165,9 @@ function renderCatalog(){
     const stock = Number(product.stock_boxes || 0);
     const stockLabel = stock > 0 ? 'In Stock' : 'Out of Stock';
     const stockClasses = stock > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700';
+    // TBA-priced items are shown but not orderable: disable their qty controls.
+    const tbaLocked = isTbaPriceProduct(product);
+    const qtyDisabled = (stock === 0 || tbaLocked) ? 'disabled' : '';
     card.className = 'flex flex-col justify-between overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm';
     card.innerHTML = `
       <div>
@@ -167,7 +184,7 @@ function renderCatalog(){
           ${product.type === 'microwavable' ? `<p class="mt-1 text-xs font-medium text-slate-500">(Box of 10) — boxes of 10 units</p>` : ''}
           <div class="mt-4 flex items-end justify-between gap-3">
             <div>
-              <span class="cardPrice text-2xl font-bold text-indigo-700">${formatPrice(product.price_per_box)}</span>
+              <span class="cardPrice text-2xl font-bold text-indigo-700">${formatProductPrice(product)}</span>
               <span class="cardPriceUnit text-xs font-medium text-slate-700"> / box</span>
             </div>
             <span class="text-xs font-medium text-slate-700">${stock} box(es)</span>
@@ -180,7 +197,7 @@ function renderCatalog(){
             type="button"
             class="qtyBtn qtyMinus flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-lg font-bold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Decrease quantity for ${product.name}"
-            ${stock === 0 ? 'disabled' : ''}
+            ${qtyDisabled}
           >&minus;</button>
                     <input
             type="number"
@@ -190,14 +207,14 @@ function renderCatalog(){
             placeholder="0"
             aria-label="Quantity for ${product.name}"
             title="Quantity for ${product.name}"
-            ${stock === 0 ? 'disabled' : ''}
+            ${qtyDisabled}
           />
 
           <button
             type="button"
             class="qtyBtn qtyPlus flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-lg font-bold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Increase quantity for ${product.name}"
-            ${stock === 0 ? 'disabled' : ''}
+            ${qtyDisabled}
           >+</button>
         </div>
       </div>
@@ -247,6 +264,17 @@ function updateConfiguratorActionState(){
 }
 
 function applyCatalogQty(product, value){
+  // TBA-priced items cannot be ordered yet: keep their quantity at 0 so no
+  // NaN/₱0.00 line ever reaches the cart, totals, or checkout payload.
+  if(isTbaPriceProduct(product)){
+    setQty(product, 0);
+    showToast('Price to be announced — this item cannot be ordered yet.');
+    updateConfiguratorActionState();
+    refreshCatalogQuantityInputs();
+    syncCategoryTotals();
+    calculate();
+    return;
+  }
   // Clamp the entered/edited quantity to the available stock: never below 0,
   // never above what's in stock. Applies independently per product card.
   const parsed = Math.max(0, Math.min(parseInt(value, 10) || 0, Number(product.stock_boxes || 0)));
@@ -273,6 +301,11 @@ function refreshCatalogQuantityInputs(){
     const priceEl = card.querySelector('.cardPrice');
     if(!priceEl) return;
     const unitEl = card.querySelector('.cardPriceUnit');
+    if(isTbaPriceProduct(product)){
+      priceEl.textContent = 'TBA';
+      if(unitEl) unitEl.textContent = ' / box';
+      return;
+    }
     const qty = getQty(product);
     const unitPrice = Number(product.price_per_box || 0);
     if(qty > 1){
@@ -393,7 +426,7 @@ function getQty(product){
 // `items` contains products with a positive box quantity; `totalQuantity` is the
 // sum of those quantities. A cart is checkoutable only when both are non-zero.
 function getCartState(){
-  const items = PRODUCTS.filter(product => getQty(product) > 0);
+  const items = PRODUCTS.filter(product => getQty(product) > 0 && !isTbaPriceProduct(product));
   const totalQuantity = items.reduce((total, product) => total + getQty(product), 0);
   return { items, totalQuantity };
 }
@@ -439,6 +472,9 @@ async function calculate(){
   PRODUCTS.forEach(product => {
     const boxes = getQty(product);
     if(boxes <= 0) return;
+    // Skip TBA-priced items even if a stale quantity exists (e.g. restored
+    // state): they contribute no numeric total and must not produce NaN.
+    if(isTbaPriceProduct(product)) return;
     const lineTotal = Math.round(boxes * Number(product.price_per_box || 0) * 100) / 100;
     subtotal += lineTotal;
     items.push({
