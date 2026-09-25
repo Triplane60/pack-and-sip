@@ -1,58 +1,14 @@
 const API_BASE = '/api';
+
+// ---------------------------------------------------------------------------
+// Live inventory is owned ENTIRELY by the server: the SQLite `stock_boxes`
+// values are surfaced through GET /api/products and are the ONLY source the
+// storefront ever renders. There are no hardcoded stock constants and no local
+// fallback product arrays in this file — stock numbers enter the frontend
+// exclusively through fetchProducts() below, so what you see on a card is
+// always what the backend database currently holds.
+// ---------------------------------------------------------------------------
 let PRODUCTS = [];
-
-// Live inventory is owned by the server (SQLite stock_boxes surfaced through
-// GET /api/products). A localStorage snapshot is kept ONLY as an offline
-// fallback so a failed product request never renders an empty catalog — it is
-// never used to override fresher server values.
-const STOCK_CACHE_KEY = 'pack_and_sip_stock_cache_v1';
-
-function readCachedStocks(){
-  try{
-    const raw = localStorage.getItem(STOCK_CACHE_KEY);
-    if(!raw) return {};
-    const parsed = JSON.parse(raw);
-    if(!parsed || typeof parsed !== 'object') return {};
-    // Unified cache shape is { products: [...] }; derive stocks from it.
-    if(Array.isArray(parsed.products)){
-      const stocks = {};
-      parsed.products.forEach((p) => {
-        if(p && p.id !== undefined && p.id !== null) stocks[String(p.id)] = Number(p.stock_boxes) || 0;
-      });
-      return { stocks };
-    }
-    return parsed;
-  }catch(err){
-    return {};
-  }
-}
-
-function writeCachedStocks(){
-  // Unified snapshot: full server products (single cache shape). Kept as a
-  // separate helper so existing calls stay valid.
-  writeCachedProducts();
-}
-
-function applyCachedStocksFallback(){
-  // Offline fallback only: reuse the last KNOWN server stock values when the
-  // live product request fails, so a refresh without connectivity does not
-  // reset items (e.g. 16oz cups) back to stale hardcoded defaults.
-  const cached = readCachedStocks();
-  const stocks = cached && cached.stocks ? cached.stocks : {};
-  if(!stocks || Object.keys(stocks).length === 0) return false;
-  let applied = false;
-  (Array.isArray(PRODUCTS) ? PRODUCTS : []).forEach((product) => {
-    if(!product) return;
-    const key = String(product.id || '');
-    if(!key || !(key in stocks)) return;
-    const stock = Number(stocks[key]);
-    if(!Number.isFinite(stock) || stock < 0) return;
-    product.stock_boxes = Math.floor(stock);
-    product.in_stock = product.stock_boxes > 0;
-    applied = true;
-  });
-  return applied;
-}
 
 // Force browser to scroll to top on page reload
 if ('scrollRestoration' in history) {
@@ -120,40 +76,14 @@ function clampQtysToServerStock(){
   }catch(err){ /* qtys not ready yet — clamp happens on next render */ }
 }
 
-function readCachedProducts(){
-  try{
-    const raw = localStorage.getItem(STOCK_CACHE_KEY);
-    if(!raw) return [];
-    const parsed = JSON.parse(raw);
-    const list = parsed && Array.isArray(parsed.products) ? parsed.products : [];
-    return normalizeServerProducts(list);
-  }catch(err){
-    return [];
-  }
-}
-
-function writeCachedProducts(){
-  try{
-    localStorage.setItem(STOCK_CACHE_KEY, JSON.stringify({ updatedAt: Date.now(), products: PRODUCTS }));
-  }catch(err){
-    // Storage may be unavailable (private mode / quota) — server state stays
-    // authoritative, so a cache-write failure is safely ignored.
-  }
-}
-
-// Seed in-memory state synchronously from the last KNOWN server snapshot so a
-// refresh (even offline) never flashes hardcoded defaults like 16oz = 34.
-// The live fetch below always overwrites this with fresher server values.
-try{
-  const cachedProducts = readCachedProducts();
-  if(Array.isArray(cachedProducts) && cachedProducts.length > 0 && PRODUCTS.length === 0){
-    PRODUCTS = cachedProducts;
-  }
-}catch(err){ /* server fetch remains authoritative */ }
+// NOTE: no localStorage (or other local) product snapshot is restored here.
+// PRODUCTS starts empty and is populated ONLY by a successful response from
+// /api/products, so a page refresh can never flash stale, cached, or
+// hardcoded stock numbers — the API is always the single source of truth.
 
 async function fetchProducts(){
   try{
-    // Always ask the server for the real, updated stock quantities (orders +
+    // ALWAYS ask the server for the real, updated stock quantities (orders +
     // admin updates). `cache: 'no-store'` plus the no-store response headers
     // in app.py guarantee a refresh never reuses a stale copy (e.g. 16oz cups
     // stuck back at 34 after being reduced to 30).
@@ -162,26 +92,22 @@ async function fetchProducts(){
       throw new Error(`Product request failed with status ${res.status}`);
     }
     const data = await res.json();
-    const list = Array.isArray(data) ? data : (data.products || []);
-    // Empty server list while we hold a cached snapshot means a transient
-    // backend issue — keep the last known server stocks, never blank/reset.
-    if((!Array.isArray(list) || list.length === 0) && PRODUCTS.length > 0){
-      renderCatalog();
-      return;
+    const list = Array.isArray(data) ? data : (data && Array.isArray(data.products) ? data.products : null);
+    // A malformed payload counts as a failed fetch so the catalog never
+    // renders stock values that did not come from /api/products.
+    if(!list){
+      throw new Error('Malformed products payload from /api/products');
     }
+    // The ONLY entry point for inventory data: replace the in-memory catalog
+    // with the fresh server payload (stock_boxes straight from the database).
     PRODUCTS = normalizeServerProducts(list);
     clampQtysToServerStock();
-    // Snapshot the fresh server products (including stocks) for offline fallback only.
-    writeCachedProducts();
-    writeCachedStocks();
   }catch(err){
-    // Keep PRODUCTS as an array and fall through to renderCatalog(): the
-    // page-load sequence must not stop when the product endpoint is
-    // unavailable. PRODUCTS already holds the last known server snapshot
-    // (seeded from localStorage at startup or from the previous successful
-    // fetch), so a refresh does NOT reset stock counts to hardcoded defaults.
+    // The API is unreachable or returned an invalid payload. Keep whatever
+    // /api/products returned earlier during THIS page session; on a cold
+    // load PRODUCTS stays empty, so no stale or fabricated stock numbers are
+    // ever rendered in place of the real server values.
     console.error('Failed to load products:', err);
-    if(!Array.isArray(PRODUCTS)) PRODUCTS = readCachedProducts();
   }
   clampQtysToServerStock();
   renderCatalog();
@@ -189,7 +115,7 @@ async function fetchProducts(){
 
 async function refreshProductStocks(){
   // Re-fetch live inventory after an order (or on demand) so the catalog,
-  // configurator clamps, and localStorage snapshot immediately reflect the
+  // configurator clamps, and cart/checkout summaries immediately reflect the
   // deducted quantities stored in the database.
   await fetchProducts();
   updateConfiguratorActionState();

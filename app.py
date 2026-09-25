@@ -35,7 +35,12 @@ CORS(app)
 # PythonAnywhere instead of the internal http://127.0.0.1 address.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-DB_FILE = 'app.db'
+# The SQLite file lives NEXT TO this script and is resolved to an absolute
+# path, so every process (dev server, gunicorn/uwsgi, VS Code debugger, or a
+# re-deploy started from a different working directory) opens the SAME app.db.
+# A relative path would silently create a fresh, default-seeded database
+# whenever the working directory changed — wiping real stock counts.
+DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app.db')
 MICROWAVABLE_PRICE_PER_BOX = 1500.0
 
 # ---------------------------------------------------------------------------
@@ -368,7 +373,12 @@ def init_db():
         )
     ''')
 
-    # Seed initial data if table is empty
+    # Seed initial data ONLY when the products table is empty. When the table
+    # (or the whole app.db file) already exists — the normal case after a
+    # restart, re-deploy or code update — this block is skipped entirely so
+    # every existing row, and especially its stock_boxes quantity, is read
+    # straight back from the database instead of being re-seeded or reset to
+    # the default values below.
     cursor.execute('SELECT COUNT(*) FROM products')
     if cursor.fetchone()[0] == 0:
         initial_products = [
@@ -379,12 +389,18 @@ def init_db():
             ('lid-dome', 'lid', 'Lids — Dome (Box of 1,250)', None, 'Dome', 1250, 1300.0, 30, 'Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.'),
             ('lid-flat', 'lid', 'Lids — Flat (Box of 1,250)', None, 'Flat', 1250, 1150.0, 15, 'Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.')
         ]
+        # OR IGNORE is a second safety net: even if this guard were ever
+        # bypassed, rows that already exist (and their live stock counts)
+        # would never be overwritten by the default seed values.
         cursor.executemany('''
-            INSERT INTO products (id, type, name, size, style, quantity_per_box, price_per_box, stock_boxes, description)
+            INSERT OR IGNORE INTO products (id, type, name, size, style, quantity_per_box, price_per_box, stock_boxes, description)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', initial_products)
         conn.commit()
 
+    # New microwavable products are appended with OR IGNORE so an existing
+    # catalog (and every existing stock_boxes value) is left untouched; the
+    # defaults below apply only to brand-new rows on a fresh database.
     microwavable_products = [
         ('container-re-3200', 'microwavable', 'RE 3200 Rectangular Container (3,200ml)', '3,200ml', 'RE Series', 100, 1800.0, 20, 'Extra-large heavy-duty food packaging. Excellent for full-sized platter meals and catering takeaways.'),
         ('container-re-2500', 'microwavable', 'RE 2500 Rectangular Container (2,500ml)', '2,500ml', 'RE Series', 100, 1600.0, 20, 'Large capacity food containers designed for family shares, party trays, and bulk food orders.'),
@@ -401,6 +417,12 @@ def init_db():
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', microwavable_products)
     conn.commit()
+
+    # IMPORTANT: none of the startup migrations/backfills below ever writes
+    # stock_boxes. Inventory numbers are changed only by the two write paths
+    # that own them — the checkout deduction (/api/checkout) and the admin
+    # stock update (/api/admin/update-stock) — so re-deploys and restarts
+    # always preserve the actual remaining stock counts stored in app.db.
 
     # Cups and lids ship in 1,250-unit boxes (microwavable packs stay at 100).
     # Existing databases were seeded with 1,000-unit boxes, so backfill the unit
