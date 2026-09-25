@@ -329,7 +329,9 @@ input[type="number"] {
 #microwavableList .product-card-img {
   height: 11rem;
   width: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  padding: 0.75rem;
+  background-color: #ffffff;
 }
 
 .product-card-media-label {

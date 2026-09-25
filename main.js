@@ -83,20 +83,39 @@ function getProductImageFallback(product){
   return `https://placehold.co/640x300/${background}/${foreground}?text=${encodeURIComponent(label)}`;
 }
 
-// Local product photography (served from ./static/ with root-level copies as
-// backup — Flask's /<path:filename> handler serves both). Cups/lids map to
-// their .webp files; anything without a photo (e.g. microwavables) falls back
-// to the placehold.co placeholder via getProductImageFallback().
+// Local product photography (served from the project root with ./static/ copies
+// as backup — Flask's /<path:filename> handler serves both). Cups/lids map to
+// their .webp files; microwavable containers map to their exact newly uploaded
+// .jpg files (ro10/ro16/ro30 + re500/re750/re1000/re1600/re2500). Anything
+// without a photo falls back to the placehold.co placeholder via
+// getProductImageFallback().
 function getProductImage(product){
   const type = String(product.type || '').trim().toLowerCase();
-  // Ensure microwavables and other non-cup/lid items never use cup or lid photos
-  if(type !== 'cup' && type !== 'lid'){
-    return getProductImageFallback(product);
-  }
-
   const id = String(product.id || '').trim().toLowerCase();
   const size = String(product.size || '').trim().toLowerCase();
   const style = String(product.style || '').trim().toLowerCase();
+  const name = String(product.name || '').trim().toLowerCase();
+
+  // Microwavable Containers -> exact uploaded file paths (root-level copies,
+  // also reachable as static/<file> when mirrored into ./static/).
+  // Matched by stable product id first, then by name/size so API/DB renames
+  // still resolve to the right photo.
+  if(type === 'microwavable' || id.startsWith('container-')){
+    if(id === 'container-ro-10' || /\bro\s*10\b/.test(name) || size === '10oz') return 'ro10.jpg';
+    if(id === 'container-ro-16' || /\bro\s*16\b/.test(name) || size === '16oz') return 'ro16.jpg';
+    if(id === 'container-ro-30' || /\bro\s*30\b/.test(name) || size === '30oz') return 'ro30.jpg';
+    if(id === 'container-re-500' || /\bre\s*500\b/.test(name) || size === '500ml') return 're500.jpg';
+    if(id === 'container-re-750' || /\bre\s*750\b/.test(name) || size === '750ml') return 're750.jpg';
+    if(id === 'container-re-1000' || /\bre\s*1000\b/.test(name) || size === '1,000ml' || size === '1000ml') return 're1000.jpg';
+    if(id === 'container-re-1600' || /\bre\s*1600\b/.test(name) || size === '1,600ml' || size === '1600ml') return 're1600.jpg';
+    if(id === 'container-re-2500' || /\bre\s*2500\b/.test(name) || size === '2,500ml' || size === '2500ml') return 're2500.jpg';
+    return getProductImageFallback(product);
+  }
+
+  // Ensure other non-cup/lid items never use cup or lid photos
+  if(type !== 'cup' && type !== 'lid'){
+    return getProductImageFallback(product);
+  }
   if(type === 'cup' || id.startsWith('cup-')){
     if(id === 'cup-12oz' || size === '12oz') return 'static/12oz.webp';
     if(id === 'cup-16oz' || size === '16oz') return 'static/16oz.webp';
@@ -140,7 +159,7 @@ function renderCatalog(){
           <span class="shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${stockClasses}">${stockLabel}</span>
         </div>
         <figure class="product-card-media">
-          <img src="${getProductImage(product)}" data-fallback="${getProductImageFallback(product)}" alt="${product.name} preview" class="product-card-img ${product.type === 'microwavable' ? 'h-44 object-cover' : 'h-64 sm:h-72 object-contain p-3'} w-full" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=this.dataset.fallback;" />
+          <img src="${getProductImage(product)}" data-fallback="${getProductImageFallback(product)}" alt="${product.name} preview" class="product-card-img ${product.type === 'microwavable' ? 'h-44 object-contain p-3' : 'h-64 sm:h-72 object-contain p-3'} w-full" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=this.dataset.fallback;" />
           <figcaption class="product-card-media-label">${product.name}</figcaption>
         </figure>
         <div class="p-5 pt-4">

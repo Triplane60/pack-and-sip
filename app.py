@@ -1337,7 +1337,7 @@ def process_checkout():
     try:
         resend.Emails.send({
             "from": "Pack & Sip <onboarding@resend.dev>",
-            "to": ["jambyletesas@gmail.com"],
+            "to": ["legolandcreator@gmail.com"],
             "subject": f"📦 New Order #{order_id} Received!",
             "html": f"<h3>New Order Alert!</h3><p><strong>Customer:</strong> {name}</p><p><strong>Phone:</strong> {phone}</p><p><strong>Total:</strong> ₱{total}</p>"
         })

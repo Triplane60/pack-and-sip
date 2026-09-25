@@ -186,7 +186,17 @@
            size/capacity order (RO 10 -> RO 16 -> RO 30, then RE 500 -> RE 750
            -> RE 1000 -> RE 1600 -> RE 2500 -> RE 3200, with RE 1250 / RE 1450
            / RE 1650 slotting in by capacity if added) via compareMicrowavableAsc.
-           Do not hardcode product cards here; keep that ascending sequence. -->
+           Do not hardcode product cards here; keep that ascending sequence.
+           Image mapping (main.js getProductImage(), all rendered with
+           object-contain so photos never distort):
+             RO 10 Round Container -> ro10.jpg (static/ro10.jpg mirror)
+             RO 16 Round Container -> ro16.jpg (static/ro16.jpg mirror)
+             RO 30 Round Container -> ro30.jpg (static/ro30.jpg mirror)
+             RE 500 Rectangular Container -> re500.jpg (static/re500.jpg mirror)
+             RE 750 Rectangular Container -> re750.jpg (static/re750.jpg mirror)
+             RE 1000 Rectangular Container -> re1000.jpg (static/re1000.jpg mirror)
+             RE 1600 Rectangular Container -> re1600.jpg (static/re1600.jpg mirror)
+             RE 2500 Rectangular Container -> re2500.jpg (static/re2500.jpg mirror) -->
       <div id="microwavableList" class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4"></div>
     </section>
 
