@@ -661,34 +661,48 @@ function deliveryMethodLabel(method){
 }
 
 // Single source of truth for the checkout address sections. Shipping Address
-// (#deliveryAddressFields) and City / Location (#deliveryZoneFields) are
-// permanently hidden/removed from the checkout flow, so this always keeps them
-// hidden, non-required, and out of validation regardless of Delivery Method
-// (called from calculate(), handleDeliveryMethodChange(),
-// resetConfigurator() and openCart()).
+// (#deliveryAddressFields) and City / Location (#deliveryZoneFields) are part
+// of the checkout flow again: they are VISIBLE for Lalamove Delivery and HIDDEN
+// for Customer Self-Booking / Warehouse Pick-up. updateDeliveryFieldsVisibility()
+// is called from calculate(), handleDeliveryMethodChange(), resetConfigurator()
+// and openCart() so the sections always match the selected Delivery Method.
 // The blue "Why select your City / Location?" explainer and the helper notes
 // under the dropdown were removed from the markup entirely to reduce clutter.
 function getDeliveryAddressFields(){
   return document.getElementById('deliveryAddressFields');
 }
 
+// Dynamic address visibility for the checkout drawer:
+//   - Lalamove Delivery (selfBooking === false)             -> SHOW both
+//     "Shipping Address" and "City / Location" so the courier destination
+//     (needed for the zone-based fee) can be captured.
+//   - Customer Self-Booking / Warehouse Pick-up
+//     (selfBooking === true, the default)                   -> HIDE both
+//     sections again; no courier destination is collected for pick-up.
 function updateDeliveryFieldsVisibility(selfBooking){
+  const showFields = !selfBooking;
   const fields = getDeliveryAddressFields();
   const address = document.getElementById('customerAddress');
   const zoneFields = document.getElementById('deliveryZoneFields');
-  // Shipping fields are always hidden now; keep the markup hidden even if the
-  // caller passes false (e.g. Lalamove Delivery selected).
-  void selfBooking;
-  if(fields){
-    fields.classList.add('hidden');
-    fields.setAttribute('aria-hidden', 'true');
-    fields.style.display = 'none';
-  }
-  if(address) address.removeAttribute('required');
-  if(zoneFields){
-    zoneFields.classList.add('hidden');
-    zoneFields.setAttribute('aria-hidden', 'true');
-    zoneFields.style.display = 'none';
+  const setSectionVisible = (section, visible) => {
+    if(!section) return;
+    section.classList.toggle('hidden', !visible);
+    if(visible){
+      section.removeAttribute('aria-hidden');
+      section.style.display = '';
+    } else {
+      section.setAttribute('aria-hidden', 'true');
+      section.style.display = 'none';
+    }
+  };
+  setSectionVisible(fields, showFields);
+  setSectionVisible(zoneFields, showFields);
+  // Shipping Address is required only while Lalamove Delivery needs it
+  // (mirrors the server-side check in app.py); hidden sections are never
+  // required, so Self-Booking / Pick-up submissions stay unaffected.
+  if(address){
+    if(showFields) address.setAttribute('required', '');
+    else address.removeAttribute('required');
   }
   // The <select> itself stays ENABLED while hidden so a city picked earlier
   // survives switching back to Lalamove Delivery; only its section is hidden.
@@ -696,6 +710,9 @@ function updateDeliveryFieldsVisibility(selfBooking){
   if(zone){
     zone.removeAttribute('disabled');
     zone.disabled = false;
+    // Keep the picker out of the tab order only while it is hidden.
+    if(showFields) zone.removeAttribute('tabindex');
+    else zone.setAttribute('tabindex', '-1');
   }
 }
 
@@ -1344,8 +1361,8 @@ function fillCustomerData(){
     if (addressField) addressField.value = currentUser.shipping_address || '';
     if (phoneField) phoneField.value = currentUser.phone || '';
   }
-  // Shipping Address / City / Location inputs were removed from the visible
-  // form; always keep them hidden and non-required after autofill.
+  // Shipping Address / City / Location visibility follows the selected Delivery
+  // Method after autofill: shown for Lalamove Delivery, hidden for Self-Booking.
   updateDeliveryFieldsVisibility(isSelfBookingSelected());
 }
 

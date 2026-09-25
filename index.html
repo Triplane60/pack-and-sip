@@ -515,10 +515,13 @@
           </div>
           <div class="p-4 border-t space-y-2.5" id="customerForm">
             <!-- Customer details, top to bottom:
-                 1. Full Name  2. Phone Number only. Shipping Address and City / Location were removed from the checkout flow.
-                 (Kept hidden via updateDeliveryFieldsVisibility() in main.js; Customer Self-Booking /
-                 Warehouse Pick-up is selected — see the
-                 updateDeliveryFieldsVisibility() call in main.js.)
+                 1. Full Name  2. Phone Number  3. Shipping Address (shown for
+                 Lalamove Delivery)  4. City / Location (shown for Lalamove
+                 Delivery). Shipping Address and City / Location are restored
+                 in this drawer and toggled dynamically by
+                 updateDeliveryFieldsVisibility() in main.js: VISIBLE when
+                 "Lalamove Delivery" is selected, HIDDEN when the default
+                 "Customer Self-Booking / Warehouse Pick-up" is selected.
                  Full Name leads the form (who is ordering); the phone follows
                  directly below it and stays the primary contact channel — an SMS
                  order update is sent to it. Required, digits only, PH mobile
