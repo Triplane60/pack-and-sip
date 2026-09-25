@@ -228,7 +228,7 @@ function resetConfigurator(){
   // order starts from an explicit location choice again.
   resetDeliveryZone();
   resetDeliveryMethod();
-  updateDeliveryFieldsVisibility(false);
+  updateDeliveryFieldsVisibility(true);
   syncCategoryTotals();
   document.getElementById('subtotal').innerText = '₱0.00';
   document.getElementById('shipping').innerText = '₱0.00';
@@ -645,10 +645,10 @@ function resetDeliveryZone(){
   if(select) select.value = '';
 }
 
-// Read the currently selected Delivery Method radio (defaults to Standard).
+// Read the currently selected Delivery Method radio (defaults to Self-Booking).
 function getSelectedDeliveryMethod(){
   const selected = document.querySelector('input[name="delivery_method"]:checked');
-  const value = selected ? String(selected.value) : DELIVERY_METHOD_STANDARD;
+  const value = selected ? String(selected.value) : DELIVERY_METHOD_SELF_BOOKING;
   return value === DELIVERY_METHOD_SELF_BOOKING ? DELIVERY_METHOD_SELF_BOOKING : DELIVERY_METHOD_STANDARD;
 }
 
@@ -660,15 +660,12 @@ function deliveryMethodLabel(method){
   return DELIVERY_METHOD_LABELS[method || DELIVERY_METHOD_STANDARD] || DELIVERY_METHOD_LABELS[DELIVERY_METHOD_STANDARD];
 }
 
-// Single source of truth for the conditionally-visible checkout sections,
-// kept in sync with the chosen Delivery Method (called from calculate(),
-// handleDeliveryMethodChange(), resetConfigurator() and openCart()):
-//   - Customer Self-Booking / Warehouse Pick-up: hides the Shipping Address
-//     field (#deliveryAddressFields) AND the whole City / Location section
-//     (#deliveryZoneFields) completely, and drops the address `required`
-//     attribute so validation passes without them.
-//   - Lalamove Delivery: shows both sections again and restores `required`
-//     on the address.
+// Single source of truth for the checkout address sections. Shipping Address
+// (#deliveryAddressFields) and City / Location (#deliveryZoneFields) are
+// permanently hidden/removed from the checkout flow, so this always keeps them
+// hidden, non-required, and out of validation regardless of Delivery Method
+// (called from calculate(), handleDeliveryMethodChange(),
+// resetConfigurator() and openCart()).
 // The blue "Why select your City / Location?" explainer and the helper notes
 // under the dropdown were removed from the markup entirely to reduce clutter.
 function getDeliveryAddressFields(){
@@ -679,26 +676,19 @@ function updateDeliveryFieldsVisibility(selfBooking){
   const fields = getDeliveryAddressFields();
   const address = document.getElementById('customerAddress');
   const zoneFields = document.getElementById('deliveryZoneFields');
-  if(selfBooking){
-    if(fields){
-      fields.classList.add('hidden');
-      fields.setAttribute('aria-hidden', 'true');
-    }
-    if(address) address.removeAttribute('required');
-    if(zoneFields){
-      zoneFields.classList.add('hidden');
-      zoneFields.setAttribute('aria-hidden', 'true');
-    }
-  }else{
-    if(fields){
-      fields.classList.remove('hidden');
-      fields.removeAttribute('aria-hidden');
-    }
-    if(address) address.setAttribute('required', '');
-    if(zoneFields){
-      zoneFields.classList.remove('hidden');
-      zoneFields.removeAttribute('aria-hidden');
-    }
+  // Shipping fields are always hidden now; keep the markup hidden even if the
+  // caller passes false (e.g. Lalamove Delivery selected).
+  void selfBooking;
+  if(fields){
+    fields.classList.add('hidden');
+    fields.setAttribute('aria-hidden', 'true');
+    fields.style.display = 'none';
+  }
+  if(address) address.removeAttribute('required');
+  if(zoneFields){
+    zoneFields.classList.add('hidden');
+    zoneFields.setAttribute('aria-hidden', 'true');
+    zoneFields.style.display = 'none';
   }
   // The <select> itself stays ENABLED while hidden so a city picked earlier
   // survives switching back to Lalamove Delivery; only its section is hidden.
@@ -716,11 +706,14 @@ function handleDeliveryMethodChange(){
   calculate();
 }
 
-// Restore the default (Option A) selection after the cart is cleared.
+// Restore the default (Option B: Customer Self-Booking / Warehouse Pick-up)
+// selection after the cart is cleared, and keep 100% Full Payment selected.
 function resetDeliveryMethod(){
-  const standard = document.getElementById('deliveryMethodStandard');
-  if(standard) standard.checked = true;
-  updateDeliveryFieldsVisibility(false);
+  const selfBooking = document.getElementById('deliveryMethodSelfBooking');
+  if(selfBooking) selfBooking.checked = true;
+  const paymentSelect = document.getElementById('payment-type-select');
+  if(paymentSelect) paymentSelect.value = 'full';
+  updateDeliveryFieldsVisibility(true);
 }
 
 function updateSummary(data){
@@ -922,7 +915,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Push the GCash account details into the drawer + confirmation modal
   // Payment Instructions boxes.
   renderGcashInstructions();
-  document.getElementById('customerPhone').addEventListener('input', function(){
+  // Enforce the new defaults on first load: Self-Booking delivery + 100% Full
+  // Payment, with Shipping Address / City / Location hidden.
+  resetDeliveryMethod();
+  const phoneInput = document.getElementById('customerPhone');
+  if(phoneInput) phoneInput.addEventListener('input', function(){
     this.value = this.value.replace(/[^0-9]/g, '');
     if(this.value.length > 0 && !this.value.startsWith('09')){
       this.value = this.value.startsWith('9')
@@ -1347,6 +1344,9 @@ function fillCustomerData(){
     if (addressField) addressField.value = currentUser.shipping_address || '';
     if (phoneField) phoneField.value = currentUser.phone || '';
   }
+  // Shipping Address / City / Location inputs were removed from the visible
+  // form; always keep them hidden and non-required after autofill.
+  updateDeliveryFieldsVisibility(isSelfBookingSelected());
 }
 
 
@@ -1661,24 +1661,27 @@ function resetCheckoutState(){
   closeCart();
   resetConfigurator();
   resetDeliveryMethod();
-  document.getElementById('customerPhone').value = '';
-  document.getElementById('customerName').value = '';
-  document.getElementById('customerAddress').value = '';
+  const phoneEl = document.getElementById('customerPhone');
+  if(phoneEl) phoneEl.value = '';
+  const nameEl = document.getElementById('customerName');
+  if(nameEl) nameEl.value = '';
+  const addressEl = document.getElementById('customerAddress');
+  if(addressEl) addressEl.value = '';
 }
 
 
 function validateCheckoutFields(){
-  const name = document.getElementById('customerName').value.trim();
-  const address = document.getElementById('customerAddress').value.trim();
-  const phone = document.getElementById('customerPhone').value.trim();
-  const selfBooking = isSelfBookingSelected();
+  const nameEl = document.getElementById('customerName');
+  const phoneEl = document.getElementById('customerPhone');
+  const name = nameEl ? nameEl.value.trim() : '';
+  const phone = phoneEl ? phoneEl.value.trim() : '';
 
   // Phone Number is the primary contact field (Shopee-style): it is required
-  // for every order and is where the SMS order update is sent.
-  if(!name || !phone || (!selfBooking && !address)){
-    showCustomAlert(selfBooking
-      ? 'Please enter your name and phone number.'
-      : 'Please enter your name, phone number, and shipping address.');
+  // for every order and is where the SMS order update is sent. Shipping
+  // Address and City / Location were removed from the form, so only name +
+  // phone are validated here.
+  if(!name || !phone){
+    showCustomAlert('Please enter your name and phone number.');
     return false;
   }
 
@@ -1687,15 +1690,8 @@ function validateCheckoutFields(){
     return false;
   }
 
-  // City / Location is required for Lalamove Delivery only: it drives the
-  // Lalamove base rate. The picker is hidden entirely for Customer
-  // Self-Booking / Warehouse Pick-up (no courier fee applies), so the check
-  // is skipped there.
-  if(!selfBooking && !getSelectedDeliveryZone()){
-    showCustomAlert('Please select your City / Location so we can set your delivery fee.');
-    return false;
-  }
-
+  // City / Location was removed from the checkout form, so no zone check is
+  // needed here. Lalamove fee math falls back to the default zone server-side.
   return true;
 }
 

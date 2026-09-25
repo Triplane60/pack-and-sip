@@ -396,10 +396,6 @@
           <label for="registerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
           <input type="tel" id="registerPhone" name="phone" placeholder="09123456789" maxlength="11" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '');" title="Phone Number" class="w-full border rounded-md p-2 mt-1" />
         </div>
-        <div>
-          <label for="registerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
-          <textarea id="registerAddress" name="address" autocomplete="off" title="Shipping Address" class="w-full border rounded-md p-2 mt-1" rows="2"></textarea>
-        </div>
         <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-md font-semibold hover:bg-indigo-700">Create Account</button>
       </form>
 
@@ -519,8 +515,8 @@
           </div>
           <div class="p-4 border-t space-y-2.5" id="customerForm">
             <!-- Customer details, top to bottom:
-                 1. Full Name  2. Phone Number  3. Shipping Address  4. City / Location.
-                 (Items 3 and 4 are hidden while Customer Self-Booking /
+                 1. Full Name  2. Phone Number only. Shipping Address and City / Location were removed from the checkout flow.
+                 (Kept hidden via updateDeliveryFieldsVisibility() in main.js; Customer Self-Booking /
                  Warehouse Pick-up is selected — see the
                  updateDeliveryFieldsVisibility() call in main.js.)
                  Full Name leads the form (who is ordering); the phone follows
@@ -535,9 +531,9 @@
               <label for="customerPhone" class="block text-sm font-medium text-slate-700">Phone Number</label>
               <input type="tel" id="customerPhone" name="phone" placeholder="09123456789" maxlength="11" pattern="09[0-9]{9}" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '');" required title="Phone Number" class="w-full rounded-md border-gray-200 p-1.5" />
             </div>
-            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5" id="deliveryAddressFields">
+            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5 hidden" id="deliveryAddressFields" aria-hidden="true" style="display:none;">
               <label for="customerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
-              <textarea id="customerAddress" name="address" autocomplete="off" required title="Shipping Address" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
+              <textarea id="customerAddress" name="address" autocomplete="off" title="Shipping Address" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
             </div>
             <!-- City / Location: shown ONLY for Lalamove Delivery. main.js
                  updateDeliveryFieldsVisibility() hides this whole section
@@ -548,10 +544,10 @@
                  (zone id, base rate + reservation window) come from app.py
                  LALAMOVE_ZONE_OPTIONS so the storefront and the server
                  always agree. -->
-            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5" id="deliveryZoneFields">
+            <div class="border border-slate-300 rounded-lg p-3 space-y-2.5 hidden" id="deliveryZoneFields" aria-hidden="true" style="display:none;">
               <label for="deliveryZone" class="block text-sm font-medium text-slate-700">City / Location</label>
-              <select id="deliveryZone" name="delivery_zone" onchange="calculate()" title="City / Location — Lalamove shipping origin: Taguig" class="payment-type-select">
-                <option value="" disabled selected>Select your city / area</option>
+              <select id="deliveryZone" name="delivery_zone" onchange="calculate()" title="City / Location — Lalamove shipping origin: Taguig" class="payment-type-select" tabindex="-1">
+                <option value="" disabled>Select your city / area</option>
                 {% for zone in lalamove_zones %}
                 <option value="{{ zone.id }}" data-rate="{{ '%.2f'|format(zone.rate) }}" data-short="{{ zone.short }}" data-reservation="{{ zone.reservation_minutes }}">{{ zone.label }} — ₱{{ '%.2f'|format(zone.rate) }}</option>
                 {% endfor %}
@@ -564,13 +560,13 @@
             <fieldset class="payment-option-group delivery-method-group">
               <legend class="payment-type-label">Delivery Method</legend>
               <label class="delivery-method-option" for="deliveryMethodStandard">
-                <input type="radio" id="deliveryMethodStandard" name="delivery_method" value="standard" checked onchange="handleDeliveryMethodChange()" title="Delivery Method: Lalamove Delivery (Local Courier Rates)" />
+                <input type="radio" id="deliveryMethodStandard" name="delivery_method" value="standard" onchange="handleDeliveryMethodChange()" title="Delivery Method: Lalamove Delivery (Local Courier Rates)" />
                 <span class="delivery-method-text">
                   <span class="delivery-method-title">Lalamove Delivery (Local Courier Rates)</span>
                 </span>
               </label>
               <label class="delivery-method-option" for="deliveryMethodSelfBooking">
-                <input type="radio" id="deliveryMethodSelfBooking" name="delivery_method" value="self_booking" onchange="handleDeliveryMethodChange()" />
+                <input type="radio" id="deliveryMethodSelfBooking" name="delivery_method" value="self_booking" checked onchange="handleDeliveryMethodChange()" />
                 <span class="delivery-method-text">
                   <span class="delivery-method-title">Customer Self-Booking / Warehouse Pick-up</span>
                 </span>
@@ -581,7 +577,7 @@
               <label for="payment-type-select" class="payment-type-label">Payment Option</label>
               <select id="payment-type-select" name="payment_type" onchange="updateCheckoutTotals()" title="Payment Option" class="payment-type-select">
                 <option value="50_percent">50% Downpayment (Balance on Delivery)</option>
-                <option value="full">100% Full Payment</option>
+                <option value="full" selected>100% Full Payment</option>
               </select>
             </div>
 
