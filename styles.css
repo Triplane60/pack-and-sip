@@ -39,13 +39,13 @@
 /* Hero brand logo: official mark above the "Wholesale Boxes of Cups, Lids &
    Microwavable Containers" headline. Uses the single brand asset favicon.png
    (square 1:1 artwork, shared with the browser tab icon), so the prominent
-   140px width renders the mark square; height: auto + object-fit: contain
+   185px width renders the mark square; height: auto + object-fit: contain
    guarantee the artwork never distorts. Centered above the headline with a
    16px bottom margin — the .hero-copy rule below centers the logo with the
    heading on both desktop and mobile. */
 .hero-logo {
   display: block;
-  width: 140px;
+  width: 185px;
   height: auto;
   max-width: 100%;
   object-fit: contain;
@@ -768,10 +768,12 @@ body.drawer-open #cartDrawer {
     font-size: 1.35rem !important;
   }
 
-  /* Hero logo on mobile — keeps the centered 140px desktop sizing so the
-     mark stays prominent on small screens. */
+  /* Hero logo on mobile — keeps the centered 185px desktop sizing so the
+     mark stays prominent on small screens, capped at 60vw so it never
+     overflows narrow viewports. */
   .hero-logo {
-    width: 140px !important;
+    width: 185px !important;
+    max-width: 60vw !important;
     margin-left: auto !important;
     margin-right: auto !important;
   }
