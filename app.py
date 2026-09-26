@@ -206,6 +206,21 @@ STANDARD_DELIVERY_LABEL = LALAMOVE_DELIVERY_LABEL
 SELF_BOOKING_DELIVERY_LABEL = 'Customer Self-Booking / Warehouse Pick-up'
 SELF_BOOKING_SHIPPING_LABEL = 'Customer Self-Booking'
 SELF_BOOKING_STATUS = 'Ready for Pick-up'
+# ---------------------------------------------------------------------------
+# ORDER STATUS MODEL
+# The staff dashboard offers exactly two statuses, so the API accepts exactly
+# the same two values and nothing else:
+#   * 'Accepted / Paid' — the DEFAULT for every newly created order
+#   * 'Declined'        — set by staff from the STATUS dropdown
+# Legacy rows may still hold an older value (Pending, Paid, Shipping,
+# Completed, ...); those are preserved untouched in the database and are
+# presented as 'Accepted / Paid' by the frontend (see normalizeStatus()).
+# ---------------------------------------------------------------------------
+ORDER_STATUS_ACCEPTED = 'Accepted / Paid'
+ORDER_STATUS_DECLINED = 'Declined'
+# Ordered tuple: also the exact option order of the STATUS dropdown.
+ORDER_STATUSES = (ORDER_STATUS_ACCEPTED, ORDER_STATUS_DECLINED)
+ORDER_STATUS_DEFAULT = ORDER_STATUS_ACCEPTED
 SELF_BOOKING_NOTE = (
     "Note: You will book your own rider (Lalamove/Grab) once your order "
     "status is updated to 'Ready for Pick-up'."
@@ -666,7 +681,7 @@ def init_db():
                 payment_method TEXT NOT NULL DEFAULT 'Cash on Delivery',
                 delivery_method TEXT NOT NULL DEFAULT 'standard',
                 delivery_zone TEXT NOT NULL DEFAULT 'taguig_city',
-                status TEXT NOT NULL DEFAULT 'Pending',
+                status TEXT NOT NULL DEFAULT 'Accepted / Paid',
                 cup_id TEXT,
                 cup_size TEXT,
                 cup_boxes INTEGER,
@@ -690,7 +705,7 @@ def init_db():
     if 'payment_method' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'Cash on Delivery'")
     if 'status' not in order_columns:
-        cursor.execute("ALTER TABLE orders ADD COLUMN status TEXT NOT NULL DEFAULT 'Pending'")
+        cursor.execute("ALTER TABLE orders ADD COLUMN status TEXT NOT NULL DEFAULT 'Accepted / Paid'")
     if 'microwavable_boxes' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN microwavable_boxes INTEGER NOT NULL DEFAULT 0")
     if 'cup_size' not in order_columns:
@@ -1171,14 +1186,20 @@ def get_admin_orders():
 @app.route('/api/admin/orders/<int:order_id>/status', methods=['PATCH', 'PUT'])
 @app.route('/api/orders/<int:order_id>/status', methods=['PUT', 'PATCH'])
 def update_order_status(order_id):
-    """Update an order's fulfillment status."""
-    allowed_statuses = {'Pending', 'Paid', SELF_BOOKING_STATUS, 'Shipping', 'Shipped', 'Completed'}
+    """Update an order's fulfillment status.
+
+    Only the two statuses the dashboard offers are accepted:
+    'Accepted / Paid' and 'Declined'. Anything else (including the legacy
+    values such as 'Pending' / 'Completed') is rejected with a 400 so the
+    database can never drift into a state the STATUS dropdown cannot show.
+    """
+    allowed_statuses = set(ORDER_STATUSES)
     data = request.get_json(force=True, silent=True) or {}
     status = data.get('status')
 
     if status not in allowed_statuses:
         return jsonify({
-            "error": "Status must be Pending, Paid, Ready for Pick-up, Shipped, or Completed."
+            "error": "Status must be 'Accepted / Paid' or 'Declined'."
         }), 400
 
     conn = get_db()
@@ -1508,9 +1529,9 @@ def process_checkout():
         created_at = datetime.datetime.utcnow().isoformat()
 
         cursor.execute('''
-            INSERT INTO orders (user_id, customer_name, email, customer_address, customer_phone, payment_method, delivery_method, delivery_zone, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total_amount, downpayment_amount, remaining_balance, payment_status, created_at, gcash_ref)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, name, email, address, phone, payment_method, delivery_method, delivery_zone, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total, downpayment_amount, remaining_balance, payment_status, created_at, gcash_ref))
+            INSERT INTO orders (user_id, customer_name, email, customer_address, customer_phone, payment_method, delivery_method, delivery_zone, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total_amount, downpayment_amount, remaining_balance, payment_status, status, created_at, gcash_ref)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, name, email, address, phone, payment_method, delivery_method, delivery_zone, cup_id, cup_size, cup_boxes, lid_id, lid_style, lid_boxes, microwavable_size, microwavable_boxes, total, downpayment_amount, remaining_balance, payment_status, ORDER_STATUS_DEFAULT, created_at, gcash_ref))
 
 
         order_id = cursor.lastrowid
@@ -1557,7 +1578,7 @@ def process_checkout():
     try:
         resend.Emails.send({
             "from": "Pack & Sip <onboarding@resend.dev>",
-            "to": ["legolandcreator@gmail.com"],
+            "to": ["jambyletesa@gmail.com"],
             "subject": f"📦 New Order #{order_id} Received!",
             "html": f"<h3>New Order Alert!</h3><p><strong>Customer:</strong> {name}</p><p><strong>Phone:</strong> {phone}</p><p><strong>Total:</strong> ₱{total}</p>"
         })

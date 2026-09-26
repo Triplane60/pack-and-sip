@@ -1612,18 +1612,28 @@ function openCustomerOrders(){
     });
 }
 
+// STATUS MODEL (mirrors app.py / manage-orders-ps.html): an order is either
+// accepted or declined. Accepted is green, declined is red. Legacy rows still
+// carrying an older value (Pending, Paid, Completed, ...) are normalized to
+// "Accepted / Paid" before lookup so nothing ever falls through to the grey
+// default and the customer sees the same two states the staff dashboard uses.
+const ACCEPTED_STATUS = 'Accepted / Paid';
+const DECLINED_STATUS = 'Declined';
 const CUSTOMER_ORDER_BADGES = {
-  Pending: 'bg-amber-100 text-amber-800',
-  Paid: 'bg-sky-100 text-sky-700',
-  'Ready for Pick-up': 'bg-emerald-100 text-emerald-700',
-  Shipping: 'bg-indigo-100 text-indigo-700',
-  Completed: 'bg-emerald-100 text-emerald-800'
+  [ACCEPTED_STATUS]: 'bg-emerald-100 text-emerald-700',
+  [DECLINED_STATUS]: 'bg-red-100 text-red-700'
 };
 
+// Anything not explicitly declined is presented as accepted, so a stale status
+// string from an older order can never render an unrecognised badge.
+function normalizeOrderStatus(status){
+  return status === DECLINED_STATUS ? DECLINED_STATUS : ACCEPTED_STATUS;
+}
+
 function orderStatusBadge(status){
-  const classes = CUSTOMER_ORDER_BADGES[status] || 'bg-slate-100 text-slate-700';
-  const label = status || 'Pending';
-  return `<span class="shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${classes}">${escapeHtml(label)}</span>`;
+  const normalized = normalizeOrderStatus(status);
+  const classes = CUSTOMER_ORDER_BADGES[normalized] || 'bg-slate-100 text-slate-700';
+  return `<span class="shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${classes}">${escapeHtml(normalized)}</span>`;
 }
 
 function orderItemsSummary(order){

@@ -38,8 +38,8 @@
         <p id="totalOrders" class="mt-2 text-3xl font-bold tracking-tight text-slate-900">0</p>
       </div>
       <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <p class="text-xs font-bold uppercase tracking-wider text-slate-600">Pending</p>
-        <p id="pendingOrders" class="mt-2 text-3xl font-bold tracking-tight text-amber-600">0</p>
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-600">Accepted</p>
+        <p id="pendingOrders" class="mt-2 text-3xl font-bold tracking-tight text-emerald-600">0</p>
       </div>
       <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <p class="text-xs font-bold uppercase tracking-wider text-slate-600">Revenue</p>
@@ -158,9 +158,37 @@
   </div>
 
   <script>
-    // 'Ready for Pick-up' is used by Customer Self-Booking / Warehouse Pick-up
-    // orders (no Pack & Sip courier is booked for them).
-    const statuses = ['Pending', 'Paid', 'Ready for Pick-up', 'Shipping', 'Completed'];
+    // STATUS MODEL — an order is either accepted or declined, nothing else.
+    // The STATUS dropdown below offers ONLY these two values, and every newly
+    // created order starts as ACCEPTED_STATUS (see app.py checkout INSERT).
+    const ACCEPTED_STATUS = 'Accepted / Paid';
+    const DECLINED_STATUS = 'Declined';
+    const statuses = [ACCEPTED_STATUS, DECLINED_STATUS];
+
+    // Legacy rows can still carry an older value (Pending, Paid, Completed,
+    // Shipping, ...). Anything that is not explicitly "Declined" is presented
+    // as accepted, so a row can never render a status the dropdown would be
+    // unable to save again on the next "Save status".
+    function normalizeStatus(status) {
+      return status === DECLINED_STATUS ? DECLINED_STATUS : ACCEPTED_STATUS;
+    }
+
+    // STATUS badge: green for accepted, red for declined.
+    function statusBadge(status) {
+      const normalized = normalizeStatus(status);
+      const classes = normalized === DECLINED_STATUS
+        ? 'bg-red-100 text-red-700'
+        : 'bg-emerald-100 text-emerald-700';
+      return `<span class="inline-block rounded-full px-2.5 py-1 text-xs font-bold ${classes}">${normalized}</span>`;
+    }
+
+    // Only a finalized order may be deleted — declined orders, plus legacy rows
+    // already marked Completed. This keeps the old "only finished orders can be
+    // removed" protection now that Completed is no longer selectable.
+    function canDeleteOrder(order) {
+      return normalizeStatus(order.status) === DECLINED_STATUS || order.status === 'Completed';
+    }
+
     const ADMIN_API_URL = '/api/admin/orders';
     const ADMIN_AUTH_KEY = 'adminAuthenticated';
     const ADMIN_PASSWORD = 'admin123';
@@ -323,7 +351,7 @@
       ordersTableBody.replaceChildren();
       emptyState.classList.toggle('hidden', orders.length !== 0);
       document.getElementById('totalOrders').textContent = orders.length;
-      document.getElementById('pendingOrders').textContent = orders.filter(order => order.status === 'Pending').length;
+      document.getElementById('pendingOrders').textContent = orders.filter(order => normalizeStatus(order.status) === ACCEPTED_STATUS).length;
       document.getElementById('revenue').textContent = currency.format(orders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0));
 
       orders.forEach(order => {
@@ -352,13 +380,22 @@
           </td>
           <!-- PAYMENT PROOF: the uploaded GCash screenshot (thumbnail + button). -->
           <td class="px-5 py-4">${formatPaymentProof(order)}</td>
-          <td class="px-5 py-4"><select data-order-id="${order.id}" class="status-select rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" onchange="toggleDeleteButton(${order.id}, this.value)">${statuses.map(status => `<option value="${status}" ${status === order.status ? 'selected' : ''}>${status}</option>`).join('')}</select></td>
+          <!-- STATUS: green/red badge showing the current state, plus a dropdown
+               limited to exactly two choices (Accepted / Paid, Declined). The
+               selected option is normalized so legacy rows always line up with
+               a value the dropdown can actually save. -->
+          <td class="px-5 py-4">
+            <div class="flex flex-col gap-2">
+              ${statusBadge(order.status)}
+              <select data-order-id="${order.id}" class="status-select rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" onchange="toggleDeleteButton(${order.id}, this.value)">${statuses.map(status => `<option value="${status}" ${status === normalizeStatus(order.status) ? 'selected' : ''}>${status}</option>`).join('')}</select>
+            </div>
+          </td>
           <td class="px-5 py-4">
             <div class="flex flex-col gap-2">
               <button type="button" data-save-id="${order.id}" class="save-button rounded-lg border border-indigo-200 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50">Save status</button>
             </div>
           </td>
-          <td class="px-5 py-4"><button type="button" data-delete-id="${order.id}" class="delete-button rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed" ${order.status === 'Completed' ? '' : 'disabled'}>Delete</button></td>
+          <td class="px-5 py-4"><button type="button" data-delete-id="${order.id}" class="delete-button rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed" ${canDeleteOrder(order) ? '' : 'disabled'}>Delete</button></td>
         `;
 
 
@@ -402,7 +439,9 @@
 
     function toggleDeleteButton(orderId, status) {
       const btn = document.querySelector(`[data-delete-id="${orderId}"]`);
-      if (btn) btn.disabled = (status !== 'Completed');
+      // Mirrors canDeleteOrder(): only a declined (or legacy Completed) order
+      // may be removed. `status` here is the dropdown's normalized value.
+      if (btn) btn.disabled = (status !== DECLINED_STATUS);
     }
 
     async function deleteOrder(orderId, button) {
