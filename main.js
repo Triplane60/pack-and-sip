@@ -1025,8 +1025,8 @@ async function clearCartItems(){
 // box — those details live ONLY in the Order Confirmation Modal, directly above
 // the required GCash proof upload field.
 // ---------------------------------------------------------------------------
-const GCASH_ACCOUNT_1_NAME = 'RH••A E.';
-const GCASH_ACCOUNT_1_NUMBER = '0928 181 5599';
+const GCASH_ACCOUNT_1_NAME = 'JE••••N ER•••T E.';
+const GCASH_ACCOUNT_1_NUMBER = '0966 745 3719';
 // Legacy aliases (kept so any other code referencing the single-account names
 // keeps working — they point at the sole account).
 const GCASH_ACCOUNT_NAME = GCASH_ACCOUNT_1_NAME;
@@ -1116,8 +1116,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('addMoreItemsBtn').addEventListener('click', closeConfirmationModal);
   document.getElementById('confirmOrderBtn').addEventListener('click', submitOrder);
-  // Required GCash proof screenshot: keeps "Yes, Place Order" disabled until a
-  // valid image is attached (see setupGcashProofUpload).
+  // Required GCash proof screenshot + 13-digit reference: keeps
+  // "Yes, Place Order" disabled until BOTH are valid (see setupGcashProofUpload).
   setupGcashProofUpload();
   document.getElementById('closeModalBtn').addEventListener('click', closeOrderPendingModal);
   setupAuthModal();
@@ -1818,14 +1818,16 @@ function showOrderPendingModal(phone, amounts){
 // GCash proof of payment (Order Confirmation Modal)
 // ---------------------------------------------------------------------------
 // #confirmOrderBtn ("Yes, Place Order") starts DISABLED every time the modal
-// opens and is only enabled once the customer attaches a valid image to
-// #gcashProofInput. The chosen file is POSTed to /api/checkout as the multipart
-// field "gcash_proof" (see submitOrder / app.py process_checkout).
+// opens and is only enabled once BOTH conditions hold: the customer attaches
+// a valid image to #gcashProofInput AND types a valid 13-digit GCash
+// reference number into #gcashRefInput. The file is POSTed to /api/checkout
+// as the multipart field "gcash_proof" and the reference as "gcash_ref"
+// (see submitOrder / app.py process_checkout).
 const GCASH_PROOF_IMAGE_TYPES = [
-  'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
-  'image/gif', 'image/bmp', 'image/heic', 'image/heif'
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp'
 ];
-const GCASH_PROOF_IMAGE_EXT = /\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i;
+const GCASH_PROOF_IMAGE_EXT = /\.(jpe?g|png|webp)$/i;
+const GCASH_REF_PATTERN = /^[0-9]{13}$/;
 
 function getGcashProofInput(){
   return document.getElementById('gcashProofInput');
@@ -1845,6 +1847,53 @@ function isAcceptedGcashProofFile(file){
   return !type && GCASH_PROOF_IMAGE_EXT.test(file.name || '');
 }
 
+function getGcashRefInput(){
+  return document.getElementById('gcashRefInput');
+}
+
+function getGcashRefValue(){
+  const input = getGcashRefInput();
+  return input ? (input.value || '').replace(/[^0-9]/g, '').slice(0, 13) : '';
+}
+
+function isValidGcashRef(value){
+  return GCASH_REF_PATTERN.test((value || '').trim());
+}
+
+function updateConfirmOrderButtonState(){
+  // "Yes, Place Order" unlocks ONLY when BOTH a valid proof image and a
+  // valid 13-digit GCash reference number are present — blocks fake/troll
+  // uploads that attach a random image with no verifiable reference.
+  const file = getGcashProofFile();
+  const refValue = getGcashRefValue();
+  setConfirmOrderButtonEnabled(isAcceptedGcashProofFile(file) && isValidGcashRef(refValue));
+}
+
+function setGcashRefStatus(message, isError){
+  const status = document.getElementById('gcashRefStatus');
+  if(!status) return;
+  status.textContent = message;
+  status.classList.toggle('text-red-600', !!isError);
+  status.classList.toggle('text-slate-500', !isError);
+}
+
+function handleGcashRefChange(){
+  const input = getGcashRefInput();
+  if(input){
+    // Digits only, capped at 13 characters so pasted text can't smuggle letters.
+    const cleaned = (input.value || '').replace(/[^0-9]/g, '').slice(0, 13);
+    if(input.value !== cleaned) input.value = cleaned;
+  }
+  const value = getGcashRefValue();
+  if(!value){
+    setGcashRefStatus('Enter the 13-digit reference number from your GCash receipt.', false);
+  }else if(!isValidGcashRef(value)){
+    setGcashRefStatus(`Reference must be 13 digits (currently ${value.length}/13).`, true);
+  }else{
+    setGcashRefStatus('Reference number looks good — matches the GCash receipt format.', false);
+  }
+  updateConfirmOrderButtonState();
+}
 function setConfirmOrderButtonEnabled(enabled){
   const btn = document.getElementById('confirmOrderBtn');
   if(!btn) return;
@@ -1855,16 +1904,19 @@ function setConfirmOrderButtonEnabled(enabled){
 function resetGcashProofUpload(){
   const input = getGcashProofInput();
   if(input) input.value = '';
+  const refInput = getGcashRefInput();
+  if(refInput) refInput.value = '';
   const preview = document.getElementById('gcashProofPreview');
   const previewImg = document.getElementById('gcashProofPreviewImg');
   if(previewImg) previewImg.removeAttribute('src');
   if(preview) preview.classList.add('hidden');
   const status = document.getElementById('gcashProofStatus');
   if(status){
-    status.textContent = 'No file selected yet. Please attach your GCash payment screenshot (image file only).';
+    status.textContent = 'No file selected yet. Please attach your GCash payment screenshot (JPG, PNG or WEBP only).';
     status.classList.remove('text-red-600');
     status.classList.add('text-slate-500');
   }
+  setGcashRefStatus('Enter the 13-digit reference number from your GCash receipt.', false);
   // The modal always re-opens with the final action locked.
   setConfirmOrderButtonEnabled(false);
 }
@@ -1888,20 +1940,21 @@ function handleGcashProofChange(){
 
   if(!file){
     clearPreview();
-    setStatus('No file selected yet. Please attach your GCash payment screenshot (image file only).', false);
-    setConfirmOrderButtonEnabled(false);
+    setStatus('No file selected yet. Please attach your GCash payment screenshot (JPG, PNG or WEBP only).', false);
+    updateConfirmOrderButtonState();
     return;
   }
 
   if(!isAcceptedGcashProofFile(file)){
     clearPreview();
-    setStatus('Invalid file. Please upload an image (JPG, PNG, WEBP, GIF, BMP, HEIC).', true);
-    setConfirmOrderButtonEnabled(false);
+    setStatus('Invalid file. Please upload a JPG, PNG or WEBP image only.', true);
+    updateConfirmOrderButtonState();
     return;
   }
 
-  // Valid image: unlock "Yes, Place Order" and show the file details.
-  setConfirmOrderButtonEnabled(true);
+  // Valid image: show the file details — the button unlocks only when the
+  // 13-digit GCash reference number is also valid (see
+  // updateConfirmOrderButtonState).
   setStatus(`Selected: ${file.name} (${Math.max(1, Math.round(file.size / 1024))} KB) — proof attached.`, false);
 
   if(preview && previewImg){
@@ -1912,12 +1965,17 @@ function handleGcashProofChange(){
     };
     reader.readAsDataURL(file);
   }
+  updateConfirmOrderButtonState();
 }
 
 function setupGcashProofUpload(){
   const input = getGcashProofInput();
-  if(!input) return;
-  input.addEventListener('change', handleGcashProofChange);
+  if(input) input.addEventListener('change', handleGcashProofChange);
+  const refInput = getGcashRefInput();
+  if(refInput){
+    refInput.addEventListener('input', handleGcashRefChange);
+    refInput.addEventListener('change', handleGcashRefChange);
+  }
   // Arm the disabled state as soon as the listeners are installed.
   resetGcashProofUpload();
 }
@@ -2178,19 +2236,31 @@ async function submitOrder(){
     const formData = new FormData(formEl);
     const checkoutData = Object.fromEntries(formData.entries());
 
-    // GCash payment proof (REQUIRED): captured BEFORE resetCheckoutState()
-    // tears the modal down, so it can be appended to the multipart payload.
-    // The button is disabled while no valid image is attached, but the guard
-    // is kept as a final safety net for keyboard/JS triggered submits.
+    // GCash payment proof + reference (BOTH REQUIRED): captured BEFORE
+    // resetCheckoutState() tears the modal down, so they can be appended to
+    // the multipart payload. The button stays disabled until both are valid,
+    // but the guards are kept as a final safety net for keyboard/JS submits.
     const proofFile = getGcashProofFile();
     if(!proofFile || !isAcceptedGcashProofFile(proofFile)){
-      showCustomAlert('Please upload your GCash payment screenshot / proof before placing the order.');
+      showCustomAlert('Please upload your GCash payment screenshot / proof (JPG, PNG or WEBP) before placing the order.');
+      return;
+    }
+    const gcashRefValue = getGcashRefValue();
+    if(!isValidGcashRef(gcashRefValue)){
+      handleGcashRefChange();
+      showCustomAlert('Please enter the valid 13-digit GCash reference number from your receipt before placing the order.');
+      const refInput = getGcashRefInput();
+      if(refInput) refInput.focus();
       return;
     }
     // Multipart submission: the exact same checkout fields PLUS the proof image
     // (FormData is a snapshot, so the later form reset cannot affect it).
     const submitData = new FormData(formEl);
     submitData.append('gcash_proof', proofFile, proofFile.name);
+    // Force the sanitized 13-digit reference into the payload (the modal input
+    // already carries name="gcash_ref", but set() guarantees the digits-only
+    // value wins even if the DOM value was edited mid-submit).
+    submitData.set('gcash_ref', gcashRefValue);
     // Capture the customer's phone number before the form is reset — it is the
     // value injected into the order success popup. FormData holds it as
     // checkoutData.phone because the input carries name="phone"; reading the
@@ -2215,7 +2285,7 @@ async function submitOrder(){
     resetCheckoutState();
     // NOTE: no explicit Content-Type header — the browser sets the multipart
     // boundary itself so app.py can read BOTH request.form (the checkout
-    // fields) and request.files['gcash_proof'] (the uploaded screenshot).
+    // fields + gcash_ref) and request.files['gcash_proof'] (the screenshot).
     const res = await fetch('/api/checkout', {
       method: 'POST',
       body: submitData,

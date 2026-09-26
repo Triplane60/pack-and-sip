@@ -61,8 +61,11 @@ MICROWAVABLE_PRICE_PER_BOX = 1500.0
 # `uploads/<filename>`, which the generic serve_static route can hand back.
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-# Only real image files are accepted as payment proof.
-IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.heic', '.heif'}
+# Only real photographic screenshots are accepted as payment proof —
+# fake/troll uploads (PDFs, text files, GIF memes, BMP dumps) are rejected.
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
+# Allowed upload MIME types, checked alongside the extension above.
+IMAGE_MIMETYPES = {'image/jpeg', 'image/jpg', 'image/png', 'image/webp'}
 
 # ---------------------------------------------------------------------------
 # Lalamove local courier shipping (origin: Taguig City).
@@ -1367,10 +1370,69 @@ def process_checkout():
         # items, quantities and totals arrive as hidden fields in the form.
         data = {key: request.form.get(key) for key in request.form}
 
-    # GCash proof-of-payment screenshot: the Order Confirmation Modal always
-    # submits the form as multipart/form-data with the chosen image in the
-    # "gcash_proof" field (see main.js submitOrder).
+    # GCash proof-of-payment screenshot + reference number: the Order
+    # Confirmation Modal always submits multipart/form-data with the chosen
+    # image in the "gcash_proof" field and the 13-digit receipt number in
+    # "gcash_ref" (see main.js submitOrder — the "Yes, Place Order" button
+    # stays disabled until BOTH are valid).
     proof_file = request.files.get('gcash_proof') if request.files else None
+
+    # --- Backend file validation safeguard (anti fake/troll uploads) ---
+    # 1. Strictly allow .jpg / .jpeg / .png / .webp by BOTH extension and
+    #    MIME type. Anything else (PDF, TXT, GIF, BMP, renamed executables)
+    #    is rejected with a 400 so no order row is created for junk uploads.
+    # 2. Verify the bytes are a real decodable image via PIL/Pillow
+    #    (Image.open + verify). Spoofed files that only *look* like images
+    #    fail here.
+    # 3. Best-effort EXIF inspection: image._getexif() is read for the
+    #    capture/creation date (tags 36867 DateTimeOriginal / 306 DateTime)
+    #    when the phone camera embedded one. The value is logged for staff
+    #    review but never blocks checkout — screenshots and Messenger-saved
+    #    copies routinely strip EXIF, so absence is NOT a rejection reason.
+    proof_exif_captured_at = None
+    if proof_file is not None and (proof_file.filename or '').strip():
+        safe_name = secure_filename(proof_file.filename) or 'gcash_proof'
+        extension = os.path.splitext(safe_name)[1].lower()
+        mime_type = (proof_file.mimetype or '').lower()
+        if extension not in IMAGE_EXTENSIONS or (mime_type and mime_type not in IMAGE_MIMETYPES):
+            return jsonify({"error": "Invalid payment proof. Please upload a JPG, PNG or WEBP screenshot only."}), 400
+        try:
+            from PIL import Image as _PILImage
+            proof_bytes = proof_file.read()
+            if not proof_bytes:
+                return jsonify({"error": "Uploaded payment proof is empty. Please attach your GCash screenshot again."}), 400
+            import io as _io
+            try:
+                _probe = _PILImage.open(_io.BytesIO(proof_bytes))
+                _probe.verify()
+            except Exception:
+                return jsonify({"error": "Uploaded file is not a valid image. Please attach a real GCash screenshot (JPG, PNG or WEBP)."}), 400
+            try:
+                _img = _PILImage.open(_io.BytesIO(proof_bytes))
+                exif = _img._getexif() if hasattr(_img, '_getexif') else None
+                if exif:
+                    # 36867 = DateTimeOriginal, 36868 = DateTimeDigitized,
+                    # 306 = DateTime (file creation fallback).
+                    for _tag in (36867, 36868, 306):
+                        if exif.get(_tag):
+                            proof_exif_captured_at = str(exif.get(_tag))
+                            break
+            except Exception as exif_err:
+                print(f"GCash proof EXIF inspection note: {exif_err}")
+            # Rewind so the later .save() persists the full upload.
+            try:
+                proof_file.seek(0)
+            except Exception:
+                import io as _io2
+                proof_file.stream = _io2.BytesIO(proof_bytes)
+        except ImportError:
+            # Pillow is optional (see requirements.txt): without it the
+            # extension + MIME gate above is the enforced safeguard.
+            print("GCash proof image-content check skipped: Pillow (PIL) is not installed.")
+            try:
+                proof_file.seek(0)
+            except Exception:
+                pass
 
     name = (data.get('name') or '').strip()
     # Email is OPTIONAL: the storefront checkout identifies the customer by
@@ -1380,15 +1442,15 @@ def process_checkout():
     email = (data.get('email') or '').strip()
     address = (data.get('address') or '').strip()
     phone = (data.get('phone') or '').strip()
-    # GCash Reference Number (proof of payment): OPTIONAL — the storefront saves
-    # the order as Pending Payment so the customer can pay afterwards and send
-    # the screenshot/reference by email. When a value IS supplied it must be a
-    # complete 13-digit GCash reference so the staff dashboard always shows a
-    # verifiable proof of payment (blank is stored as NULL).
-    gcash_ref = (data.get('gcash_ref') or '').strip()
-    if gcash_ref and not (len(gcash_ref) == 13 and gcash_ref.isascii() and gcash_ref.isdigit()):
-        return jsonify({"error": "Please enter a valid 13-digit GCash reference number, or leave it blank."}), 400
-    gcash_ref = gcash_ref or None
+    # GCash Reference Number (proof of payment): REQUIRED — the storefront
+    # "Yes, Place Order" button only enables when a valid image AND a valid
+    # 13-digit reference are supplied, and the backend re-enforces both so
+    # fake/troll uploads (random image, missing reference) are rejected here
+    # even if the frontend gate is bypassed. Stored in orders.gcash_ref so
+    # the Admin Orders dashboard shows it alongside the proof preview.
+    gcash_ref = ''.join(ch for ch in (data.get('gcash_ref') or '') if ch.isdigit())[:13]
+    if not (len(gcash_ref) == 13 and gcash_ref.isascii() and gcash_ref.isdigit()):
+        return jsonify({"error": "Please enter the valid 13-digit GCash reference number from your receipt."}), 400
     payment_type = (data.get('payment_type') or '50_percent').strip()
     payment_method = (data.get('payment_method') or '').strip()
     if not payment_method:
@@ -1539,9 +1601,15 @@ def process_checkout():
 
         # Persist the uploaded GCash proof AFTER the order row is committed, so
         # a storage/disk failure can never lose the order or roll it back. The
-        # saved relative path is recorded in orders.gcash_proof for the staff
-        # dashboard.
-        if proof_file is not None and (proof_file.filename or '').strip():
+        # saved relative path is recorded in orders.gcash_proof and the
+        # 13-digit receipt number in orders.gcash_ref, so the Admin Orders
+        # dashboard shows them side by side. The proof was already strictly
+        # validated above (extension + MIME + Pillow content + EXIF log), so a
+        # missing/empty file here means the frontend gate was bypassed — keep
+        # the order but flag it instead of silently storing a proof-less row.
+        if proof_file is None or not (proof_file.filename or '').strip():
+            print(f"GCash proof missing for order {order_id} (ref {gcash_ref}): order kept, proof flagged for staff review")
+        else:
             try:
                 safe_name = secure_filename(proof_file.filename) or 'gcash_proof'
                 extension = os.path.splitext(safe_name)[1].lower()
@@ -1554,6 +1622,8 @@ def process_checkout():
                         (f"uploads/{stored_name}", order_id)
                     )
                     conn.commit()
+                    if proof_exif_captured_at:
+                        print(f"GCash proof EXIF capture date for order {order_id} (ref {gcash_ref}): {proof_exif_captured_at}")
                 else:
                     print(f"GCash proof ignored for order {order_id}: unsupported file type '{extension}'")
             except Exception as proof_err:

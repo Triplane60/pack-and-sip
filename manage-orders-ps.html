@@ -297,11 +297,18 @@
 
     // PAYMENT PROOF cell: a clickable thumbnail + an explicit
     // "View Proof / Screenshot" button (both carry data-proof-src and open the
-    // viewer modal below), or a clear empty state when no screenshot was sent.
+    // viewer modal below), plus the 13-digit GCash reference number
+    // (orders.gcash_ref, saved by app.py process_checkout) shown cleanly
+    // underneath for staff verification — or a clear empty state when no
+    // screenshot was sent.
     function formatPaymentProof(order) {
       const url = paymentProofUrl(order);
+      const ref = String(order.gcash_ref || '').trim();
+      const refBadge = ref
+        ? `<div class="mt-1 rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold tracking-widest text-slate-700" title="GCash reference number">Ref: ${escapeHtml(ref)}</div>`
+        : `<div class="mt-1 text-[11px] font-semibold text-slate-400">No ref no.</div>`;
       if (!url) {
-        return '<div class="text-xs font-semibold text-slate-400">No proof uploaded</div>';
+        return `<div class="flex flex-col items-start gap-1"><div class="text-xs font-semibold text-slate-400">No proof uploaded</div>${refBadge}</div>`;
       }
       const safeUrl = escapeHtml(url);
       const orderId = escapeHtml(order.id);
@@ -309,6 +316,7 @@
         <div class="flex flex-col items-start gap-2">
           <img src="${safeUrl}" alt="GCash payment proof for order #${orderId}" data-proof-src="${safeUrl}" data-proof-order="${orderId}" loading="lazy" title="View payment proof" class="h-14 w-14 cursor-zoom-in rounded-lg border border-slate-200 object-cover transition hover:brightness-95" />
           <button type="button" data-proof-src="${safeUrl}" data-proof-order="${orderId}" class="rounded-lg border border-indigo-200 px-3 py-1.5 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50">View Proof / Screenshot</button>
+          ${refBadge}
         </div>
       `;
     }
