@@ -693,13 +693,12 @@ def init_db():
         conn.commit()
 
     # Professional catalog copy: cups, lids, and microwavable containers use
-    # complete marketing descriptions (pairs with the Dabba/GoUp badges above
-    # each section on the storefront). Databases seeded before this change
-    # carry the legacy one-line copy, so backfill them here; each UPDATE is
-    # guarded by an exact match on a known legacy text so we only write while
-    # the old copy is still present — fresh databases are seeded directly
-    # with the professional wording and any admin-edited descriptions are
-    # left untouched.
+    # complete marketing descriptions on the storefront product cards.
+    # Databases seeded before this change carry the legacy one-line copy, so
+    # backfill them here; each UPDATE is guarded by an exact match on a known
+    # legacy text so we only write while the old copy is still present — fresh
+    # databases are seeded directly with the professional wording and any
+    # admin-edited descriptions are left untouched.
     professional_description_backfill = (
         ('High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.',
          'cup-12oz', 'Durable 12oz disposable cups.'),
