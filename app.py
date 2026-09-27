@@ -195,20 +195,29 @@ CUP_BOX_SURCHARGE_ADDITIONAL = 2.0
 LID_BOX_SURCHARGE_FIRST = 3.0
 LID_BOX_SURCHARGE_ADDITIONAL = 2.0
 
-# Delivery Method options for the cart checkout flow.
-#   standard     -> Lalamove Delivery (Local Courier Rates):
+# Delivery Method / fulfillment options for the cart checkout flow.
+#   standard     -> Lalamove Delivery (We book for you):
 #                   base location rate from Taguig + cup/lid box surcharges.
-#                   The stored key stays 'standard' so existing orders keep
-#                   resolving; only the customer-facing label changed.
-#   self_booking -> Customer Self-Booking / Warehouse Pick-up:
-#                   Shipping Fee is always P0.00 (the customer books their own
-#                   rider, e.g. Lalamove/Grab, once the order is Ready for Pick-up).
+#                   We arrange the booking; the fee is paid upon receipt or
+#                   added to the invoice. The stored key stays 'standard' so
+#                   existing orders keep resolving.
+#   self_booking -> Customer Book (Buyer arranges Lalamove/Grab):
+#                   Shipping Fee is always P0.00. You book your preferred
+#                   courier; the warehouse pick-up address & contact number are
+#                   sent upon order confirmation.
+#   self_pickup  -> Self Pick-up (Warehouse):
+#                   Shipping Fee is always P0.00. Pick up directly at the
+#                   warehouse in Bagumbayan, Taguig.
 DELIVERY_METHOD_STANDARD = 'standard'
 DELIVERY_METHOD_SELF_BOOKING = 'self_booking'
+DELIVERY_METHOD_SELF_PICKUP = 'self_pickup'
 STANDARD_DELIVERY_LABEL = LALAMOVE_DELIVERY_LABEL
-SELF_BOOKING_DELIVERY_LABEL = 'Customer Self-Booking / Warehouse Pick-up'
-SELF_BOOKING_SHIPPING_LABEL = 'Customer Self-Booking'
+SELF_BOOKING_DELIVERY_LABEL = 'Customer Book (Buyer arranges Lalamove/Grab)'
+SELF_PICKUP_DELIVERY_LABEL = 'Self Pick-up (Warehouse)'
+SELF_BOOKING_SHIPPING_LABEL = 'Customer Book'
+SELF_PICKUP_SHIPPING_LABEL = 'Self Pick-up'
 SELF_BOOKING_STATUS = 'Ready for Pick-up'
+SELF_PICKUP_STATUS = 'Ready for Pick-up'
 # ---------------------------------------------------------------------------
 # ORDER STATUS MODEL
 # The staff dashboard offers exactly two statuses, so the API accepts exactly
@@ -225,30 +234,69 @@ ORDER_STATUS_DECLINED = 'Declined'
 ORDER_STATUSES = (ORDER_STATUS_ACCEPTED, ORDER_STATUS_DECLINED)
 ORDER_STATUS_DEFAULT = ORDER_STATUS_ACCEPTED
 SELF_BOOKING_NOTE = (
-    "Note: You will book your own rider (Lalamove/Grab) once your order "
-    "status is updated to 'Ready for Pick-up'."
+    "Note: You will book your preferred courier (Lalamove/Grab). "
+    "We will send the warehouse pick-up address & contact number upon order confirmation."
+)
+SELF_PICKUP_NOTE = (
+    "Note: Pick up directly at our warehouse in Bagumbayan, Taguig "
+    "once your order status is updated to 'Ready for Pick-up'."
 )
 DELIVERY_METHOD_LABELS = {
     DELIVERY_METHOD_STANDARD: STANDARD_DELIVERY_LABEL,
     DELIVERY_METHOD_SELF_BOOKING: SELF_BOOKING_DELIVERY_LABEL,
+    DELIVERY_METHOD_SELF_PICKUP: SELF_PICKUP_DELIVERY_LABEL,
 }
-# Accepted aliases for the Customer Self-Booking / Warehouse Pick-up option.
+# Accepted aliases for the Customer Book option (legacy Self-Booking values
+# still resolve here so old orders keep working).
 SELF_BOOKING_ALIASES = {
     'self_booking', 'self-booking', 'selfbooking', 'self booking', 'self_book',
+    'customer_book', 'customer-book', 'customerbook', 'customer booking',
+    'buyer arranges', 'buyer_arranges',
     'pickup', 'pick_up', 'pick-up', 'warehouse_pickup', 'warehouse pick-up',
     'customer_pickup', 'customer_self_booking',
+}
+# Accepted aliases for the Self Pick-up (Warehouse) option.
+SELF_PICKUP_ALIASES = {
+    'self_pickup', 'self-pickup', 'selfpickup', 'self pickup', 'self_pick',
+    'self_pick-up', 'selfpick-up', 'warehouse', 'warehouse_pick-up',
+    'warehouse pickup', 'store_pickup', 'store pickup',
 }
 
 
 def normalize_delivery_method(value):
-    """Return the canonical Delivery Method key (defaults to Lalamove Delivery)."""
+    """Return the canonical fulfillment key (defaults to Lalamove Delivery).
+
+    Accepted keys: 'standard' (we book), 'self_booking' (buyer arranges),
+    'self_pickup' (warehouse pick-up). Legacy aliases resolve to their
+    modern equivalents so old orders keep working.
+    """
     method = str(value or '').strip().lower()
-    return DELIVERY_METHOD_SELF_BOOKING if method in SELF_BOOKING_ALIASES else DELIVERY_METHOD_STANDARD
+    if method in SELF_PICKUP_ALIASES:
+        return DELIVERY_METHOD_SELF_PICKUP
+    if method in SELF_BOOKING_ALIASES:
+        return DELIVERY_METHOD_SELF_BOOKING
+    return DELIVERY_METHOD_STANDARD
 
 
 def is_self_booking(value):
-    """True when the order uses Customer Self-Booking / Warehouse Pick-up."""
+    """True when the order uses Customer Book (buyer arranges courier)."""
     return normalize_delivery_method(value) == DELIVERY_METHOD_SELF_BOOKING
+
+
+def is_self_pickup(value):
+    """True when the order uses Self Pick-up (Warehouse)."""
+    return normalize_delivery_method(value) == DELIVERY_METHOD_SELF_PICKUP
+
+
+def is_pickup_method(value):
+    """True for either no-courier option (Customer Book or Self Pick-up).
+
+    Both ship at P0.00, hide the address/zone fields, and show the warehouse
+    pick-up address & contact number in the confirmation modal.
+    """
+    return normalize_delivery_method(value) in (
+        DELIVERY_METHOD_SELF_BOOKING, DELIVERY_METHOD_SELF_PICKUP,
+    )
 
 
 def delivery_method_label(value):
@@ -257,14 +305,16 @@ def delivery_method_label(value):
 
 
 def apply_delivery_method(shipping_fee, shipping_label, is_dynamic_cod, delivery_method):
-    """Apply the selected Delivery Method to a computed courier fee.
+    """Apply the selected fulfillment option to a computed courier fee.
 
-    Lalamove Delivery (Local Courier Rates) keeps the zone-based fee (Taguig
-    base rate + cup/lid box surcharges), while Customer Self-Booking /
-    Warehouse Pick-up always ships at P0.00 because the customer books their own
-    rider (Lalamove/Grab) once the order is marked 'Ready for Pick-up'.
+    Lalamove Delivery (We book for you) keeps the zone-based fee (Taguig
+    base rate + cup/lid box surcharges), while Customer Book and Self
+    Pick-up both ship at P0.00 (no courier is booked by the store).
     """
-    if is_self_booking(delivery_method):
+    method = normalize_delivery_method(delivery_method)
+    if method == DELIVERY_METHOD_SELF_PICKUP:
+        return 0.0, SELF_PICKUP_SHIPPING_LABEL, False
+    if method == DELIVERY_METHOD_SELF_BOOKING:
         return 0.0, SELF_BOOKING_SHIPPING_LABEL, False
     return float(shipping_fee or 0), shipping_label, is_dynamic_cod
 
@@ -751,8 +801,9 @@ def init_db():
     if 'payment_status' not in order_columns:
         cursor.execute("ALTER TABLE orders ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'Pending Downpayment'")
     if 'delivery_method' not in order_columns:
-        # Delivery Method: 'standard' (Lalamove Delivery — local courier rates)
-        # or 'self_booking' (Customer Self-Booking / Warehouse Pick-up, P0.00).
+        # Fulfillment: 'standard' (Lalamove Delivery — we book for you),
+        # 'self_booking' (Customer Book, P0.00) or 'self_pickup'
+        # (Self Pick-up Warehouse, P0.00).
         cursor.execute("ALTER TABLE orders ADD COLUMN delivery_method TEXT NOT NULL DEFAULT 'standard'")
     if 'delivery_zone' not in order_columns:
         # Lalamove destination zone ('taguig_city' — the origin area — when
@@ -1253,9 +1304,9 @@ def update_order_status(order_id):
 def admin_ship_order(order_id):
     """Verify payment receipt and mark the order ready for fulfillment.
 
-    Lalamove Delivery orders are marked 'Shipping'; Customer Self-Booking /
-    Warehouse Pick-up orders are marked 'Ready for Pick-up' instead (no courier
-    is booked — the customer arranges their own rider).
+    Lalamove Delivery orders are marked 'Shipping'; Customer Book and
+    Self Pick-up orders are marked 'Ready for Pick-up' instead (no courier
+    is booked — the buyer arranges their own rider or picks up directly).
     """
     conn = get_db()
     order = conn.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
@@ -1263,8 +1314,8 @@ def admin_ship_order(order_id):
         conn.close()
         return jsonify({"error": "Order not found."}), 404
 
-    self_booking = is_self_booking(order['delivery_method'] or '')
-    new_status = SELF_BOOKING_STATUS if self_booking else 'Shipping'
+    pickup_method = is_pickup_method(order['delivery_method'] or '')
+    new_status = SELF_BOOKING_STATUS if pickup_method else 'Shipping'
 
     conn.execute(
         'UPDATE orders SET status = ?, payment_status = ? WHERE id = ?',
@@ -1304,8 +1355,9 @@ def calculate_cart():
     except Exception:
         microwavable_boxes = 0
 
-    # Delivery Method: 'standard' = Lalamove Delivery (Local Courier Rates);
-    # 'self_booking' ships at P0.00 (customer books their own rider).
+    # Fulfillment: 'standard' = Lalamove Delivery (We book for you);
+    # 'self_booking' = Customer Book, 'self_pickup' = Self Pick-up —
+    # both ship at P0.00 (no courier booked by the store).
     delivery_method = normalize_delivery_method(data.get('delivery_method'))
 
     conn = get_db()
@@ -1353,15 +1405,17 @@ def calculate_cart():
     )
     if subtotal <= 0:
         shipping, shipping_label, shipping_breakdown = 0.0, '—', None
-    # Delivery Method: Lalamove Delivery keeps the zone-based fee;
-    # Customer Self-Booking / Warehouse Pick-up always ships at P0.00.
+    # Fulfillment: Lalamove Delivery keeps the zone-based fee;
+    # Customer Book / Self Pick-up always ship at P0.00.
     shipping, shipping_label, is_dynamic_cod = apply_delivery_method(
         shipping, shipping_label, False, delivery_method
     )
     shipping = round(shipping, 2)
     shipping_display = 'P%.2f' % shipping
     if is_self_booking(delivery_method):
-        shipping_display = 'P0.00 (Customer Self-Booking)'
+        shipping_display = 'P0.00 (Customer Book)'
+    elif is_self_pickup(delivery_method):
+        shipping_display = 'P0.00 (Self Pick-up)'
     total = round(subtotal + shipping, 2)
 
     conn.close()
@@ -1397,11 +1451,12 @@ def process_checkout():
         # items, quantities and totals arrive as hidden fields in the form.
         data = {key: request.form.get(key) for key in request.form}
 
-    # GCash proof-of-payment screenshot + reference number: the Order
+    # GCash proof-of-payment screenshot + optional reference number: the Order
     # Confirmation Modal always submits multipart/form-data with the chosen
-    # image in the "gcash_proof" field and the 13-digit receipt number in
-    # "gcash_ref" (see main.js submitOrder — the "Yes, Place Order" button
-    # stays disabled until BOTH are valid).
+    # image in the "gcash_proof" field and the receipt number (or blank for
+    # QR payments) in "gcash_ref" (see main.js submitOrder — the
+    # "Yes, Place Order" button requires a valid image; the reference is
+    # optional and defaults to "N/A (QR Payment)").
     proof_file = request.files.get('gcash_proof') if request.files else None
 
     # --- Backend file validation safeguard (anti fake/troll uploads) ---
@@ -1469,15 +1524,18 @@ def process_checkout():
     email = (data.get('email') or '').strip()
     address = (data.get('address') or '').strip()
     phone = (data.get('phone') or '').strip()
-    # GCash Reference Number (proof of payment): REQUIRED — the storefront
-    # "Yes, Place Order" button only enables when a valid image AND a valid
-    # 13-digit reference are supplied, and the backend re-enforces both so
-    # fake/troll uploads (random image, missing reference) are rejected here
-    # even if the frontend gate is bypassed. Stored in orders.gcash_ref so
-    # the Admin Orders dashboard shows it alongside the proof preview.
-    gcash_ref = ''.join(ch for ch in (data.get('gcash_ref') or '') if ch.isdigit())[:13]
-    if not (len(gcash_ref) == 13 and gcash_ref.isascii() and gcash_ref.isdigit()):
-        return jsonify({"error": "Please enter the valid 13-digit GCash reference number from your receipt."}), 400
+    # GCash Reference Number (proof of payment): OPTIONAL — blank means the
+    # customer paid by scanning the GCash QR code. The storefront sends
+    # "N/A (QR Payment)" in that case; a supplied value must be a complete
+    # 13-digit GCash reference. Stored in orders.gcash_ref so the Admin
+    # Orders dashboard shows it alongside the proof preview.
+    gcash_ref_raw = (data.get('gcash_ref') or '').strip()
+    if not gcash_ref_raw or gcash_ref_raw.upper().startswith('N/A'):
+        gcash_ref = 'N/A (QR Payment)'
+    else:
+        gcash_ref = ''.join(ch for ch in gcash_ref_raw if ch.isdigit())[:13]
+        if not (len(gcash_ref) == 13 and gcash_ref.isascii() and gcash_ref.isdigit()):
+            return jsonify({"error": "The GCash reference number must be 13 digits — or leave it blank if you paid by scanning the QR code."}), 400
     payment_type = (data.get('payment_type') or '50_percent').strip()
     payment_method = (data.get('payment_method') or '').strip()
     if not payment_method:
@@ -1512,8 +1570,8 @@ def process_checkout():
     if not name or not phone:
         return jsonify({"error": "Customer name and phone number are required."}), 400
 
-    self_booking = is_self_booking(delivery_method)
-    if not address and not self_booking:
+    pickup_method = is_pickup_method(delivery_method)
+    if not address and not pickup_method:
         return jsonify({"error": "Shipping address is required for Lalamove Delivery."}), 400
 
     if cup_boxes < 0 or lid_boxes < 0 or microwavable_boxes < 0:
@@ -1585,9 +1643,9 @@ def process_checkout():
     )
     if subtotal <= 0:
         shipping, shipping_label, shipping_breakdown = 0.0, '—', None
-    # Delivery Method: Lalamove Delivery (Local Courier Rates) keeps the
-    # zone-based fee; Customer Self-Booking / Warehouse Pick-up always ships at
-    # P0.00 (no courier is booked).
+    # Fulfillment: Lalamove Delivery (We book for you) keeps the
+    # zone-based fee; Customer Book / Self Pick-up always ship at
+    # P0.00 (no courier is booked by the store).
     shipping, shipping_label, is_dynamic_cod = apply_delivery_method(
         shipping, shipping_label, False, delivery_method
     )

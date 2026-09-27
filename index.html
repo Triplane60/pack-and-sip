@@ -144,7 +144,7 @@
             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>
             <span>
               <strong class="block text-slate-900">Flexible Booking Options</strong>
-              <span class="font-medium text-slate-700">Need full delivery control? You can choose Customer Self-Booking during checkout to send your own Lalamove/Grab rider or pick up directly from our Taguig warehouse!</span>
+              <span class="font-medium text-slate-700">Need full delivery control? During checkout you can choose Customer Book to send your own Lalamove/Grab rider, or Self Pick-up to collect directly at our Bagumbayan, Taguig warehouse!</span>
             </span>
           </li>
         </ul>
@@ -248,7 +248,7 @@
            and the Confirm Order modal. -->
       <div class="payment-instructions-box mt-3 space-y-1.5 rounded-lg border border-slate-300 p-3 text-left">
         <p class="payment-type-label">GCash Payment Details</p>
-        <p class="gcash-detail text-sm text-slate-700">Account Name: <strong id="pendingGcashAccountName">JE••••N ER•••T E.</strong></p>
+        <p class="gcash-detail text-sm text-slate-700">Account Name: <strong id="pendingGcashAccountName">JE****N ER***T E.</strong></p>
         <p class="gcash-detail text-sm text-slate-700">GCash Number: <strong id="pendingGcashAccountNumber">0966 745 3719</strong></p>
         <p class="delivery-method-hint">Please send payment via GCash to the account listed below.</p>
       </div>
@@ -291,9 +291,9 @@
         <span>Delivery Area</span>
         <span id="confirmOrderDeliveryZone" class="font-semibold text-slate-800">—</span>
       </div>
-      <!-- Address line: Taguig Warehouse Pick-up Address (Lucide 'map-pin') when
-           Customer Self-Booking is selected, otherwise the customer's Shipping
-           Address (hidden when empty). Populated by main.js. -->
+      <!-- Address line: warehouse Pick-up Address + Contact (Lucide 'map-pin')
+           when Customer Book or Self Pick-up is selected, otherwise the
+           customer's Shipping Address (hidden when empty). Populated by main.js. -->
       <div class="mt-3 flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm leading-5 text-slate-700 is-hidden-row" id="confirmOrderAddressRow">
         <i data-lucide="map-pin" class="mt-0.5 h-4 w-4 shrink-0 text-indigo-600" aria-hidden="true"></i>
         <span class="flex flex-col gap-1">
@@ -315,22 +315,23 @@
         <i data-lucide="camera" class="mt-0.5 h-3.5 w-3.5 text-indigo-600" aria-hidden="true"></i>
         <span>After paying, please save your payment screenshot or reference number for verification.</span>
       </p>
-      <!-- Payment Instructions: single GCash wallet shown in the Order Confirmation
-           Modal so customers can copy the account details before confirming.
-           Values are pushed by main.js (renderGcashInstructions) and mirror
-           the checkout drawer values. -->
+      <!-- Payment Instructions: GCash QR + wallet shown in the Order
+           Confirmation Modal so customers can scan or copy the account
+           details before confirming. Values are pushed by main.js
+           (renderGcashInstructions) and mirror the checkout drawer values. -->
       <div class="payment-instructions-box mt-3 rounded-lg border border-slate-300 p-3 space-y-1.5 text-left">
         <p class="payment-type-label">Payment Instructions</p>
-        <p class="gcash-detail">Account Name: <strong id="confirmGcashAccountName">JE••••N ER•••T E.</strong></p>
+        <img src="qr%20code.jpg" alt="GCash QR Code — JE****N ER***T E." class="gcash-qr-code mx-auto block w-52 max-w-full rounded-lg border border-slate-200 object-contain" loading="lazy" decoding="async" />
+        <p class="gcash-detail text-center">Account Name: <strong id="confirmGcashAccountName">JE****N ER***T E.</strong></p>
         <p class="gcash-detail">GCash Number: <strong id="confirmGcashAccountNumber">0966 745 3719</strong></p>
-        <p class="delivery-method-hint">Please send payment via GCash to the account listed below.</p>
+        <p class="delivery-method-hint">Please send payment via GCash to the account listed below (scan the QR code or send to the number).</p>
       </div>
       <!-- GCash proof of payment: REQUIRED screenshot upload shown directly
            below the Payment Instructions. main.js keeps "Yes, Place Order"
-           (#confirmOrderBtn) disabled until a valid image is attached here AND
-           a valid 13-digit GCash reference number is entered below,
-           then posts both to /api/checkout as the multipart fields
-           "gcash_proof" + "gcash_ref". -->
+           (#confirmOrderBtn) disabled until a valid image is attached here.
+           The GCash reference number below is OPTIONAL (blank defaults to
+           "N/A (QR Payment)"), then posts both to /api/checkout as the
+           multipart fields "gcash_proof" + "gcash_ref". -->
       <div id="confirmOrderProofBox" class="mt-3 rounded-lg border border-slate-300 p-3 text-left">
         <label for="gcashProofInput" class="block text-sm font-semibold text-slate-700">
           Upload GCash Payment Screenshot / Proof <span class="text-red-600" aria-hidden="true">*</span>
@@ -343,11 +344,11 @@
           <img id="gcashProofPreviewImg" alt="GCash payment proof preview" class="max-h-40 w-auto rounded-md border border-slate-200" />
         </div>
         <label for="gcashRefInput" class="mt-3 block text-sm font-semibold text-slate-700">
-          GCash Reference Number / Ref No. <span class="text-red-600" aria-hidden="true">*</span>
+          GCash Reference Number (Optional)
         </label>
-        <input id="gcashRefInput" name="gcash_ref" type="text" inputmode="numeric" autocomplete="off" maxlength="13" minlength="13" pattern="[0-9]{13}" placeholder="e.g. 1234567890123" required
+        <input id="gcashRefInput" name="gcash_ref" type="text" inputmode="numeric" autocomplete="off" maxlength="13" placeholder="e.g. 1234567890123"
                class="mt-2 block w-full rounded-md border border-slate-300 bg-white p-2 text-sm tracking-widest text-slate-800 placeholder:tracking-normal placeholder:text-slate-400" />
-        <p id="gcashRefStatus" class="mt-1 text-xs leading-5 text-slate-500">Enter the 13-digit reference number from your GCash receipt.</p>
+        <p id="gcashRefStatus" class="mt-1 text-xs leading-5 text-slate-500">Pwede mong iwanang blanko kung nag-scan ka gamit ang QR Code.</p>
       </div>
       <!-- Operating hours (always shown) + the City-based payment reservation
            window, which main.js refreshes from the selected City / Location. -->
@@ -546,8 +547,8 @@
                  Delivery). Shipping Address and City / Location are restored
                  in this drawer and toggled dynamically by
                  updateDeliveryFieldsVisibility() in main.js: VISIBLE when
-                 "Lalamove Delivery" is selected, HIDDEN when the default
-                 "Customer Self-Booking / Warehouse Pick-up" is selected.
+                 "Lalamove Delivery (We book for you)" is selected, HIDDEN for
+                 the default "Customer Book" and "Self Pick-up (Warehouse)".
                  Full Name leads the form (who is ordering); the phone follows
                  directly below it and stays the primary contact channel — an SMS
                  order update is sent to it. Required, digits only, PH mobile
@@ -564,25 +565,24 @@
               <label for="customerAddress" class="block text-sm font-medium text-slate-700">Shipping Address</label>
               <textarea id="customerAddress" name="address" autocomplete="off" title="Shipping Address" class="w-full rounded-md border-gray-200 p-1.5" rows="2"></textarea>
             </div>
-            <!-- City / Location: shown ONLY for Lalamove Delivery. main.js
-                 updateDeliveryFieldsVisibility() hides this whole section
-                 (aria-hidden + .hidden) when Customer Self-Booking /
-                 Warehouse Pick-up is selected — no courier fee or payment
-                 reservation window applies there, so the picker and its
-                 explanatory notes only add form clutter. The options
-                 (zone id, base rate + reservation window) come from app.py
-                 LALAMOVE_ZONE_OPTIONS so the storefront and the server
-                 always agree. -->
+            <!-- City / Location: shown ONLY for Lalamove Delivery (We book for
+                 you). main.js updateDeliveryFieldsVisibility() hides this whole
+                 section (aria-hidden + .hidden) for Customer Book / Self
+                 Pick-up — no courier fee or payment reservation window applies
+                 there, so the picker and its explanatory notes only add form
+                 clutter. The options (zone id, base rate + reservation window)
+                 come from app.py LALAMOVE_ZONE_OPTIONS so the storefront and
+                 the server always agree. -->
             <div class="border border-slate-300 rounded-lg p-3 space-y-2.5 hidden" id="deliveryZoneFields" aria-hidden="true" style="display:none;">
               <!-- Blue tip box: itemized Lalamove shipping fee per City / Location
                    zone, rendered directly above the dropdown. main.js
                    updateLalamoveGuideVisibility() (called from
                    updateDeliveryFieldsVisibility()) shows it together with the
-                   Shipping Address + City / Location fields for Lalamove Delivery
-                   and hides it for Customer Self-Booking / Warehouse Pick-up.
-                   The rates mirror app.py LALAMOVE_ZONE_OPTIONS (origin: Taguig)
-                   so the tip box, the <option data-rate> values and the server
-                   always agree. -->
+                   Shipping Address + City / Location fields for Lalamove
+                   Delivery (We book for you) and hides it for Customer Book /
+                   Self Pick-up. The rates mirror app.py LALAMOVE_ZONE_OPTIONS
+                   (origin: Taguig) so the tip box, the <option data-rate>
+                   values and the server always agree. -->
               <div id="lalamove-guide-container" aria-hidden="true" style="display:none;" class="hidden">
                 <div class="delivery-zone-info" role="note">
                   <i data-lucide="info" aria-hidden="true"></i>
@@ -606,21 +606,33 @@
               </select>
             </div>
 
-            <!-- Delivery Method: Option A = Lalamove Delivery (local courier
-                 rates: Taguig base rate + cup/lid box surcharges);
-                 Option B = Customer Self-Booking / Warehouse Pick-up (P0.00). -->
+            <!-- Fulfillment: 3 distinct choices —
+                 1. Lalamove Delivery (We book for you): we arrange the booking,
+                    fee paid upon receipt or added to invoice (needs address + zone).
+                 2. Customer Book (Buyer arranges Lalamove/Grab): you book your
+                    preferred courier; warehouse address & contact sent on confirmation.
+                 3. Self Pick-up (Warehouse): pick up directly at Bagumbayan, Taguig. -->
             <fieldset class="payment-option-group delivery-method-group">
-              <legend class="payment-type-label">Delivery Method</legend>
+              <legend class="payment-type-label">Fulfillment</legend>
               <label class="delivery-method-option" for="deliveryMethodStandard">
-                <input type="radio" id="deliveryMethodStandard" name="delivery_method" value="standard" onchange="handleDeliveryMethodChange()" title="Delivery Method: Lalamove Delivery (Local Courier Rates)" />
+                <input type="radio" id="deliveryMethodStandard" name="delivery_method" value="standard" onchange="handleDeliveryMethodChange()" title="Fulfillment: Lalamove Delivery (We book for you)" />
                 <span class="delivery-method-text">
-                  <span class="delivery-method-title">Lalamove Delivery (Local Courier Rates)</span>
+                  <span class="delivery-method-title">Lalamove Delivery (We book for you)</span>
+                  <span class="delivery-method-hint">We will arrange the booking. Delivery fee is paid upon receipt or added to invoice.</span>
                 </span>
               </label>
               <label class="delivery-method-option" for="deliveryMethodSelfBooking">
                 <input type="radio" id="deliveryMethodSelfBooking" name="delivery_method" value="self_booking" checked onchange="handleDeliveryMethodChange()" />
                 <span class="delivery-method-text">
-                  <span class="delivery-method-title">Customer Self-Booking / Warehouse Pick-up</span>
+                  <span class="delivery-method-title">Customer Book (Buyer arranges Lalamove/Grab)</span>
+                  <span class="delivery-method-hint">You will book your preferred courier. We will send the warehouse pick-up address &amp; contact number upon order confirmation.</span>
+                </span>
+              </label>
+              <label class="delivery-method-option" for="deliveryMethodSelfPickup">
+                <input type="radio" id="deliveryMethodSelfPickup" name="delivery_method" value="self_pickup" onchange="handleDeliveryMethodChange()" title="Fulfillment: Self Pick-up (Warehouse)" />
+                <span class="delivery-method-text">
+                  <span class="delivery-method-title">Self Pick-up (Warehouse)</span>
+                  <span class="delivery-method-hint">Pick up directly at our warehouse in Bagumbayan, Taguig.</span>
                 </span>
               </label>
             </fieldset>
@@ -636,10 +648,11 @@
             <div id="payment-breakdown" class="payment-breakdown">
               <!-- Estimated Shipping Fee line item in the Order Summary breakdown
                    box, shown above Amount Due Now / Balance upon Delivery.
-                   ₱0.00 for Customer Self-Booking / Warehouse Pick-up (no courier
-                   fee is ever added), or the live Lalamove courier estimate when
-                   Lalamove Delivery is selected. main.js refreshes the value in
-                   updateCheckoutTotals() on every calculation. -->
+                   ₱0.00 for Customer Book / Self Pick-up (Warehouse) — no courier
+                   fee is ever added — or the live Lalamove courier estimate when
+                   Lalamove Delivery (We book for you) is selected. main.js
+                   refreshes the value in updateCheckoutTotals() on every
+                   calculation. -->
               <p class="breakdown-row" id="estimated-shipping-row"><strong>Estimated Shipping Fee:</strong> <span id="estimated-shipping-amount">₱0.00</span></p>
 
               <p class="breakdown-row"><strong>Amount Due Now:</strong> <span id="due-now-amount" class="due-now-amount">₱0.00</span></p>

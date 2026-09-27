@@ -525,10 +525,10 @@ async function calculate(){
   //    Re-sync the summed category totals first so catalog card edits are
   //    included in the current calculation.
   syncCategoryTotals();
-  // Delivery-radios can be changed programmatically (for example by a reset),
+  // Fulfillment radios can be changed programmatically (for example by a reset),
   // so keep the conditionally-hidden Shipping Address + City / Location
   // sections aligned with the selected method before totals are calculated.
-  updateDeliveryFieldsVisibility(isSelfBookingSelected());
+  updateDeliveryFieldsVisibility(isPickupMethodSelected());
 
   // Aggregate every independently-ordered catalog item (12oz/16oz/22oz cups,
   // lid styles, microwavable containers) by its own price per box.
@@ -555,21 +555,27 @@ async function calculate(){
   // Lalamove Delivery (origin: Taguig) = destination base rate + cup/lid box
   // surcharges; the FULL fee always applies (even for 50% downpayment).
   // Microwavables add neither a base rate nor a surcharge.
-  // Delivery Method (cart checkout flow):
-  //   Option A ('standard')     -> Lalamove local courier fee from the selected
-  //     City / Location (#deliveryZone) + cup/lid box surcharges.
-  //   Option B ('self_booking') -> Shipping Fee is always P0.00; the customer
-  //     books their own rider (Lalamove/Grab) once the order is ready.
+  // Fulfillment (cart checkout flow):
+  //   'standard'     -> Lalamove Delivery (We book for you): local courier
+  //     fee from the selected City / Location (#deliveryZone) + cup/lid box
+  //     surcharges.
+  //   'self_booking' -> Customer Book: Shipping Fee is always P0.00; you book
+  //     your preferred courier.
+  //   'self_pickup'  -> Self Pick-up (Warehouse): Shipping Fee is always
+  //     P0.00; pick up directly at Bagumbayan, Taguig.
   const deliveryMethod = getSelectedDeliveryMethod();
-  const selfBooking = deliveryMethod === DELIVERY_METHOD_SELF_BOOKING;
+  const pickupMethod = deliveryMethod !== DELIVERY_METHOD_STANDARD;
+  const pickupLabel = deliveryMethod === DELIVERY_METHOD_SELF_PICKUP
+    ? SELF_PICKUP_SHIPPING_LABEL
+    : SELF_BOOKING_SHIPPING_LABEL;
   const totals = getCategoryTotals();
   const deliveryZone = getSelectedDeliveryZone();
   const hasZone = deliveryZone !== '';
   const quote = getLalamoveShipping(totals.cupBoxes, totals.lidBoxes);
-  const shipping = (subtotal > 0 && !selfBooking && hasZone) ? quote.fee : 0;
+  const shipping = (subtotal > 0 && !pickupMethod && hasZone) ? quote.fee : 0;
   const shippingLabel = subtotal <= 0
     ? '—'
-    : (selfBooking ? SELF_BOOKING_SHIPPING_LABEL : quote.label);
+    : (pickupMethod ? pickupLabel : quote.label);
   const total = Math.round((subtotal + shipping) * 100) / 100;
 
   updateSummary({
@@ -577,8 +583,8 @@ async function calculate(){
     shipping,
     shippingLabel,
     // Breakdown note only applies to the Lalamove option with a chosen area.
-    shippingBreakdown: (!selfBooking && hasZone && subtotal > 0) ? lalamoveBreakdownText(quote) : '',
-    needsZone: (!selfBooking && !hasZone && subtotal > 0),
+    shippingBreakdown: (!pickupMethod && hasZone && subtotal > 0) ? lalamoveBreakdownText(quote) : '',
+    needsZone: (!pickupMethod && !hasZone && subtotal > 0),
     deliveryMethod,
     deliveryZone,
     deliveryZoneLabel: hasZone ? quote.zoneLabel : '',
@@ -606,26 +612,41 @@ function hasLargeCupsInCart(){
 }
 
 // ---------------------------------------------------------------------------
-// Delivery Method options for the cart checkout flow.
-//   standard     -> Lalamove Delivery (Local Courier Rates): destination base
+// Fulfillment options for the cart checkout flow.
+//   standard     -> Lalamove Delivery (We book for you): destination base
 //                   rate from Taguig + cup/lid box surcharges (mirrors
-//                   app.py get_lalamove_shipping_fee).
-//   self_booking -> Customer Self-Booking / Warehouse Pick-up: the Shipping
-//                   Fee is always P0.00; the customer books their own rider
-//                   (Lalamove/Grab) once the order is 'Ready for Pick-up'.
+//                   app.py get_lalamove_shipping_fee). We arrange the booking;
+//                   the fee is paid upon receipt or added to the invoice.
+//   self_booking -> Customer Book (Buyer arranges Lalamove/Grab): the Shipping
+//                   Fee is always P0.00; you book your preferred courier and
+//                   we send the warehouse pick-up address & contact number
+//                   upon order confirmation.
+//   self_pickup  -> Self Pick-up (Warehouse): the Shipping Fee is always
+//                   P0.00; pick up directly at the warehouse in Bagumbayan,
+//                   Taguig once the order is 'Ready for Pick-up'.
 const DELIVERY_METHOD_STANDARD = 'standard';
 const DELIVERY_METHOD_SELF_BOOKING = 'self_booking';
+const DELIVERY_METHOD_SELF_PICKUP = 'self_pickup';
 const DELIVERY_METHOD_LABELS = {
-  [DELIVERY_METHOD_STANDARD]: 'Lalamove Delivery (Local Courier Rates)',
-  [DELIVERY_METHOD_SELF_BOOKING]: 'Customer Self-Booking / Warehouse Pick-up'
+  [DELIVERY_METHOD_STANDARD]: 'Lalamove Delivery (We book for you)',
+  [DELIVERY_METHOD_SELF_BOOKING]: 'Customer Book (Buyer arranges Lalamove/Grab)',
+  [DELIVERY_METHOD_SELF_PICKUP]: 'Self Pick-up (Warehouse)'
 };
-const SELF_BOOKING_SHIPPING_LABEL = 'Customer Self-Booking';
-const SELF_BOOKING_NOTE = "Note: You will book your own rider (Lalamove/Grab) once your order status is updated to 'Ready for Pick-up'.";
+const SELF_BOOKING_SHIPPING_LABEL = 'Customer Book';
+const SELF_PICKUP_SHIPPING_LABEL = 'Self Pick-up';
+const SELF_BOOKING_NOTE = "Note: You will book your preferred courier (Lalamove/Grab). We will send the warehouse pick-up address & contact number upon order confirmation.";
+const SELF_PICKUP_NOTE = "Note: Pick up directly at our warehouse in Bagumbayan, Taguig once your order status is updated to 'Ready for Pick-up'.";
+// Fulfillment note shown per option in the Order Summary + Confirm modal.
+function fulfillmentNote(method){
+  if(method === DELIVERY_METHOD_SELF_PICKUP) return SELF_PICKUP_NOTE;
+  if(method === DELIVERY_METHOD_SELF_BOOKING) return SELF_BOOKING_NOTE;
+  return '';
+}
 // Warehouse pick-up address shown in the Confirm Order modal when the
-// Customer Self-Booking / Warehouse Pick-up delivery method is selected.
+// Customer Book or Self Pick-up (Warehouse) option is selected.
 const WAREHOUSE_PICKUP_ADDRESS = '175 M.L.Q. St., Bagumbayan, Taguig City';
 // Warehouse contact number shown directly below the Pick-up Address in the
-// Confirm Order modal whenever Self-Booking / Pick-up details are rendered.
+// Confirm Order modal whenever Customer Book / Self Pick-up is rendered.
 const WAREHOUSE_CONTACT_NUMBER = '0928 181 5599';
 
 // ---------------------------------------------------------------------------
@@ -750,15 +771,28 @@ function resetDeliveryZone(){
   if(select) select.value = '';
 }
 
-// Read the currently selected Delivery Method radio (defaults to Self-Booking).
+// Read the currently selected fulfillment radio (defaults to Customer Book).
 function getSelectedDeliveryMethod(){
   const selected = document.querySelector('input[name="delivery_method"]:checked');
-  const value = selected ? String(selected.value) : DELIVERY_METHOD_SELF_BOOKING;
-  return value === DELIVERY_METHOD_SELF_BOOKING ? DELIVERY_METHOD_SELF_BOOKING : DELIVERY_METHOD_STANDARD;
+  const value = selected ? String(selected.value).trim().toLowerCase() : DELIVERY_METHOD_SELF_BOOKING;
+  if(value === DELIVERY_METHOD_SELF_PICKUP) return DELIVERY_METHOD_SELF_PICKUP;
+  if(value === DELIVERY_METHOD_SELF_BOOKING) return DELIVERY_METHOD_SELF_BOOKING;
+  return DELIVERY_METHOD_STANDARD;
 }
 
 function isSelfBookingSelected(){
   return getSelectedDeliveryMethod() === DELIVERY_METHOD_SELF_BOOKING;
+}
+
+function isSelfPickupSelected(){
+  return getSelectedDeliveryMethod() === DELIVERY_METHOD_SELF_PICKUP;
+}
+
+// True for either no-courier option (Customer Book or Self Pick-up): both
+// ship at P0.00 and hide the Shipping Address + City / Location sections.
+function isPickupMethodSelected(){
+  const method = getSelectedDeliveryMethod();
+  return method === DELIVERY_METHOD_SELF_BOOKING || method === DELIVERY_METHOD_SELF_PICKUP;
 }
 
 function deliveryMethodLabel(method){
@@ -768,10 +802,10 @@ function deliveryMethodLabel(method){
 // Single source of truth for the checkout address sections. Shipping Address
 // (#deliveryAddressFields), the blue shipping-fee tip box
 // (#lalamove-guide-container) and City / Location (#deliveryZoneFields) are part
-// of the checkout flow again: they are VISIBLE for Lalamove Delivery and HIDDEN
-// for Customer Self-Booking / Warehouse Pick-up. updateDeliveryFieldsVisibility()
+// of the checkout flow again: they are VISIBLE for Lalamove Delivery (We book
+// for you) and HIDDEN for Customer Book / Self Pick-up. updateDeliveryFieldsVisibility()
 // is called from calculate(), handleDeliveryMethodChange(), resetConfigurator()
-// and openCart() so the sections always match the selected Delivery Method.
+// and openCart() so the sections always match the selected fulfillment option.
 function getDeliveryAddressFields(){
   return document.getElementById('deliveryAddressFields');
 }
@@ -781,7 +815,7 @@ function getDeliveryAddressFields(){
 // ₱90.00, Rest of Metro Manila ₱150.00, Nearby Provinces ₱280.00, Outer
 // Provincial ₱450.00 — see app.py LALAMOVE_ZONE_OPTIONS). styles.css documents
 // this contract: display block for Lalamove Delivery, display none for
-// Customer Self-Booking / Warehouse Pick-up. It always moves together with the
+// Customer Book / Self Pick-up. It always moves together with the
 // Shipping Address + City / Location sections.
 function updateLalamoveGuideVisibility(showGuide){
   const guide = document.getElementById('lalamove-guide-container');
@@ -797,14 +831,13 @@ function updateLalamoveGuideVisibility(showGuide){
 }
 
 // Dynamic address visibility for the checkout drawer:
-//   - Lalamove Delivery (selfBooking === false)             -> SHOW the blue
-//     shipping-fee tip box, "Shipping Address" and "City / Location" so the
-//     courier destination (needed for the zone-based fee) can be captured.
-//   - Customer Self-Booking / Warehouse Pick-up
-//     (selfBooking === true, the default)                   -> HIDE all three
+//   - Lalamove Delivery (We book for you) -> SHOW the blue shipping-fee tip
+//     box, "Shipping Address" and "City / Location" so the courier
+//     destination (needed for the zone-based fee) can be captured.
+//   - Customer Book / Self Pick-up (pickup === true) -> HIDE all three
 //     again; no courier destination is collected for pick-up.
-function updateDeliveryFieldsVisibility(selfBooking){
-  const showFields = !selfBooking;
+function updateDeliveryFieldsVisibility(pickup){
+  const showFields = !pickup;
   const fields = getDeliveryAddressFields();
   const address = document.getElementById('customerAddress');
   const zoneFields = document.getElementById('deliveryZoneFields');
@@ -825,7 +858,7 @@ function updateDeliveryFieldsVisibility(selfBooking){
   updateLalamoveGuideVisibility(showFields);
   // Shipping Address is required only while Lalamove Delivery needs it
   // (mirrors the server-side check in app.py); hidden sections are never
-  // required, so Self-Booking / Pick-up submissions stay unaffected.
+  // required, so Customer Book / Self Pick-up submissions stay unaffected.
   if(address){
     if(showFields) address.setAttribute('required', '');
     else address.removeAttribute('required');
@@ -842,18 +875,18 @@ function updateDeliveryFieldsVisibility(selfBooking){
   }
 }
 
-// Delivery Method radio change: re-sync which form sections are visible
+// Fulfillment radio change: re-sync which form sections are visible
 // (blue fee tip box + Shipping Address + City / Location), then recalculate.
 function handleDeliveryMethodChange(){
-  updateDeliveryFieldsVisibility(isSelfBookingSelected());
+  updateDeliveryFieldsVisibility(isPickupMethodSelected());
   calculate();
 }
 
-// Restore the default (Option B: Customer Self-Booking / Warehouse Pick-up)
-// selection after the cart is cleared, and keep 100% Full Payment selected.
+// Restore the default (Customer Book) selection after the cart is cleared,
+// and keep 100% Full Payment selected.
 function resetDeliveryMethod(){
-  const selfBooking = document.getElementById('deliveryMethodSelfBooking');
-  if(selfBooking) selfBooking.checked = true;
+  const customerBook = document.getElementById('deliveryMethodSelfBooking');
+  if(customerBook) customerBook.checked = true;
   const paymentSelect = document.getElementById('payment-type-select');
   if(paymentSelect) paymentSelect.value = 'full';
   updateDeliveryFieldsVisibility(true);
@@ -886,12 +919,13 @@ function updateSummary(data){
   totals.className = 'pt-3';
   const shipLine = shippingLabel && shippingLabel !== '—' ? `Shipping (${shippingLabel})` : 'Shipping';
   // Note under the shipping line of the Order Summary:
-  //  - Self-Booking / Pick-up: spell out the rider booking instructions.
+  //  - Customer Book / Self Pick-up: spell out the fulfillment instructions.
   //  - Lalamove with no City / Location yet: prompt for the location.
   //  - Lalamove with a location: show the computed base rate + surcharges.
   let shipNote = '';
-  if(data.deliveryMethod === DELIVERY_METHOD_SELF_BOOKING){
-    shipNote = `<div class="mt-1 text-xs font-medium leading-5 text-slate-700">${SELF_BOOKING_NOTE}</div>`;
+  const summaryNote = fulfillmentNote(data.deliveryMethod);
+  if(summaryNote){
+    shipNote = `<div class="mt-1 text-xs font-medium leading-5 text-slate-700">${summaryNote}</div>`;
   }else if(data.needsZone){
     shipNote = '<div class="mt-1 text-xs font-medium leading-5 text-slate-700">Select your City / Location to estimate the Lalamove delivery fee.</div>';
   }else if(data.shippingBreakdown){
@@ -913,8 +947,8 @@ function updateCheckoutTotals() {
   const paymentType = document.getElementById('payment-type-select').value;
 
   // Estimated Shipping Fee line item in the Order Summary breakdown box. The
-  // value mirrors `shipping` — already ₱0.00 for Customer Self-Booking /
-  // Warehouse Pick-up, and the live courier estimate for Lalamove Delivery —
+  // value mirrors `shipping` — already ₱0.00 for Customer Book / Self Pick-up,
+  // and the live courier estimate for Lalamove Delivery (We book for you) —
   // so the row stays in sync alongside Amount Due Now / Balance upon Delivery.
   const estimatedShippingAmount = document.getElementById('estimated-shipping-amount');
   if (estimatedShippingAmount) estimatedShippingAmount.innerText = formatPrice(shipping);
@@ -975,7 +1009,7 @@ function openCart(){
   // Sync the conditionally-hidden Shipping Address + City / Location sections
   // and the blue fee-breakdown tip box with the CURRENT radio selection
   // immediately upon opening so the initial state is always accurate.
-  updateDeliveryFieldsVisibility(isSelfBookingSelected());
+  updateDeliveryFieldsVisibility(isPickupMethodSelected());
   // The drawer holds static Lucide placeholders; convert them on every open in
   // case the CDN loaded after the initial page render.
   refreshIcons();
@@ -1025,7 +1059,7 @@ async function clearCartItems(){
 // box — those details live ONLY in the Order Confirmation Modal, directly above
 // the required GCash proof upload field.
 // ---------------------------------------------------------------------------
-const GCASH_ACCOUNT_1_NAME = 'JE••••N ER•••T E.';
+const GCASH_ACCOUNT_1_NAME = 'JE****N ER***T E.';
 const GCASH_ACCOUNT_1_NUMBER = '0966 745 3719';
 // Legacy aliases (kept so any other code referencing the single-account names
 // keeps working — they point at the sole account).
@@ -1116,8 +1150,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('addMoreItemsBtn').addEventListener('click', closeConfirmationModal);
   document.getElementById('confirmOrderBtn').addEventListener('click', submitOrder);
-  // Required GCash proof screenshot + 13-digit reference: keeps
-  // "Yes, Place Order" disabled until BOTH are valid (see setupGcashProofUpload).
+  // Required GCash proof screenshot (reference is optional): keeps
+  // "Yes, Place Order" disabled until a valid image is attached
+  // (see setupGcashProofUpload).
   setupGcashProofUpload();
   document.getElementById('closeModalBtn').addEventListener('click', closeOrderPendingModal);
   setupAuthModal();
@@ -1487,9 +1522,10 @@ function fillCustomerData(){
     if (addressField) addressField.value = currentUser.shipping_address || '';
     if (phoneField) phoneField.value = currentUser.phone || '';
   }
-  // Shipping Address / City / Location visibility follows the selected Delivery
-  // Method after autofill: shown for Lalamove Delivery, hidden for Self-Booking.
-  updateDeliveryFieldsVisibility(isSelfBookingSelected());
+  // Shipping Address / City / Location visibility follows the selected
+  // fulfillment option after autofill: shown for Lalamove Delivery, hidden
+  // for Customer Book / Self Pick-up.
+  updateDeliveryFieldsVisibility(isPickupMethodSelected());
 }
 
 
@@ -1818,10 +1854,10 @@ function showOrderPendingModal(phone, amounts){
 // GCash proof of payment (Order Confirmation Modal)
 // ---------------------------------------------------------------------------
 // #confirmOrderBtn ("Yes, Place Order") starts DISABLED every time the modal
-// opens and is only enabled once BOTH conditions hold: the customer attaches
-// a valid image to #gcashProofInput AND types a valid 13-digit GCash
-// reference number into #gcashRefInput. The file is POSTed to /api/checkout
-// as the multipart field "gcash_proof" and the reference as "gcash_ref"
+// opens and is only enabled once the customer attaches a valid image to
+// #gcashProofInput. #gcashRefInput is OPTIONAL (blank = QR scan, saved as
+// "N/A (QR Payment)"); a typed value must be 13 digits. The file is POSTed
+// to /api/checkout as "gcash_proof" and the reference as "gcash_ref"
 // (see submitOrder / app.py process_checkout).
 const GCASH_PROOF_IMAGE_TYPES = [
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp'
@@ -1857,16 +1893,29 @@ function getGcashRefValue(){
 }
 
 function isValidGcashRef(value){
-  return GCASH_REF_PATTERN.test((value || '').trim());
+  // OPTIONAL field: blank is valid (saved as "N/A (QR Payment)"); a supplied
+  // value must be a complete 13-digit GCash reference.
+  const trimmed = (value || '').trim();
+  if(!trimmed) return true;
+  return GCASH_REF_PATTERN.test(trimmed);
+}
+
+function isGcashRefProvided(){
+  return getGcashRefValue().length > 0;
 }
 
 function updateConfirmOrderButtonState(){
-  // "Yes, Place Order" unlocks ONLY when BOTH a valid proof image and a
-  // valid 13-digit GCash reference number are present — blocks fake/troll
-  // uploads that attach a random image with no verifiable reference.
+  // "Yes, Place Order" unlocks when a valid proof image is attached. The
+  // GCash reference is OPTIONAL — blank means QR scan (stored as
+  // "N/A (QR Payment)"), so it never blocks the button; a supplied value
+  // only needs to pass the 13-digit format check.
   const file = getGcashProofFile();
+  if(!isAcceptedGcashProofFile(file)){
+    setConfirmOrderButtonEnabled(false);
+    return;
+  }
   const refValue = getGcashRefValue();
-  setConfirmOrderButtonEnabled(isAcceptedGcashProofFile(file) && isValidGcashRef(refValue));
+  setConfirmOrderButtonEnabled(!refValue || isValidGcashRef(refValue));
 }
 
 function setGcashRefStatus(message, isError){
@@ -1886,7 +1935,7 @@ function handleGcashRefChange(){
   }
   const value = getGcashRefValue();
   if(!value){
-    setGcashRefStatus('Enter the 13-digit reference number from your GCash receipt.', false);
+    setGcashRefStatus('Pwede mong iwanang blanko kung nag-scan ka gamit ang QR Code.', false);
   }else if(!isValidGcashRef(value)){
     setGcashRefStatus(`Reference must be 13 digits (currently ${value.length}/13).`, true);
   }else{
@@ -1916,7 +1965,7 @@ function resetGcashProofUpload(){
     status.classList.remove('text-red-600');
     status.classList.add('text-slate-500');
   }
-  setGcashRefStatus('Enter the 13-digit reference number from your GCash receipt.', false);
+  setGcashRefStatus('Pwede mong iwanang blanko kung nag-scan ka gamit ang QR Code.', false);
   // The modal always re-opens with the final action locked.
   setConfirmOrderButtonEnabled(false);
 }
@@ -2120,12 +2169,14 @@ async function openConfirmationModal(){
   const subtotalAmount = Number(document.getElementById('subtotal').textContent.replace(/[^0-9.]/g, '') || 0);
   const shippingAmount = Number(document.getElementById('shipping').textContent.replace(/[^0-9.]/g, '') || 0);
   const totalAmount = Number(document.getElementById('total').textContent.replace(/[^0-9.]/g, '') || 0);
-  // Delivery Method: Option B (self-booking) always shows a P0.00 shipping fee;
-  // Option A shows the Lalamove zone fee (base rate + cup/lid surcharges).
+  // Fulfillment: Customer Book / Self Pick-up always show a P0.00 shipping
+  // fee; Lalamove Delivery (We book for you) shows the zone fee
+  // (base rate + cup/lid surcharges).
   const deliveryMethod = getSelectedDeliveryMethod();
-  const selfBooking = deliveryMethod === DELIVERY_METHOD_SELF_BOOKING;
-  const shippingLabel = selfBooking
-    ? SELF_BOOKING_SHIPPING_LABEL
+  const pickupMethod = deliveryMethod !== DELIVERY_METHOD_STANDARD;
+  const methodNote = fulfillmentNote(deliveryMethod);
+  const shippingLabel = pickupMethod
+    ? (deliveryMethod === DELIVERY_METHOD_SELF_PICKUP ? SELF_PICKUP_SHIPPING_LABEL : SELF_BOOKING_SHIPPING_LABEL)
     : ((document.getElementById('shipping').title || '').replace(/^Delivery via /, '') || LALAMOVE_SHIPPING_LABEL);
   const paymentType = document.getElementById('payment-type-select').value;
   const fullRow = document.getElementById('confirmOrderFullRow');
@@ -2133,13 +2184,11 @@ async function openConfirmationModal(){
   const paymentNote = document.getElementById('confirmOrderPaymentNote');
   const deliveryMethodField = document.getElementById('confirmOrderDeliveryMethod');
   if (deliveryMethodField) {
-    deliveryMethodField.textContent = selfBooking
-      ? 'Self-Booking / Warehouse Pick-up'
-      : DELIVERY_METHOD_LABELS[DELIVERY_METHOD_STANDARD];
+    deliveryMethodField.textContent = DELIVERY_METHOD_LABELS[deliveryMethod] || DELIVERY_METHOD_LABELS[DELIVERY_METHOD_STANDARD];
   }
   const deliveryZoneField = document.getElementById('confirmOrderDeliveryZone');
   if (deliveryZoneField) {
-    deliveryZoneField.textContent = selfBooking
+    deliveryZoneField.textContent = pickupMethod
       ? '—'
       : (deliveryZoneLabel() || 'Not selected');
   }
@@ -2152,14 +2201,14 @@ async function openConfirmationModal(){
       : '';
   }
 
-  // Address line: Self-Booking shows the Taguig Warehouse Pick-up Address;
+  // Address line: Customer Book / Self Pick-up show the warehouse address;
   // Lalamove Delivery shows the customer's Shipping Address instead
   // (the row stays hidden when there is no address to show).
   const addressRow = document.getElementById('confirmOrderAddressRow');
   const addressText = document.getElementById('confirmOrderAddressText');
   const contactText = document.getElementById('confirmOrderContactText');
   if (addressRow && addressText) {
-    if (selfBooking) {
+    if (pickupMethod) {
       addressText.textContent = `Pick-up Address: ${WAREHOUSE_PICKUP_ADDRESS}`;
       if (contactText) {
         contactText.textContent = `Contact Number: ${WAREHOUSE_CONTACT_NUMBER}`;
@@ -2188,8 +2237,8 @@ async function openConfirmationModal(){
     downpaymentRow.classList.remove('is-flex-row');
     downpaymentRow.classList.add('is-hidden-row');
     document.getElementById('confirmOrderRequiredPayment').textContent = formatPrice(totalAmount);
-    paymentNote.textContent = selfBooking
-      ? `Full payment (${formatPrice(subtotalAmount)} items) required via GCash. ${SELF_BOOKING_NOTE}`
+    paymentNote.textContent = pickupMethod
+      ? `Full payment (${formatPrice(subtotalAmount)} items) required via GCash. ${methodNote}`
       : `Full payment (${formatPrice(subtotalAmount)} items + ${formatPrice(shippingAmount)} ${shippingLabel} shipping) required via GCash.`;
   } else {
     // 50% Downpayment: Due = (Subtotal*50%) + FULL shipping; Balance = Subtotal*50%.
@@ -2200,11 +2249,11 @@ async function openConfirmationModal(){
     const downBase = Math.round(subtotalAmount * 0.5 * 100) / 100;
     const confirmDownpayment = Math.round((downBase + shippingAmount) * 100) / 100;
     document.getElementById('confirmOrderDownpayment').textContent = formatPrice(confirmDownpayment);
-    document.getElementById('confirmOrderDownpaymentRow').firstElementChild.textContent = selfBooking
+    document.getElementById('confirmOrderDownpaymentRow').firstElementChild.textContent = pickupMethod
       ? 'Required Initial (50% items + ₱0.00 shipping)'
       : `Required Initial (50% items + full ${shippingLabel} shipping)`;
-    paymentNote.textContent = selfBooking
-      ? `A ${formatPrice(downBase)} downpayment (50% of items) = ${formatPrice(confirmDownpayment)} is required via GCash. The remaining ${formatPrice(downBase)} balance will be paid upon pick-up. ${SELF_BOOKING_NOTE}`
+    paymentNote.textContent = pickupMethod
+      ? `A ${formatPrice(downBase)} downpayment (50% of items) = ${formatPrice(confirmDownpayment)} is required via GCash. The remaining ${formatPrice(downBase)} balance will be paid upon ${deliveryMethod === DELIVERY_METHOD_SELF_PICKUP ? 'pick-up' : 'delivery'}. ${methodNote}`
       : `A ${formatPrice(downBase)} downpayment (50% of items) + ${formatPrice(shippingAmount)} full ${shippingLabel} shipping = ${formatPrice(confirmDownpayment)} is required via GCash. The remaining ${formatPrice(downBase)} balance will be paid upon delivery.`;
   }
 
@@ -2236,30 +2285,34 @@ async function submitOrder(){
     const formData = new FormData(formEl);
     const checkoutData = Object.fromEntries(formData.entries());
 
-    // GCash payment proof + reference (BOTH REQUIRED): captured BEFORE
+    // GCash payment proof (REQUIRED) + reference (OPTIONAL): captured BEFORE
     // resetCheckoutState() tears the modal down, so they can be appended to
-    // the multipart payload. The button stays disabled until both are valid,
+    // the multipart payload. The button stays disabled until a valid image is
+    // attached (blank reference = QR scan, stored as "N/A (QR Payment)"),
     // but the guards are kept as a final safety net for keyboard/JS submits.
     const proofFile = getGcashProofFile();
     if(!proofFile || !isAcceptedGcashProofFile(proofFile)){
       showCustomAlert('Please upload your GCash payment screenshot / proof (JPG, PNG or WEBP) before placing the order.');
       return;
     }
-    const gcashRefValue = getGcashRefValue();
-    if(!isValidGcashRef(gcashRefValue)){
+    const gcashRefRaw = getGcashRefValue();
+    if(gcashRefRaw && !isValidGcashRef(gcashRefRaw)){
       handleGcashRefChange();
-      showCustomAlert('Please enter the valid 13-digit GCash reference number from your receipt before placing the order.');
+      showCustomAlert('The GCash reference number must be 13 digits — or leave it blank if you paid by scanning the QR code.');
       const refInput = getGcashRefInput();
       if(refInput) refInput.focus();
       return;
     }
+    // Blank reference (QR scan) defaults to "N/A (QR Payment)" for the DB row.
+    const gcashRefValue = gcashRefRaw || 'N/A (QR Payment)';
     // Multipart submission: the exact same checkout fields PLUS the proof image
     // (FormData is a snapshot, so the later form reset cannot affect it).
     const submitData = new FormData(formEl);
     submitData.append('gcash_proof', proofFile, proofFile.name);
-    // Force the sanitized 13-digit reference into the payload (the modal input
-    // already carries name="gcash_ref", but set() guarantees the digits-only
-    // value wins even if the DOM value was edited mid-submit).
+    // Force the reference into the payload: sanitized 13-digit value when
+    // typed, or "N/A (QR Payment)" when left blank (QR scan). The modal
+    // input already carries name="gcash_ref", but set() guarantees this
+    // value wins even if the DOM value was edited mid-submit.
     submitData.set('gcash_ref', gcashRefValue);
     // Capture the customer's phone number before the form is reset — it is the
     // value injected into the order success popup. FormData holds it as

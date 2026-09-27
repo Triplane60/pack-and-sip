@@ -363,7 +363,9 @@ input[type="number"] {
   margin: 15px 0;
 }
 
-/* Delivery Method radio group (Option A: standard courier, Option B: self-booking) */
+/* Delivery Method radio group — 3 fulfillment options: Lalamove Delivery
+   (We book for you), Customer Book (Buyer arranges Lalamove/Grab) and
+   Self Pick-up (Warehouse). */
 .delivery-method-group {
   border: 0;
   padding: 0;
@@ -427,13 +429,26 @@ input[type="number"] {
 }
 
 /* Payment Instructions box — Order Confirmation Modal + post-checkout Order
-   Placed modal. Holds the GCash Account Name / Number that customers copy
-   before paying. (The Order Summary drawer intentionally renders NO such box —
-   see the NOTE in index.html / main.js.) */
+   Placed modal. Holds the GCash QR code + Account Name / Number that
+   customers scan/copy before paying. (The Order Summary drawer intentionally
+   renders NO such box — see the NOTE in index.html / main.js.) */
 .payment-instructions-box .gcash-detail {
   display: block;
   font-size: 14px;
   line-height: 1.5;
+}
+
+/* GCash QR code image: prominently centered at the top of the Payment
+   Instructions box, square-ish and capped so it stays crisp on desktop
+   while max-width keeps it inside narrow mobile viewports. */
+.payment-instructions-box .gcash-qr-code {
+  display: block;
+  width: 208px;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  margin: 4px auto 8px auto;
+  border-radius: 8px;
 }
 
 /* Lalamove location explainer container — "Why select your City / Location?"
