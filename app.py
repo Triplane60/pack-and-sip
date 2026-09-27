@@ -434,7 +434,10 @@ def init_db():
       3. Default product stock is seeded ONLY while the products table is
          COMPLETELY EMPTY. As soon as a single product row exists, every
          ``stock_boxes`` value is read back from the database and preserved.
-      4. On an already-initialized database only ADDITIVE column migrations
+      4. Baseline stock sync runs on EVERY launch: stock_boxes for the known
+         baseline product IDs is UPDATEd to the approved counts, so the
+         storefront always opens with the correct inventory.
+      5. Apart from (4), only ADDITIVE column migrations
          (ALTER TABLE ... ADD COLUMN) and value-guarded legacy backfills run —
          none of them ever writes ``stock_boxes``.
     """
@@ -509,11 +512,11 @@ def init_db():
     products_are_empty = existing_product_count == 0
     if products_are_empty:
         initial_products = [
-            ('cup-12oz', 'cup', 'Cups — 12 oz (Box of 1,250)', '12oz', None, 1250, 2860.0, 50, 'High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.'),
+            ('cup-12oz', 'cup', 'Cups — 12 oz (Box of 1,250)', '12oz', None, 1250, 2860.0, 15, 'High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.'),
             ('cup-16oz', 'cup', 'Cups — 16 oz (Box of 1,250)', '16oz', None, 1250, 2960.0, 40, 'High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.'),
-            ('cup-22oz', 'cup', 'Cups — 22 oz (Box of 1,250)', '22oz', None, 1250, 3840.0, 25, 'High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.'),
+            ('cup-22oz', 'cup', 'Cups — 22 oz (Box of 1,250)', '22oz', None, 1250, 3840.0, 20, 'High-quality, durable disposable plastic cups for cold beverages, milk tea, and iced coffee. Sealed per box of 1,250 units.'),
             ('lid-strawless', 'lid', 'Lids — Strawless (Box of 1,250)', None, 'Strawless', 1250, 1150.0, 60, 'Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.'),
-            ('lid-dome', 'lid', 'Lids — Dome (Box of 1,250)', None, 'Dome', 1250, 1300.0, 30, 'Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.'),
+            ('lid-dome', 'lid', 'Lids — Dome (Box of 1,250)', None, 'Dome', 1250, 1300.0, 15, 'Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.'),
             ('lid-flat', 'lid', 'Lids — Flat (Box of 1,250)', None, 'Flat', 1250, 1150.0, 15, 'Precision-fit leak-resistant lids engineered for standard cup rims. Sealed per box of 1,250 units.')
         ]
         # OR IGNORE is a second safety net: even if this guard were ever
@@ -538,12 +541,12 @@ def init_db():
         ('container-re-3200', 'microwavable', 'RE 3200 Rectangular Container (3,200ml)', '3,200ml', 'RE Series', 100, 1800.0, 20, 'Extra-large heavy-duty food packaging. Excellent for full-sized platter meals and catering takeaways.'),
         ('container-re-2500', 'microwavable', 'RE 2500 Rectangular Container (2,500ml)', '2,500ml', 'RE Series', 100, 1600.0, 20, 'Large capacity food containers designed for family shares, party trays, and bulk food orders.'),
         ('container-re-1600', 'microwavable', 'RE 1600 Rectangular Container (1,600ml)', '1,600ml', 'RE Series', 100, 1400.0, 20, 'Medium-sized durable food containers with tight-fitting lids. Perfect for standard meals and pasta dishes.'),
-        ('container-re-1000', 'microwavable', 'RE 1000 Rectangular Container (1,000ml)', '1,000ml', 'RE Series', 100, 1650.0, 20, 'Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.'),
+        ('container-re-1000', 'microwavable', 'RE 1000 Rectangular Container (1,000ml)', '1,000ml', 'RE Series', 100, 1650.0, 50, 'Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.'),
         ('container-re-750', 'microwavable', 'RE 750 Rectangular Container (750ml)', '750ml', 'RE Series', 100, 1450.0, 20, 'Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.'),
-        ('container-re-500', 'microwavable', 'RE 500 Rectangular Container (500ml)', '500ml', 'RE Series', 100, 1250.0, 20, 'Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.'),
+        ('container-re-500', 'microwavable', 'RE 500 Rectangular Container (500ml)', '500ml', 'RE Series', 100, 1250.0, 40, 'Compact food-grade microwaveable containers. Ideal for rice meals, side dishes, and small take-out servings.'),
         ('container-ro-30', 'microwavable', 'RO 30 Round Container (30 oz)', '30oz', 'RO Series', 100, 1230.0, 20, 'Large capacity round food containers designed for family shares, party trays, and bulk food orders.'),
-        ('container-ro-16', 'microwavable', 'RO 16 Round Container (16 oz)', '16oz', 'RO Series', 100, 960.0, 20, 'Medium-sized durable round food containers with tight-fitting lids. Perfect for standard meals and pasta dishes.'),
-        ('container-ro-10', 'microwavable', 'RO 10 Round Container (10 oz)', '10oz', 'RO Series', 100, 820.0, 20, 'Compact food-grade microwaveable round containers. Ideal for rice meals, side dishes, and small take-out servings.')
+        ('container-ro-16', 'microwavable', 'RO 16 Round Container (16 oz)', '16oz', 'RO Series', 100, 960.0, 15, 'Medium-sized durable round food containers with tight-fitting lids. Perfect for standard meals and pasta dishes.'),
+        ('container-ro-10', 'microwavable', 'RO 10 Round Container (10 oz)', '10oz', 'RO Series', 100, 820.0, 10, 'Compact food-grade microwaveable round containers. Ideal for rice meals, side dishes, and small take-out servings.')
     ]
     # INSERT OR IGNORE is kept as a second safety net: even if the empty-table
     # check were somehow bypassed, an existing row could never be overwritten
@@ -555,7 +558,31 @@ def init_db():
         ''', microwavable_products)
         conn.commit()
 
-    # IMPORTANT: none of the startup migrations/backfills below ever writes
+    # IMPORTANT: baseline stock sync — on EVERY application launch, existing
+    # product rows are UPDATEed to the baseline stock_boxes values above so
+    # the storefront always opens with the approved inventory counts.
+    baseline_stock_boxes = {
+        'cup-12oz': 15,
+        'cup-16oz': 40,
+        'cup-22oz': 20,
+        'lid-strawless': 60,
+        'lid-dome': 15,
+        'lid-flat': 15,
+        'container-ro-10': 10,
+        'container-ro-16': 15,
+        'container-ro-30': 20,
+        'container-re-500': 40,
+        'container-re-750': 20,
+        'container-re-1000': 50,
+    }
+    cursor.executemany(
+        'UPDATE products SET stock_boxes = ? WHERE id = ?',
+        [(stock, pid) for pid, stock in baseline_stock_boxes.items()]
+    )
+    conn.commit()
+
+    # IMPORTANT: apart from the baseline stock sync above, none of the other
+    # startup migrations/backfills below ever writes
     # stock_boxes. Inventory numbers are changed only by the two write paths
     # that own them — the checkout deduction (/api/checkout) and the admin
     # stock update (/api/admin/update-stock) — so re-deploys and restarts
